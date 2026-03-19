@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 
-import { ProductVisual } from "@/components/product-visual";
 import { createClient } from "@/lib/supabase/client";
 
 type AuthMode = "login" | "register";
@@ -42,12 +41,6 @@ const errorMessages: Record<string, string> = {
 const successMessages: Record<string, string> = {
   email_confirmed: "Email подтвержден. Теперь можно войти в аккаунт.",
 };
-
-const authPreviewPoints = [
-  "один входной поток без лишних развилок",
-  "Google и email/password в одном аккуратном экране",
-  "после входа сразу переход в личный дневник",
-];
 
 function getSafeNext(next: string | null) {
   if (!next || !next.startsWith("/") || next.startsWith("//")) {
@@ -130,21 +123,21 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
   const pageCopy = isLogin
     ? {
         eyebrow: "Вход",
-        title: "Открой своё пространство наблюдения",
+        title: "Продолжить",
         subtitle:
-          "Спокойный вход в личный кабинет без визуального шума. Google и email/password доступны на одном экране.",
+          "Спокойный вход в личный кабинет. Google и email/password доступны на одном экране.",
         submitLabel: "Войти",
         switchLabel: "Нет аккаунта?",
         switchHref: "/register",
         switchAction: "Регистрация",
         helper:
-          "После входа ты сразу попадёшь в дневник, где собраны запись дня, метрики и дальнейшая логика продукта.",
+          "После входа ты сразу попадёшь в дневник, где дальше соберём метрики, запись дня и ритм сервиса.",
       }
     : {
         eyebrow: "Регистрация",
-        title: "Создай аккаунт и начни вести свой ритм",
+        title: "Создать аккаунт",
         subtitle:
-          "Сначала понятная регистрация, затем личная система для заметок, состояний и постепенного роста.",
+          "Простой старт без перегруза. Сначала регистрация, затем личное пространство для наблюдения за собой.",
         submitLabel: "Создать аккаунт",
         switchLabel: "Уже есть аккаунт?",
         switchHref: "/login",
@@ -264,127 +257,68 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
-      <header className="glass-panel soft-ring rounded-full border border-white/70 px-4 py-3 sm:px-6">
-        <div className="flex items-center justify-between gap-4">
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+      <header className="mx-auto w-full max-w-[28rem]">
+        <div className="flex items-center justify-between gap-4 rounded-full border border-white/70 bg-white/62 px-4 py-3 shadow-[0_18px_40px_rgba(24,33,29,0.08)] backdrop-blur">
           <Link href="/" className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--accent-strong)] text-sm font-semibold text-white shadow-[0_12px_28px_rgba(32,77,67,0.24)]">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[color:var(--accent-strong)] text-sm font-semibold text-white shadow-[0_12px_28px_rgba(32,77,67,0.24)]">
               DA
             </span>
             <div>
               <p className="text-sm font-semibold text-slate-900">Diary AI</p>
-              <p className="text-xs text-slate-500">единый входной поток</p>
+              <p className="text-xs text-slate-500">спокойный вход</p>
             </div>
           </Link>
 
-          <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className={`rounded-full px-4 py-2.5 text-sm font-medium transition ${
-                isLogin
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Вход
-            </Link>
-            <Link
-              href="/register"
-              className={`rounded-full px-4 py-2.5 text-sm font-medium transition ${
-                !isLogin
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Регистрация
-            </Link>
-          </div>
+          <Link
+            href="/"
+            className="rounded-full border border-slate-200 bg-white/88 px-4 py-2 text-sm text-slate-700 transition hover:bg-white"
+          >
+            Главная
+          </Link>
         </div>
       </header>
 
-      <section className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-10 lg:py-10">
-        <div className="grid gap-6 lg:grid-cols-[1.06fr_0.94fr]">
-          <div className="glass-panel soft-ring rounded-[2.6rem] border border-white/70 px-6 py-7 sm:px-8 sm:py-8">
-            <span className="text-[0.72rem] uppercase tracking-[0.28em] text-[color:var(--accent)]">
+      <section className="flex flex-1 items-center justify-center py-6 sm:py-8">
+        <div className="w-full max-w-[28rem]">
+          <div className="glass-panel soft-ring rounded-[2.2rem] border border-white/75 px-5 py-6 sm:rounded-[2.6rem] sm:px-7 sm:py-8">
+            <p className="text-[0.7rem] uppercase tracking-[0.24em] text-[color:var(--accent)]">
               {pageCopy.eyebrow}
-            </span>
-            <h1 className="font-display mt-5 text-4xl leading-tight text-slate-950 sm:text-5xl">
+            </p>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
               {pageCopy.title}
             </h1>
-            <p className="mt-5 text-base leading-8 text-slate-600">
+            <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">
               {pageCopy.subtitle}
             </p>
 
-            <div className="mt-8 space-y-3">
-              {authPreviewPoints.map((point) => (
-                <div
-                  key={point}
-                  className="flex items-start gap-3 rounded-[1.4rem] border border-white/80 bg-white/74 px-4 py-3"
-                >
-                  <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-700">
-                    +
-                  </span>
-                  <p className="text-sm leading-7 text-slate-600">{point}</p>
-                </div>
-              ))}
-            </div>
-
-            <p className="mt-7 text-sm leading-7 text-slate-500">
-              {pageCopy.helper}
-            </p>
-          </div>
-
-          <div className="hidden lg:block">
-            <ProductVisual compact />
-          </div>
-        </div>
-
-        <div className="mx-auto w-full max-w-[480px]">
-          <div className="glass-panel soft-ring rounded-[2.6rem] border border-white/75 px-6 py-7 sm:px-8 sm:py-8">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[0.7rem] uppercase tracking-[0.24em] text-[color:var(--accent)]">
-                  {pageCopy.eyebrow}
-                </p>
-                <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
-                  {isLogin ? "Продолжить" : "Создать аккаунт"}
-                </h2>
-              </div>
-              <Link
-                href="/"
-                className="rounded-full border border-slate-200 bg-white/88 px-4 py-2 text-sm text-slate-700 transition hover:bg-white"
-              >
-                Главная
-              </Link>
-            </div>
-
             {!isConfigured ? (
-              <div className="mt-5 rounded-[1.4rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+              <div className="mt-5 rounded-[1.35rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
                 Auth пока не настроен: заполните публичные переменные Supabase и
                 включите нужные провайдеры.
               </div>
             ) : null}
 
             {queryError ? (
-              <div className="mt-5 rounded-[1.4rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-700">
+              <div className="mt-5 rounded-[1.35rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-700">
                 {errorMessages[queryError] ?? errorMessages.oauth_start}
               </div>
             ) : null}
 
             {queryMessage ? (
-              <div className="mt-5 rounded-[1.4rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-700">
+              <div className="mt-5 rounded-[1.35rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-700">
                 {successMessages[queryMessage] ?? queryMessage}
               </div>
             ) : null}
 
             {status ? (
-              <div className="mt-5 rounded-[1.4rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-700">
+              <div className="mt-5 rounded-[1.35rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-700">
                 {status}
               </div>
             ) : null}
 
             {error ? (
-              <div className="mt-5 rounded-[1.4rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-700">
+              <div className="mt-5 rounded-[1.35rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-700">
                 {error}
               </div>
             ) : null}
@@ -435,16 +369,16 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
                   required
                   type="email"
                   value={formState.email}
-                  onChange={(event) =>
-                    setFormState((current) => ({
-                      ...current,
-                      email: event.target.value,
-                    }))
-                  }
-                  placeholder="you@example.com"
-                  className="rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)]"
-                />
-              </label>
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        email: event.target.value,
+                      }))
+                    }
+                    placeholder="you@example.com"
+                    className="rounded-[1.35rem] border border-slate-200 bg-[rgba(230,239,251,0.86)] px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)] focus:bg-white"
+                  />
+                </label>
 
               <label className="grid gap-2 text-sm font-medium text-slate-700">
                 Пароль
@@ -453,16 +387,16 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
                   minLength={6}
                   type="password"
                   value={formState.password}
-                  onChange={(event) =>
-                    setFormState((current) => ({
-                      ...current,
-                      password: event.target.value,
-                    }))
-                  }
-                  placeholder="Минимум 6 символов"
-                  className="rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)]"
-                />
-              </label>
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        password: event.target.value,
+                      }))
+                    }
+                    placeholder="Минимум 6 символов"
+                    className="rounded-[1.35rem] border border-slate-200 bg-[rgba(230,239,251,0.86)] px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)] focus:bg-white"
+                  />
+                </label>
 
               {!isLogin ? (
                 <label className="grid gap-2 text-sm font-medium text-slate-700">
@@ -479,7 +413,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
                       }))
                     }
                     placeholder="Повторите пароль"
-                    className="rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)]"
+                    className="rounded-[1.35rem] border border-slate-200 bg-[rgba(230,239,251,0.86)] px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)] focus:bg-white"
                   />
                 </label>
               ) : null}
@@ -493,7 +427,11 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
               </button>
             </form>
 
-            <p className="mt-6 text-sm text-slate-500">
+            <p className="mt-6 text-sm leading-7 text-slate-500">
+              {pageCopy.helper}
+            </p>
+
+            <p className="mt-4 text-sm text-slate-500">
               {pageCopy.switchLabel}{" "}
               <Link
                 href={`${pageCopy.switchHref}?next=${encodeURIComponent(next)}`}
