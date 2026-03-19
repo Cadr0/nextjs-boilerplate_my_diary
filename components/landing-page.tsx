@@ -11,7 +11,7 @@ const featureCards = [
   {
     title: "Один спокойный экран",
     description:
-      "Без перегруза и лишних режимов. День, метрики и состояние собираются в понятный ежедневный ритуал.",
+      "Без перегруза и лишних режимов. День, метрики и состояние собираются в понятный ежедневный ритм.",
   },
   {
     title: "Прогресс, который видно",
@@ -42,9 +42,9 @@ export function LandingPage({
 
   return (
     <main className="overflow-hidden">
-      <section className="mx-auto w-full max-w-7xl px-4 pb-14 pt-5 sm:px-6 lg:px-8 lg:pb-20">
-        <header className="glass-panel soft-ring fade-up rounded-full border border-white/70 px-4 py-3 sm:px-6">
-          <div className="flex items-center justify-between gap-4">
+      <section className="mx-auto w-full max-w-7xl px-4 pb-12 pt-4 sm:px-6 lg:px-8 lg:pb-20">
+        <header className="glass-panel soft-ring fade-up rounded-[2rem] border border-white/70 px-4 py-4 sm:rounded-full sm:px-6 sm:py-3">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <Link href="/" className="flex items-center gap-3">
               <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--accent-strong)] text-sm font-semibold text-white shadow-[0_12px_28px_rgba(32,77,67,0.24)]">
                 DA
@@ -67,16 +67,16 @@ export function LandingPage({
               </a>
             </nav>
 
-            <div className="flex items-center gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center">
               <Link
                 href={primaryHref}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-center text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 {primaryLabel}
               </Link>
               <Link
                 href={secondaryHref}
-                className="rounded-full bg-[color:var(--accent-strong)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
+                className="rounded-full bg-[color:var(--accent-strong)] px-4 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
               >
                 {secondaryLabel}
               </Link>
@@ -84,30 +84,30 @@ export function LandingPage({
           </div>
         </header>
 
-        <div className="grid items-center gap-12 pt-12 lg:grid-cols-[0.88fr_1.12fr] lg:pt-16">
+        <div className="grid items-center gap-8 pt-8 lg:grid-cols-[0.88fr_1.12fr] lg:gap-12 lg:pt-16">
           <div className="fade-up max-w-xl">
-            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-white/80 px-4 py-2 text-[0.7rem] uppercase tracking-[0.24em] text-[color:var(--accent)] shadow-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-white/80 px-4 py-2 text-[0.68rem] uppercase tracking-[0.24em] text-[color:var(--accent)] shadow-sm">
               Простая система входа и роста
             </span>
 
-            <h1 className="font-display mt-7 text-5xl leading-[0.96] text-slate-950 sm:text-6xl lg:text-[4.7rem]">
+            <h1 className="font-display mt-6 text-[3.35rem] leading-[0.92] text-slate-950 sm:mt-7 sm:text-6xl lg:text-[4.7rem]">
               Отслеживай день.
               <br />
               Замечай
-              <span className="relative mx-3 inline-flex">
+              <span className="relative mx-2 inline-flex sm:mx-3">
                 <span className="relative z-10">прогресс</span>
                 <span className="absolute inset-x-[-0.18em] bottom-[0.1em] top-[0.28em] rounded-full bg-[color:var(--accent)]/22" />
               </span>
               мягко.
             </h1>
 
-            <p className="mt-6 max-w-lg text-base leading-8 text-slate-600 sm:text-lg">
+            <p className="mt-5 max-w-lg text-base leading-8 text-slate-600 sm:mt-6 sm:text-lg">
               Diary AI помогает собирать день в понятную систему: записи,
               ключевые показатели и постепенные улучшения без шума, давления и
               перегруженных интерфейсов.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row">
               <Link
                 href={primaryHref}
                 className="rounded-full bg-[color:var(--accent-strong)] px-6 py-3.5 text-center text-sm font-semibold text-white shadow-[0_16px_36px_rgba(32,77,67,0.2)] transition hover:bg-[color:var(--accent)]"
@@ -122,28 +122,28 @@ export function LandingPage({
               </Link>
             </div>
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[1.6rem] border border-white/80 bg-white/70 px-4 py-4 shadow-[0_14px_34px_rgba(24,33,29,0.06)]">
+            <div className="mt-7 grid gap-3 sm:mt-8 sm:grid-cols-3">
+              <div className="rounded-[1.6rem] border border-white/80 bg-white/74 px-4 py-4 shadow-[0_14px_34px_rgba(24,33,29,0.06)]">
                 <p className="text-[0.68rem] uppercase tracking-[0.22em] text-slate-400">
                   Вход
                 </p>
-                <p className="mt-2 text-lg font-semibold text-slate-900">
+                <p className="mt-2 text-base font-semibold text-slate-900 sm:text-lg">
                   Google и email
                 </p>
               </div>
-              <div className="rounded-[1.6rem] border border-white/80 bg-white/70 px-4 py-4 shadow-[0_14px_34px_rgba(24,33,29,0.06)]">
+              <div className="rounded-[1.6rem] border border-white/80 bg-white/74 px-4 py-4 shadow-[0_14px_34px_rgba(24,33,29,0.06)]">
                 <p className="text-[0.68rem] uppercase tracking-[0.22em] text-slate-400">
                   Ритм
                 </p>
-                <p className="mt-2 text-lg font-semibold text-slate-900">
+                <p className="mt-2 text-base font-semibold text-slate-900 sm:text-lg">
                   Один экран на день
                 </p>
               </div>
-              <div className="rounded-[1.6rem] border border-white/80 bg-white/70 px-4 py-4 shadow-[0_14px_34px_rgba(24,33,29,0.06)]">
+              <div className="rounded-[1.6rem] border border-white/80 bg-white/74 px-4 py-4 shadow-[0_14px_34px_rgba(24,33,29,0.06)]">
                 <p className="text-[0.68rem] uppercase tracking-[0.22em] text-slate-400">
                   База
                 </p>
-                <p className="mt-2 text-lg font-semibold text-slate-900">
+                <p className="mt-2 text-base font-semibold text-slate-900 sm:text-lg">
                   Метрики и динамика
                 </p>
               </div>
@@ -157,18 +157,21 @@ export function LandingPage({
             ) : null}
           </div>
 
-          <div className="fade-up-delay relative">
+          <div className="fade-up-delay relative order-first mx-auto w-full max-w-[28rem] lg:order-none lg:max-w-none">
             <ProductVisual />
           </div>
         </div>
       </section>
 
-      <section id="how-it-works" className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <section
+        id="how-it-works"
+        className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8"
+      >
         <div className="grid gap-5 lg:grid-cols-3">
           {featureCards.map((card, index) => (
             <article
               key={card.title}
-              className="glass-panel rounded-[2rem] border border-white/70 p-7 shadow-[0_22px_54px_rgba(24,33,29,0.08)]"
+              className="glass-panel rounded-[2rem] border border-white/70 p-6 shadow-[0_22px_54px_rgba(24,33,29,0.08)] sm:p-7"
             >
               <span className="text-[0.7rem] uppercase tracking-[0.24em] text-slate-400">
                 0{index + 1}
@@ -184,7 +187,10 @@ export function LandingPage({
         </div>
       </section>
 
-      <section id="why" className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
+      <section
+        id="why"
+        className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-16"
+      >
         <div className="grid items-center gap-10 lg:grid-cols-[1.02fr_0.98fr]">
           <div className="glass-panel rounded-[2.4rem] border border-white/70 p-6 shadow-[0_28px_70px_rgba(24,33,29,0.08)] sm:p-8">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -203,9 +209,7 @@ export function LandingPage({
                 <p className="text-[0.7rem] uppercase tracking-[0.22em] text-white/70">
                   День
                 </p>
-                <p className="mt-3 text-xl font-semibold">
-                  Сохрани фокус
-                </p>
+                <p className="mt-3 text-xl font-semibold">Сохрани фокус</p>
                 <p className="mt-2 text-sm leading-7 text-white/78">
                   Задачи и показатели остаются в одном спокойном рабочем поле.
                 </p>
@@ -259,7 +263,10 @@ export function LandingPage({
         </div>
       </section>
 
-      <section id="flow" className="mx-auto w-full max-w-7xl px-4 pb-18 pt-6 sm:px-6 lg:px-8 lg:pb-24">
+      <section
+        id="flow"
+        className="mx-auto w-full max-w-7xl px-4 pb-16 pt-4 sm:px-6 lg:px-8 lg:pb-24"
+      >
         <div className="glass-panel rounded-[2.8rem] border border-white/70 px-6 py-8 shadow-[0_30px_80px_rgba(24,33,29,0.09)] sm:px-8 sm:py-10 lg:px-12">
           <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-2xl">
@@ -281,15 +288,21 @@ export function LandingPage({
             <div className="grid gap-3 text-sm text-slate-600 sm:grid-cols-3 lg:max-w-[34rem]">
               <div className="rounded-[1.6rem] bg-white/80 px-4 py-4">
                 <p className="font-semibold text-slate-900">01</p>
-                <p className="mt-2 leading-6">Главная объясняет суть и не спорит за внимание.</p>
+                <p className="mt-2 leading-6">
+                  Главная объясняет суть и не спорит за внимание.
+                </p>
               </div>
               <div className="rounded-[1.6rem] bg-white/80 px-4 py-4">
                 <p className="font-semibold text-slate-900">02</p>
-                <p className="mt-2 leading-6">Login и register выглядят как продолжение того же продукта.</p>
+                <p className="mt-2 leading-6">
+                  Login и register выглядят как продолжение того же продукта.
+                </p>
               </div>
               <div className="rounded-[1.6rem] bg-white/80 px-4 py-4">
                 <p className="font-semibold text-slate-900">03</p>
-                <p className="mt-2 leading-6">После входа пользователь попадает в основу дневника и метрик.</p>
+                <p className="mt-2 leading-6">
+                  После входа пользователь попадает в основу дневника и метрик.
+                </p>
               </div>
             </div>
           </div>

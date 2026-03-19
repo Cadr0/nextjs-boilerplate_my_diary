@@ -7,19 +7,19 @@ const statusCards = [
     title: "Ритм дня",
     value: "76%",
     note: "стабильность недели",
-    position: "left-[-2.4rem] top-[4rem] md:left-[-3rem]",
+    position: "left-[-1.4rem] top-[2.6rem] md:left-[-3rem] md:top-[4rem]",
   },
   {
     title: "Фокус",
     value: "8.2",
     note: "средний балл",
-    position: "right-[-1rem] top-[8.5rem] md:right-[-2.5rem]",
+    position: "right-[-0.9rem] top-[6.5rem] md:right-[-2.5rem] md:top-[8.5rem]",
   },
   {
     title: "Привычки",
     value: "5/6",
     note: "выполнено сегодня",
-    position: "left-[-1.1rem] bottom-[4.2rem] md:left-[-2rem]",
+    position: "left-[-0.7rem] bottom-[2.2rem] md:left-[-2rem] md:bottom-[4.2rem]",
   },
 ];
 
@@ -47,29 +47,29 @@ function FloatingCard({
 }) {
   return (
     <div
-      className={`absolute z-20 w-44 rounded-[1.6rem] border border-white/80 bg-white/90 p-3 shadow-[0_18px_40px_rgba(24,33,29,0.12)] backdrop-blur ${position}`}
+      className={`absolute z-20 w-32 rounded-[1.35rem] border border-white/80 bg-white/90 p-2.5 shadow-[0_18px_40px_rgba(24,33,29,0.12)] backdrop-blur md:w-44 md:rounded-[1.6rem] md:p-3 ${position}`}
     >
-      <p className="text-[0.65rem] uppercase tracking-[0.22em] text-slate-400">
+      <p className="text-[0.58rem] uppercase tracking-[0.2em] text-slate-400 md:text-[0.65rem]">
         {title}
       </p>
-      <div className="mt-2 flex items-end justify-between gap-3">
-        <p className="text-2xl font-semibold text-slate-900">{value}</p>
-        <span className="rounded-full bg-emerald-50 px-2 py-1 text-[0.7rem] text-emerald-700">
+      <div className="mt-2 flex items-end justify-between gap-2 md:gap-3">
+        <p className="text-xl font-semibold text-slate-900 md:text-2xl">{value}</p>
+        <span className="rounded-full bg-emerald-50 px-2 py-1 text-[0.62rem] text-emerald-700 md:text-[0.7rem]">
           ok
         </span>
       </div>
-      <p className="mt-1 text-xs text-slate-500">{note}</p>
+      <p className="mt-1 text-[0.65rem] text-slate-500 md:text-xs">{note}</p>
     </div>
   );
 }
 
 export function ProductVisual({ compact = false }: ProductVisualProps) {
   const shellSize = compact
-    ? "min-h-[420px] rounded-[2.2rem] p-6 md:min-h-[500px]"
-    : "min-h-[520px] rounded-[2.8rem] p-6 md:min-h-[620px] md:p-8";
+    ? "min-h-[360px] rounded-[2rem] p-4 md:min-h-[500px] md:rounded-[2.2rem] md:p-6"
+    : "min-h-[380px] rounded-[2.2rem] p-4 md:min-h-[620px] md:rounded-[2.8rem] md:p-8";
   const phoneSize = compact
-    ? "h-[320px] w-[174px] md:h-[390px] md:w-[210px]"
-    : "h-[390px] w-[208px] md:h-[500px] md:w-[266px]";
+    ? "h-[280px] w-[154px] md:h-[390px] md:w-[210px]"
+    : "h-[300px] w-[164px] md:h-[500px] md:w-[266px]";
   const cardScale = compact ? "scale-[0.92] md:scale-100" : "";
 
   return (
@@ -80,8 +80,8 @@ export function ProductVisual({ compact = false }: ProductVisualProps) {
       <Dots />
 
       <div className="relative flex h-full items-center justify-center">
-        <div className="absolute inset-x-[12%] top-[12%] h-44 rounded-full bg-[color:var(--accent)]/13 blur-3xl" />
-        <div className="absolute inset-x-[18%] bottom-[12%] h-32 rounded-full bg-[color:var(--warm)]/12 blur-3xl" />
+        <div className="absolute inset-x-[12%] top-[12%] h-32 rounded-full bg-[color:var(--accent)]/13 blur-3xl md:h-44" />
+        <div className="absolute inset-x-[18%] bottom-[12%] h-24 rounded-full bg-[color:var(--warm)]/12 blur-3xl md:h-32" />
 
         <div className={`relative ${cardScale}`}>
           {statusCards.map((card) => (
@@ -89,33 +89,35 @@ export function ProductVisual({ compact = false }: ProductVisualProps) {
           ))}
 
           <div
-            className={`relative rounded-[2.8rem] border-[10px] border-slate-900 bg-[#fffdf9] p-3 shadow-[0_26px_80px_rgba(21,30,27,0.18)] ${phoneSize}`}
+            className={`relative rounded-[2.4rem] border-[9px] border-slate-900 bg-[#fffdf9] p-2.5 shadow-[0_26px_80px_rgba(21,30,27,0.18)] md:rounded-[2.8rem] md:border-[10px] md:p-3 ${phoneSize}`}
           >
-            <div className="absolute left-1/2 top-0 h-6 w-24 -translate-x-1/2 rounded-b-[1rem] bg-slate-900" />
+            <div className="absolute left-1/2 top-0 h-5 w-20 -translate-x-1/2 rounded-b-[1rem] bg-slate-900 md:h-6 md:w-24" />
 
-            <div className="flex h-full flex-col overflow-hidden rounded-[2rem] border border-[#eff0ea] bg-[linear-gradient(180deg,#fffdfa_0%,#f6f2ea_100%)]">
-              <div className="px-4 pb-3 pt-5">
+            <div className="flex h-full flex-col overflow-hidden rounded-[1.8rem] border border-[#eff0ea] bg-[linear-gradient(180deg,#fffdfa_0%,#f6f2ea_100%)] md:rounded-[2rem]">
+              <div className="px-3 pb-2 pt-4 md:px-4 md:pb-3 md:pt-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[0.62rem] uppercase tracking-[0.2em] text-slate-400">
+                    <p className="text-[0.56rem] uppercase tracking-[0.18em] text-slate-400 md:text-[0.62rem]">
                       Сегодня
                     </p>
-                    <p className="mt-1 text-base font-semibold text-slate-900">
+                    <p className="mt-1 text-sm font-semibold text-slate-900 md:text-base">
                       Спокойный контроль
                     </p>
                   </div>
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-800">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-800 md:h-10 md:w-10 md:text-sm">
                     DA
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-[1.4rem] bg-[color:var(--accent-strong)] px-4 py-3 text-white">
-                  <p className="text-[0.65rem] uppercase tracking-[0.18em] text-white/70">
+                <div className="mt-3 rounded-[1.2rem] bg-[color:var(--accent-strong)] px-3 py-3 text-white md:mt-4 md:rounded-[1.4rem] md:px-4">
+                  <p className="text-[0.56rem] uppercase tracking-[0.16em] text-white/70 md:text-[0.65rem]">
                     Общий тонус
                   </p>
-                  <div className="mt-2 flex items-end justify-between gap-3">
-                    <p className="text-3xl font-semibold">8.4</p>
-                    <p className="text-xs text-white/72">за последние 7 дней</p>
+                  <div className="mt-2 flex items-end justify-between gap-2 md:gap-3">
+                    <p className="text-2xl font-semibold md:text-3xl">8.4</p>
+                    <p className="text-[0.62rem] text-white/72 md:text-xs">
+                      за последние 7 дней
+                    </p>
                   </div>
                   <div className="mt-3 h-2 rounded-full bg-white/20">
                     <div className="h-full w-[78%] rounded-full bg-[#9fe0c0]" />
@@ -123,9 +125,9 @@ export function ProductVisual({ compact = false }: ProductVisualProps) {
                 </div>
               </div>
 
-              <div className="grid gap-3 px-4 pb-4">
-                <div className="rounded-[1.3rem] border border-slate-200/80 bg-white/84 p-3">
-                  <div className="flex items-center justify-between text-sm">
+              <div className="grid gap-2.5 px-3 pb-3 md:gap-3 md:px-4 md:pb-4">
+                <div className="rounded-[1.15rem] border border-slate-200/80 bg-white/84 p-2.5 md:rounded-[1.3rem] md:p-3">
+                  <div className="flex items-center justify-between text-xs md:text-sm">
                     <span className="font-medium text-slate-900">Сон</span>
                     <span className="text-slate-500">7.5 ч</span>
                   </div>
@@ -134,40 +136,40 @@ export function ProductVisual({ compact = false }: ProductVisualProps) {
                   </div>
                 </div>
 
-                <div className="rounded-[1.3rem] border border-slate-200/80 bg-white/84 p-3">
-                  <div className="flex items-center justify-between text-sm">
+                <div className="rounded-[1.15rem] border border-slate-200/80 bg-white/84 p-2.5 md:rounded-[1.3rem] md:p-3">
+                  <div className="flex items-center justify-between text-xs md:text-sm">
                     <span className="font-medium text-slate-900">Фокус</span>
-                    <span className="text-slate-500">4 ключевых блока</span>
+                    <span className="text-slate-500">4 блока</span>
                   </div>
                   <div className="mt-3 grid grid-cols-4 gap-2">
-                    <span className="h-14 rounded-2xl bg-emerald-50" />
-                    <span className="h-14 rounded-2xl bg-[color:var(--accent)]/18" />
-                    <span className="h-14 rounded-2xl bg-slate-100" />
-                    <span className="h-14 rounded-2xl bg-[color:var(--warm)]/18" />
+                    <span className="h-10 rounded-2xl bg-emerald-50 md:h-14" />
+                    <span className="h-10 rounded-2xl bg-[color:var(--accent)]/18 md:h-14" />
+                    <span className="h-10 rounded-2xl bg-slate-100 md:h-14" />
+                    <span className="h-10 rounded-2xl bg-[color:var(--warm)]/18 md:h-14" />
                   </div>
                 </div>
 
-                <div className="rounded-[1.3rem] border border-slate-200/80 bg-white/84 p-3">
+                <div className="rounded-[1.15rem] border border-slate-200/80 bg-white/84 p-2.5 md:rounded-[1.3rem] md:p-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-slate-900">
+                      <p className="text-xs font-medium text-slate-900 md:text-sm">
                         Задачи дня
                       </p>
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="mt-1 text-[0.65rem] text-slate-500 md:text-xs">
                         только ближайшие шаги
                       </p>
                     </div>
-                    <span className="rounded-full bg-emerald-50 px-2 py-1 text-[0.7rem] text-emerald-700">
+                    <span className="rounded-full bg-emerald-50 px-2 py-1 text-[0.62rem] text-emerald-700 md:text-[0.7rem]">
                       3/4
                     </span>
                   </div>
 
                   <div className="mt-3 space-y-2">
-                    <div className="flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    <div className="flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2 text-[0.68rem] text-slate-600 md:text-xs">
                       <span className="h-2 w-2 rounded-full bg-emerald-500" />
                       вечерняя запись
                     </div>
-                    <div className="flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    <div className="flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2 text-[0.68rem] text-slate-600 md:text-xs">
                       <span className="h-2 w-2 rounded-full bg-[color:var(--accent)]" />
                       отслеживание метрик
                     </div>
