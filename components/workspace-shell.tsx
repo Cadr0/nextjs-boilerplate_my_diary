@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import { LogoutButton } from "@/components/logout-button";
 import { useWorkspace } from "@/components/workspace-provider";
@@ -39,11 +40,6 @@ const navItems: NavItem[] = [
     label: "Напоминания",
     icon: <BellIcon />,
   },
-  {
-    href: "/profile",
-    label: "Профиль",
-    icon: <UserIcon />,
-  },
 ];
 
 export function WorkspaceShell({
@@ -53,6 +49,10 @@ export function WorkspaceShell({
 }: WorkspaceShellProps) {
   const pathname = usePathname();
   const { selectedDate } = useWorkspace();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const edgeTouchStart = useRef<number | null>(null);
+  const panelTouchStart = useRef<number | null>(null);
+  const panelTouchCurrent = useRef<number | null>(null);
 
   const initials =
     accountName
@@ -62,114 +62,218 @@ export function WorkspaceShell({
       .map((part) => part[0]?.toUpperCase() ?? "")
       .join("") || "DF";
 
+  useEffect(() => {
+    if (!isDrawerOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isDrawerOpen]);
+
+  const renderNavigation = (mobile = false) => (
+    <nav className="grid gap-2">
+      {navItems.map((item) => {
+        const active = pathname === item.href;
+
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`flex items-center gap-3 rounded-[24px] px-3 py-3 text-sm font-medium transition ${
+              active
+                ? "border border-[rgba(47,111,97,0.18)] bg-[rgba(239,248,243,0.96)] text-[var(--foreground)] shadow-[0_18px_36px_rgba(47,111,97,0.14)]"
+                : "border border-transparent text-[var(--muted)] hover:border-[var(--border)] hover:bg-white/72 hover:text-[var(--foreground)]"
+            }`}
+            onClick={() => {
+              if (mobile) {
+                setIsDrawerOpen(false);
+              }
+            }}
+          >
+            <span
+              className={`flex h-11 w-11 items-center justify-center rounded-2xl ${
+                active
+                  ? "bg-[var(--accent)] text-white shadow-[0_14px_30px_rgba(47,111,97,0.22)]"
+                  : "bg-[rgba(239,244,241,0.96)] text-[var(--foreground)]"
+              }`}
+            >
+              {item.icon}
+            </span>
+            <span>{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+
+  const renderAccountCard = (mobile = false) => (
+    <Link
+      href="/profile"
+      className={`rounded-[28px] border p-4 transition ${
+        pathname === "/profile"
+          ? "border-[rgba(47,111,97,0.18)] bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(236,247,240,0.92))] shadow-[0_18px_36px_rgba(47,111,97,0.12)]"
+          : "border-[var(--border)] bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(245,247,242,0.88))] hover:border-[rgba(47,111,97,0.18)] hover:shadow-[0_14px_34px_rgba(47,111,97,0.1)]"
+      }`}
+      onClick={() => {
+        if (mobile) {
+          setIsDrawerOpen(false);
+        }
+      }}
+    >
+      <div className="flex items-center gap-3">
+        <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-[var(--accent)] text-base font-bold text-white shadow-[0_18px_34px_rgba(47,111,97,0.24)]">
+          {initials}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-base font-semibold text-[var(--foreground)]">
+            {accountName}
+          </p>
+          <p className="truncate text-sm text-[var(--muted)]">{accountEmail}</p>
+          <p className="mt-1 text-xs text-[var(--accent)]">Открыть профиль</p>
+        </div>
+      </div>
+    </Link>
+  );
+
+  const sidebarContent = (mobile = false) => (
+    <div className="flex h-full flex-col gap-4">
+      {renderAccountCard(mobile)}
+      {renderNavigation(mobile)}
+      <div className="rounded-[26px] border border-[var(--border)] bg-[rgba(248,250,246,0.84)] p-4">
+        <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
+          Активная дата
+        </p>
+        <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+          {selectedDate}
+        </p>
+        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+          Весь кабинет привязан к выбранному дню: запись, задачи, история, метрики и AI-чат.
+        </p>
+      </div>
+      <div className="mt-auto">
+        <LogoutButton />
+      </div>
+    </div>
+  );
+
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col px-3 py-3 sm:px-4 sm:py-4 lg:px-5 lg:py-5">
-      <div className="grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <aside className="surface-card hidden rounded-[32px] p-4 lg:flex lg:flex-col">
-          <div className="rounded-[24px] border border-[var(--border)] bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(239,247,241,0.88))] p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-bold text-white shadow-[0_16px_36px_rgba(31,154,98,0.26)]">
-                {initials}
-              </div>
+    <div
+      className="min-h-screen w-full px-2 py-2 sm:px-3 sm:py-3"
+      onTouchStart={(event) => {
+        if (window.innerWidth >= 1024 || isDrawerOpen) {
+          return;
+        }
+
+        const touchX = event.touches[0]?.clientX ?? 0;
+        edgeTouchStart.current = touchX <= 26 ? touchX : null;
+      }}
+      onTouchMove={(event) => {
+        if (window.innerWidth >= 1024 || edgeTouchStart.current === null || isDrawerOpen) {
+          return;
+        }
+
+        const delta = (event.touches[0]?.clientX ?? 0) - edgeTouchStart.current;
+
+        if (delta > 52) {
+          setIsDrawerOpen(true);
+          edgeTouchStart.current = null;
+        }
+      }}
+      onTouchEnd={() => {
+        edgeTouchStart.current = null;
+      }}
+    >
+      <div className="grid min-h-[calc(100vh-1rem)] gap-2 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="surface-card sticky top-2 hidden h-[calc(100vh-1rem)] rounded-[32px] p-4 lg:block">
+          {sidebarContent()}
+        </aside>
+
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="surface-card sticky top-2 z-30 flex items-center justify-between gap-3 rounded-[26px] px-3 py-3 lg:hidden">
+            <div className="flex min-w-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDrawerOpen(true)}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)]"
+                aria-label="Открыть навигацию"
+              >
+                <MenuIcon />
+              </button>
               <div className="min-w-0">
+                <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
+                  Diary AI
+                </p>
                 <p className="truncate text-base font-semibold text-[var(--foreground)]">
                   {accountName}
                 </p>
-                <p className="truncate text-sm text-[var(--muted)]">{accountEmail}</p>
-              </div>
-            </div>
-          </div>
-
-          <nav className="mt-6 grid gap-2">
-            {navItems.map((item) => {
-              const active = pathname === item.href;
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 rounded-[22px] px-3 py-3 text-sm font-medium transition ${
-                    active
-                      ? "border border-[rgba(31,154,98,0.16)] bg-[rgba(242,251,246,0.92)] text-[var(--foreground)] shadow-[0_16px_28px_rgba(31,154,98,0.12)]"
-                      : "border border-transparent text-[var(--muted)] hover:border-[var(--border)] hover:bg-white/70 hover:text-[var(--foreground)]"
-                  }`}
-                >
-                  <span
-                    className={`flex h-10 w-10 items-center justify-center rounded-2xl ${
-                      active
-                        ? "bg-[var(--accent)] text-white shadow-[0_12px_24px_rgba(31,154,98,0.2)]"
-                        : "bg-[rgba(239,244,241,0.92)] text-[var(--foreground)]"
-                    }`}
-                  >
-                    {item.icon}
-                  </span>
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-
-          <div className="mt-4">
-            <LogoutButton />
-          </div>
-
-          <div className="mt-auto rounded-[24px] border border-[var(--border)] bg-[rgba(244,248,243,0.86)] p-4">
-            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
-              Активная дата
-            </p>
-            <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-              {selectedDate}
-            </p>
-            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Весь рабочий кабинет держится вокруг выбранного дня: запись, задачи,
-              история и динамика.
-            </p>
-          </div>
-        </aside>
-
-        <div className="flex min-w-0 flex-col gap-3">
-          <div className="surface-card flex flex-col gap-3 rounded-[28px] p-3 sm:p-4 lg:hidden">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
-                  Diary AI
-                </p>
-                <h1 className="truncate text-xl font-semibold text-[var(--foreground)]">
-                  {accountName}
-                </h1>
-                <p className="truncate text-sm text-[var(--muted)]">{accountEmail}</p>
-              </div>
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-bold text-white shadow-[0_12px_28px_rgba(31,154,98,0.22)]">
-                {initials}
               </div>
             </div>
 
-            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-              {navItems.map((item) => {
-                const active = pathname === item.href;
-
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition ${
-                      active
-                        ? "border-transparent bg-[var(--accent)] text-white shadow-[0_10px_22px_rgba(31,154,98,0.22)]"
-                        : "border-[var(--border)] bg-white/90 text-[var(--foreground)]"
-                    }`}
-                  >
-                    {item.icon}
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </div>
-
-            <LogoutButton />
+            <Link
+              href="/profile"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-bold text-white shadow-[0_12px_28px_rgba(47,111,97,0.22)]"
+              aria-label="Открыть профиль"
+            >
+              {initials}
+            </Link>
           </div>
 
           <main className="min-w-0">{children}</main>
         </div>
+      </div>
+
+      <div
+        className={`fixed inset-0 z-50 lg:hidden ${isDrawerOpen ? "pointer-events-auto" : "pointer-events-none"}`}
+        aria-hidden={!isDrawerOpen}
+      >
+        <div
+          className={`absolute inset-0 bg-[rgba(18,28,24,0.24)] transition ${isDrawerOpen ? "opacity-100" : "opacity-0"}`}
+          onClick={() => setIsDrawerOpen(false)}
+        />
+
+        <aside
+          className={`surface-card absolute bottom-2 left-2 top-2 flex w-[min(86vw,340px)] flex-col rounded-[30px] p-4 transition-transform duration-300 ${isDrawerOpen ? "translate-x-0" : "-translate-x-[110%]"}`}
+          onTouchStart={(event) => {
+            panelTouchStart.current = event.touches[0]?.clientX ?? null;
+            panelTouchCurrent.current = panelTouchStart.current;
+          }}
+          onTouchMove={(event) => {
+            panelTouchCurrent.current = event.touches[0]?.clientX ?? null;
+          }}
+          onTouchEnd={() => {
+            if (
+              panelTouchStart.current !== null &&
+              panelTouchCurrent.current !== null &&
+              panelTouchStart.current - panelTouchCurrent.current > 60
+            ) {
+              setIsDrawerOpen(false);
+            }
+
+            panelTouchStart.current = null;
+            panelTouchCurrent.current = null;
+          }}
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
+              Навигация
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsDrawerOpen(false)}
+              className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/90 text-[var(--foreground)]"
+              aria-label="Закрыть навигацию"
+            >
+              <CloseIcon />
+            </button>
+          </div>
+
+          {sidebarContent(true)}
+        </aside>
       </div>
     </div>
   );
@@ -228,13 +332,21 @@ function BellIcon() {
   );
 }
 
-function UserIcon() {
+function MenuIcon() {
   return (
-    <IconFrame>
-      <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
-        <path d="M19 20a7 7 0 0 0-14 0" />
-        <circle cx="12" cy="8" r="4" />
-      </svg>
-    </IconFrame>
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M6 6l12 12" />
+      <path d="M18 6l-12 12" />
+    </svg>
   );
 }

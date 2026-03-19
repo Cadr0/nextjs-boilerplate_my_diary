@@ -68,7 +68,23 @@ type WorkspaceContextValue = {
   analyticsMetricDefinitions: MetricDefinition[];
   updateMetricValue: (metricId: string, value: number | string) => void;
   addMetric: (metricId: string) => void;
-  moveMetric: (metricId: string, direction: "up" | "down") => void;
+  reorderMetric: (activeId: string, overId: string) => void;
+  updateMetricDefinition: (
+    metricId: string,
+    patch: Partial<
+      Pick<
+        MetricDefinition,
+        | "name"
+        | "description"
+        | "unit"
+        | "min"
+        | "max"
+        | "step"
+        | "showInDiary"
+        | "showInAnalytics"
+      >
+    >,
+  ) => void;
   toggleMetricVisibility: (metricId: string) => void;
   toggleMetricAnalytics: (metricId: string) => void;
   availableMetricTemplates: MetricDefinition[];
@@ -453,29 +469,82 @@ export function WorkspaceProvider({
     }));
   };
 
-  const moveMetric = (metricId: string, direction: "up" | "down") => {
+  const reorderMetric = (activeId: string, overId: string) => {
     setWorkspaceState((current) => {
-      const index = current.metricDefinitions.findIndex((metric) => metric.id === metricId);
+      const activeIndex = current.metricDefinitions.findIndex(
+        (metric) => metric.id === activeId,
+      );
+      const overIndex = current.metricDefinitions.findIndex((metric) => metric.id === overId);
 
-      if (index === -1) {
-        return current;
-      }
-
-      const nextIndex = direction === "up" ? index - 1 : index + 1;
-
-      if (nextIndex < 0 || nextIndex >= current.metricDefinitions.length) {
+      if (activeIndex === -1 || overIndex === -1 || activeIndex === overIndex) {
         return current;
       }
 
       const reordered = [...current.metricDefinitions];
-      const [metric] = reordered.splice(index, 1);
-      reordered.splice(nextIndex, 0, metric);
+      const [metric] = reordered.splice(activeIndex, 1);
+      reordered.splice(overIndex, 0, metric);
 
       return {
         ...current,
         metricDefinitions: reordered,
       };
     });
+  };
+
+  const updateMetricDefinition = (
+    metricId: string,
+    patch: Partial<
+      Pick<
+        MetricDefinition,
+        | "name"
+        | "description"
+        | "unit"
+        | "min"
+        | "max"
+        | "step"
+        | "showInDiary"
+        | "showInAnalytics"
+      >
+    >,
+  ) => {
+    setWorkspaceState((current) => ({
+      ...current,
+      metricDefinitions: current.metricDefinitions.map((metric) => {
+        if (metric.id !== metricId) {
+          return metric;
+        }
+
+        const nextMin =
+          typeof patch.min === "number"
+            ? patch.min
+            : metric.min;
+        const nextMax =
+          typeof patch.max === "number"
+            ? patch.max
+            : metric.max;
+        const nextStep =
+          typeof patch.step === "number"
+            ? patch.step
+            : metric.step;
+
+        return {
+          ...metric,
+          ...patch,
+          min:
+            metric.type === "slider" && typeof nextMin === "number"
+              ? nextMin
+              : metric.min,
+          max:
+            metric.type === "slider" && typeof nextMax === "number"
+              ? Math.max(nextMax, typeof nextMin === "number" ? nextMin : nextMax)
+              : metric.max,
+          step:
+            metric.type === "slider" && typeof nextStep === "number" && nextStep > 0
+              ? nextStep
+              : metric.step,
+        };
+      }),
+    }));
   };
 
   const toggleMetricVisibility = (metricId: string) => {
@@ -676,7 +745,8 @@ export function WorkspaceProvider({
     analyticsMetricDefinitions,
     updateMetricValue,
     addMetric,
-    moveMetric,
+    reorderMetric,
+    updateMetricDefinition,
     toggleMetricVisibility,
     toggleMetricAnalytics,
     availableMetricTemplates,
