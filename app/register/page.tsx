@@ -5,12 +5,12 @@ import { getAuthState } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export default async function Login() {
+export default async function Register() {
   const { user, configError } = await getAuthState();
 
   if (user) {
     redirect("/diary");
   }
 
-  return <LoginPage isConfigured={!configError} mode="login" />;
+  return <LoginPage isConfigured={!configError} mode="register" />;
 }
