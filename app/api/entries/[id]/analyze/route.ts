@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getAuthState } from "@/lib/auth";
 import {
   getDiaryEntryById,
   getSupabaseConfigError,
@@ -24,6 +25,12 @@ export async function POST(_request: Request, context: RouteContext) {
 
   if (routerAiConfigError) {
     return NextResponse.json({ error: routerAiConfigError }, { status: 500 });
+  }
+
+  const { user } = await getAuthState();
+
+  if (!user) {
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
   try {

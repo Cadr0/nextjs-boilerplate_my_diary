@@ -1,6 +1,10 @@
 import "server-only";
 
-import { createClient } from "@supabase/supabase-js";
+import type { PostgrestError } from "@supabase/supabase-js";
+
+import { requireUser } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import { getSupabaseConfigError } from "@/lib/supabase/env";
 
 export type DiaryEntry = {
   id: string;
@@ -21,31 +25,32 @@ export type DiaryEntryInput = {
   notes: string;
 };
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const diaryEntrySelect =
+  "id, created_at, entry_date, mood, energy, sleep_hours, notes, ai_analysis";
 
-export function getSupabaseConfigError() {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return "Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to run the diary.";
+function mapDiaryError(error: PostgrestError) {
+  const message = error.message.toLowerCase();
+
+  if (
+    message.includes("relation") &&
+    message.includes("daily_entries") &&
+    message.includes("does not exist")
+  ) {
+    return "Сначала создайте таблицу daily_entries, затем подключим рабочий дневник.";
   }
 
-  return null;
-}
-
-function getSupabaseClient() {
-  const configError = getSupabaseConfigError();
-
-  if (configError) {
-    throw new Error(configError);
+  if (message.includes("user_id") && message.includes("does not exist")) {
+    return "Дневник работает в защищенном режиме: добавьте user_id в daily_entries и включите RLS.";
   }
 
-  return createClient(supabaseUrl!, supabaseAnonKey!, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
+  if (message.includes("row-level security") || message.includes("permission denied")) {
+    return "Нужны RLS-политики для daily_entries, чтобы пользователь видел только свои записи.";
+  }
+
+  return error.message;
 }
+
+export { getSupabaseConfigError } from "@/lib/supabase/env";
 
 export async function listLatestEntries(limit = 6) {
   const configError = getSupabaseConfigError();
@@ -54,79 +59,89 @@ export async function listLatestEntries(limit = 6) {
     return { entries: [] as DiaryEntry[], error: configError };
   }
 
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from("daily_entries")
-    .select(
-      "id, created_at, entry_date, mood, energy, sleep_hours, notes, ai_analysis",
-    )
-    .order("entry_date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  try {
+    const user = await requireUser();
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("daily_entries")
+      .select(diaryEntrySelect)
+      .eq("user_id", user.id)
+      .order("entry_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(limit);
 
-  if (error) {
+    if (error) {
+      return {
+        entries: [] as DiaryEntry[],
+        error: mapDiaryError(error),
+      };
+    }
+
+    return {
+      entries: (data ?? []) as DiaryEntry[],
+      error: null,
+    };
+  } catch (error) {
     return {
       entries: [] as DiaryEntry[],
-      error: error.message,
+      error:
+        error instanceof Error ? error.message : "Не получилось загрузить записи.",
     };
   }
-
-  return {
-    entries: (data ?? []) as DiaryEntry[],
-    error: null,
-  };
 }
 
 export async function createDiaryEntry(input: DiaryEntryInput) {
-  const supabase = getSupabaseClient();
+  const user = await requireUser();
+  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("daily_entries")
-    .insert(input)
-    .select(
-      "id, created_at, entry_date, mood, energy, sleep_hours, notes, ai_analysis",
-    )
+    .insert({
+      ...input,
+      user_id: user.id,
+    })
+    .select(diaryEntrySelect)
     .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(mapDiaryError(error));
   }
 
   return data as DiaryEntry;
 }
 
 export async function getDiaryEntryById(id: string) {
-  const supabase = getSupabaseClient();
+  const user = await requireUser();
+  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("daily_entries")
-    .select(
-      "id, created_at, entry_date, mood, energy, sleep_hours, notes, ai_analysis",
-    )
+    .select(diaryEntrySelect)
     .eq("id", id)
+    .eq("user_id", user.id)
     .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(mapDiaryError(error));
   }
 
   return data as DiaryEntry;
 }
 
 export async function updateDiaryEntryAnalysis(id: string, aiAnalysis: string) {
-  const supabase = getSupabaseClient();
+  const user = await requireUser();
+  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("daily_entries")
     .update({ ai_analysis: aiAnalysis })
     .eq("id", id)
-    .select(
-      "id, created_at, entry_date, mood, energy, sleep_hours, notes, ai_analysis",
-    )
+    .eq("user_id", user.id)
+    .select(diaryEntrySelect)
     .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(mapDiaryError(error));
   }
 
   return data as DiaryEntry;

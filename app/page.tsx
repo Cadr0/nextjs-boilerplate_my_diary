@@ -1,16 +1,14 @@
-import { DiaryPage } from "@/components/diary-page";
-import { getSupabaseConfigError, listLatestEntries } from "@/lib/diary";
+import { LandingPage } from "@/components/landing-page";
+import { getAuthState } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const configError = getSupabaseConfigError();
-  const { entries, error } = await listLatestEntries();
+  const { user, configError } = await getAuthState();
 
   return (
-    <DiaryPage
-      initialEntries={entries}
-      initialError={error}
+    <LandingPage
+      isAuthenticated={Boolean(user)}
       isConfigured={!configError}
     />
   );

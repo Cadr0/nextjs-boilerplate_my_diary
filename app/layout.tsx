@@ -1,20 +1,31 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Lora, Manrope } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const manrope = Manrope({
+  variable: "--font-manrope",
+  subsets: ["latin", "cyrillic"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const lora = Lora({
+  variable: "--font-lora",
+  subsets: ["latin", "cyrillic"],
+  weight: ["500", "600", "700"],
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-ibm-plex-mono",
+  subsets: ["latin", "cyrillic"],
+  weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
-  title: "Diary AI",
-  description: "Minimal diary MVP connected to Supabase.",
+  title: {
+    default: "Diary AI",
+    template: "%s | Diary AI",
+  },
+  description:
+    "Спокойное пространство для дневника, метрик и мягкого AI-анализа без перегруженного интерфейса.",
 };
 
 export default function RootLayout({
@@ -24,8 +35,8 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      lang="ru"
+      className={`${manrope.variable} ${lora.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

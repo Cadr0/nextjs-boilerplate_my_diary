@@ -1,15 +1,23 @@
 @import "tailwindcss";
 
 :root {
-  --background: #eef6ff;
-  --foreground: #0f172a;
+  --background: #f7f1e7;
+  --foreground: #18211d;
+  --surface: rgba(255, 250, 244, 0.8);
+  --surface-strong: rgba(255, 248, 239, 0.94);
+  --muted: #5e675f;
+  --line: rgba(24, 33, 29, 0.1);
+  --accent: #2f6f61;
+  --accent-soft: rgba(47, 111, 97, 0.12);
+  --accent-strong: #204d43;
+  --warm: #c9965c;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-ibm-plex-mono);
 }
 
 * {
@@ -23,8 +31,73 @@ html {
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top, rgba(103, 232, 249, 0.4), transparent 30%),
-    linear-gradient(180deg, #f8fbff 0%, #eef6ff 45%, #e7eef8 100%);
+    radial-gradient(circle at top left, rgba(47, 111, 97, 0.18), transparent 32%),
+    radial-gradient(circle at top right, rgba(201, 150, 92, 0.18), transparent 24%),
+    linear-gradient(180deg, #faf5ee 0%, #f6efe5 44%, #efe4d7 100%);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), sans-serif;
+  font-family: var(--font-manrope), sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(47, 111, 97, 0.18);
+  color: #10201b;
+}
+
+.font-display {
+  font-family: var(--font-lora), serif;
+}
+
+.glass-panel {
+  background: var(--surface);
+  backdrop-filter: blur(18px);
+}
+
+.surface-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+  background-position: center;
+  background-size: 18px 18px;
+}
+
+.soft-ring {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.48),
+    0 28px 72px rgba(34, 39, 37, 0.12);
+}
+
+.fade-up {
+  animation: fade-up 0.7s ease-out both;
+}
+
+.fade-up-delay {
+  animation: fade-up 0.7s 0.12s ease-out both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .fade-up,
+  .fade-up-delay {
+    animation: none;
+  }
 }
