@@ -42,6 +42,7 @@ export function DiaryPage({
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState(initialError);
   const [isSaving, setIsSaving] = useState(false);
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -92,6 +93,43 @@ export function DiaryPage({
       );
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleAnalyze(entryId: string) {
+    setAnalyzingId(entryId);
+    setStatus(null);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/entries/${entryId}/analyze`, {
+        method: "POST",
+      });
+
+      const payload = (await response.json()) as
+        | { entry: DiaryEntry }
+        | { error: string };
+
+      if (!response.ok || !("entry" in payload)) {
+        throw new Error(
+          "error" in payload ? payload.error : "Failed to analyze entry.",
+        );
+      }
+
+      setEntries((current) =>
+        current.map((entry) =>
+          entry.id === payload.entry.id ? payload.entry : entry,
+        ),
+      );
+      setStatus("AI analysis saved successfully.");
+    } catch (analysisError) {
+      setError(
+        analysisError instanceof Error
+          ? analysisError.message
+          : "Failed to analyze entry.",
+      );
+    } finally {
+      setAnalyzingId(null);
     }
   }
 
@@ -275,6 +313,20 @@ export function DiaryPage({
                   <p className="mt-3 text-sm leading-6 text-slate-300">
                     {entry.notes}
                   </p>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleAnalyze(entry.id)}
+                      disabled={analyzingId === entry.id}
+                      className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {analyzingId === entry.id ? "Analyzing..." : "Analyze"}
+                    </button>
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                      Short, low-cost RouterAI summary
+                    </p>
+                  </div>
 
                   {entry.ai_analysis ? (
                     <p className="mt-3 rounded-2xl border border-emerald-400/15 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-100">

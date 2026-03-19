@@ -94,3 +94,40 @@ export async function createDiaryEntry(input: DiaryEntryInput) {
 
   return data as DiaryEntry;
 }
+
+export async function getDiaryEntryById(id: string) {
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("daily_entries")
+    .select(
+      "id, created_at, entry_date, mood, energy, sleep_hours, notes, ai_analysis",
+    )
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as DiaryEntry;
+}
+
+export async function updateDiaryEntryAnalysis(id: string, aiAnalysis: string) {
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("daily_entries")
+    .update({ ai_analysis: aiAnalysis })
+    .eq("id", id)
+    .select(
+      "id, created_at, entry_date, mood, energy, sleep_hours, notes, ai_analysis",
+    )
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as DiaryEntry;
+}
