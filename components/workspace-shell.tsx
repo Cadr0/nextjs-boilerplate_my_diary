@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { LogoutButton } from "@/components/logout-button";
+import { WorkspaceRightRail } from "@/components/workspace-right-rail";
 import { useWorkspace } from "@/components/workspace-provider";
 
 type WorkspaceShellProps = {
@@ -20,26 +20,10 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  {
-    href: "/diary",
-    label: "Дневник",
-    icon: <NotebookIcon />,
-  },
-  {
-    href: "/history",
-    label: "История",
-    icon: <HistoryIcon />,
-  },
-  {
-    href: "/analytics",
-    label: "Аналитика",
-    icon: <ChartIcon />,
-  },
-  {
-    href: "/reminders",
-    label: "Напоминания",
-    icon: <BellIcon />,
-  },
+  { href: "/diary", label: "Дневник", icon: <NotebookIcon /> },
+  { href: "/history", label: "История", icon: <HistoryIcon /> },
+  { href: "/analytics", label: "Аналитика", icon: <ChartIcon /> },
+  { href: "/reminders", label: "Напоминания", icon: <BellIcon /> },
 ];
 
 export function WorkspaceShell({
@@ -48,11 +32,15 @@ export function WorkspaceShell({
   accountEmail,
 }: WorkspaceShellProps) {
   const pathname = usePathname();
-  const { selectedDate } = useWorkspace();
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const edgeTouchStart = useRef<number | null>(null);
-  const panelTouchStart = useRef<number | null>(null);
-  const panelTouchCurrent = useRef<number | null>(null);
+  const { profile, selectedDate } = useWorkspace();
+  const [isLeftDrawerOpen, setIsLeftDrawerOpen] = useState(false);
+  const [isRightDrawerOpen, setIsRightDrawerOpen] = useState(false);
+  const leftEdgeTouchStart = useRef<number | null>(null);
+  const rightEdgeTouchStart = useRef<number | null>(null);
+  const leftPanelTouchStart = useRef<number | null>(null);
+  const leftPanelTouchCurrent = useRef<number | null>(null);
+  const rightPanelTouchStart = useRef<number | null>(null);
+  const rightPanelTouchCurrent = useRef<number | null>(null);
 
   const initials =
     accountName
@@ -63,7 +51,7 @@ export function WorkspaceShell({
       .join("") || "DF";
 
   useEffect(() => {
-    if (!isDrawerOpen) {
+    if (!isLeftDrawerOpen && !isRightDrawerOpen) {
       return;
     }
 
@@ -73,7 +61,7 @@ export function WorkspaceShell({
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [isDrawerOpen]);
+  }, [isLeftDrawerOpen, isRightDrawerOpen]);
 
   const renderNavigation = (mobile = false) => (
     <nav className="grid gap-2">
@@ -91,7 +79,7 @@ export function WorkspaceShell({
             }`}
             onClick={() => {
               if (mobile) {
-                setIsDrawerOpen(false);
+                setIsLeftDrawerOpen(false);
               }
             }}
           >
@@ -121,7 +109,7 @@ export function WorkspaceShell({
       }`}
       onClick={() => {
         if (mobile) {
-          setIsDrawerOpen(false);
+          setIsLeftDrawerOpen(false);
         }
       }}
     >
@@ -134,7 +122,7 @@ export function WorkspaceShell({
             {accountName}
           </p>
           <p className="truncate text-sm text-[var(--muted)]">{accountEmail}</p>
-          <p className="mt-1 text-xs text-[var(--accent)]">Открыть профиль</p>
+          <p className="mt-1 text-xs text-[var(--accent)]">Открыть настройки</p>
         </div>
       </div>
     </Link>
@@ -152,11 +140,9 @@ export function WorkspaceShell({
           {selectedDate}
         </p>
         <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-          Весь кабинет привязан к выбранному дню: запись, задачи, история, метрики и AI-чат.
+          Правый rail {profile.keepRightRailOpen ? "закреплён" : "можно сворачивать"} и
+          доступен на всех страницах рабочего кабинета.
         </p>
-      </div>
-      <div className="mt-auto">
-        <LogoutButton />
       </div>
     </div>
   );
@@ -165,40 +151,57 @@ export function WorkspaceShell({
     <div
       className="min-h-screen w-full px-2 py-2 sm:px-3 sm:py-3"
       onTouchStart={(event) => {
-        if (window.innerWidth >= 1024 || isDrawerOpen) {
+        if (window.innerWidth >= 1280) {
           return;
         }
 
         const touchX = event.touches[0]?.clientX ?? 0;
-        edgeTouchStart.current = touchX <= 26 ? touchX : null;
+
+        if (!isLeftDrawerOpen && touchX <= 26) {
+          leftEdgeTouchStart.current = touchX;
+        }
+
+        if (!isRightDrawerOpen && touchX >= window.innerWidth - 26) {
+          rightEdgeTouchStart.current = touchX;
+        }
       }}
       onTouchMove={(event) => {
-        if (window.innerWidth >= 1024 || edgeTouchStart.current === null || isDrawerOpen) {
+        if (window.innerWidth >= 1280) {
           return;
         }
 
-        const delta = (event.touches[0]?.clientX ?? 0) - edgeTouchStart.current;
+        const touchX = event.touches[0]?.clientX ?? 0;
 
-        if (delta > 52) {
-          setIsDrawerOpen(true);
-          edgeTouchStart.current = null;
+        if (leftEdgeTouchStart.current !== null && !isLeftDrawerOpen) {
+          if (touchX - leftEdgeTouchStart.current > 52) {
+            setIsLeftDrawerOpen(true);
+            leftEdgeTouchStart.current = null;
+          }
+        }
+
+        if (rightEdgeTouchStart.current !== null && !isRightDrawerOpen) {
+          if (rightEdgeTouchStart.current - touchX > 52) {
+            setIsRightDrawerOpen(true);
+            rightEdgeTouchStart.current = null;
+          }
         }
       }}
       onTouchEnd={() => {
-        edgeTouchStart.current = null;
+        leftEdgeTouchStart.current = null;
+        rightEdgeTouchStart.current = null;
       }}
     >
-      <div className="grid min-h-[calc(100vh-1rem)] gap-2 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="surface-card sticky top-2 hidden h-[calc(100vh-1rem)] rounded-[32px] p-4 lg:block">
+      <div className="grid min-h-[calc(100vh-1rem)] gap-2 xl:grid-cols-[280px_minmax(0,1fr)_360px]">
+        <aside className="surface-card sticky top-2 hidden h-[calc(100vh-1rem)] rounded-[32px] p-4 xl:block">
           {sidebarContent()}
         </aside>
 
         <div className="flex min-w-0 flex-col gap-2">
-          <div className="surface-card sticky top-2 z-30 flex items-center justify-between gap-3 rounded-[26px] px-3 py-3 lg:hidden">
+          <div className="surface-card sticky top-2 z-30 flex items-center justify-between gap-3 rounded-[26px] px-3 py-3 xl:hidden">
             <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
-                onClick={() => setIsDrawerOpen(true)}
+                onClick={() => setIsLeftDrawerOpen(true)}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)]"
                 aria-label="Открыть навигацию"
               >
@@ -214,67 +217,148 @@ export function WorkspaceShell({
               </div>
             </div>
 
-            <Link
-              href="/profile"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-bold text-white shadow-[0_12px_28px_rgba(47,111,97,0.22)]"
-              aria-label="Открыть профиль"
-            >
-              {initials}
-            </Link>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsRightDrawerOpen(true)}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)]"
+                aria-label="Открыть правую панель"
+              >
+                <SparkIcon />
+              </button>
+              <Link
+                href="/profile"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-bold text-white shadow-[0_12px_28px_rgba(47,111,97,0.22)]"
+                aria-label="Открыть профиль"
+              >
+                {initials}
+              </Link>
+            </div>
           </div>
 
           <main className="min-w-0">{children}</main>
         </div>
-      </div>
 
-      <div
-        className={`fixed inset-0 z-50 lg:hidden ${isDrawerOpen ? "pointer-events-auto" : "pointer-events-none"}`}
-        aria-hidden={!isDrawerOpen}
-      >
-        <div
-          className={`absolute inset-0 bg-[rgba(18,28,24,0.24)] transition ${isDrawerOpen ? "opacity-100" : "opacity-0"}`}
-          onClick={() => setIsDrawerOpen(false)}
-        />
-
-        <aside
-          className={`surface-card absolute bottom-2 left-2 top-2 flex w-[min(86vw,340px)] flex-col rounded-[30px] p-4 transition-transform duration-300 ${isDrawerOpen ? "translate-x-0" : "-translate-x-[110%]"}`}
-          onTouchStart={(event) => {
-            panelTouchStart.current = event.touches[0]?.clientX ?? null;
-            panelTouchCurrent.current = panelTouchStart.current;
-          }}
-          onTouchMove={(event) => {
-            panelTouchCurrent.current = event.touches[0]?.clientX ?? null;
-          }}
-          onTouchEnd={() => {
-            if (
-              panelTouchStart.current !== null &&
-              panelTouchCurrent.current !== null &&
-              panelTouchStart.current - panelTouchCurrent.current > 60
-            ) {
-              setIsDrawerOpen(false);
-            }
-
-            panelTouchStart.current = null;
-            panelTouchCurrent.current = null;
-          }}
-        >
-          <div className="mb-3 flex items-center justify-between">
-            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
-              Навигация
-            </p>
-            <button
-              type="button"
-              onClick={() => setIsDrawerOpen(false)}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/90 text-[var(--foreground)]"
-              aria-label="Закрыть навигацию"
-            >
-              <CloseIcon />
-            </button>
+        <aside className="surface-card sticky top-2 hidden h-[calc(100vh-1rem)] overflow-hidden rounded-[32px] p-3 xl:block">
+          <div className="h-full overflow-y-auto pr-1">
+            <WorkspaceRightRail />
           </div>
-
-          {sidebarContent(true)}
         </aside>
       </div>
+
+      <Drawer
+        open={isLeftDrawerOpen}
+        side="left"
+        title="Навигация"
+        onClose={() => setIsLeftDrawerOpen(false)}
+        onTouchStart={(event) => {
+          leftPanelTouchStart.current = event.touches[0]?.clientX ?? null;
+          leftPanelTouchCurrent.current = leftPanelTouchStart.current;
+        }}
+        onTouchMove={(event) => {
+          leftPanelTouchCurrent.current = event.touches[0]?.clientX ?? null;
+        }}
+        onTouchEnd={() => {
+          if (
+            leftPanelTouchStart.current !== null &&
+            leftPanelTouchCurrent.current !== null &&
+            leftPanelTouchStart.current - leftPanelTouchCurrent.current > 60
+          ) {
+            setIsLeftDrawerOpen(false);
+          }
+
+          leftPanelTouchStart.current = null;
+          leftPanelTouchCurrent.current = null;
+        }}
+      >
+        {sidebarContent(true)}
+      </Drawer>
+
+      <Drawer
+        open={isRightDrawerOpen}
+        side="right"
+        title="Ассистент"
+        onClose={() => setIsRightDrawerOpen(false)}
+        onTouchStart={(event) => {
+          rightPanelTouchStart.current = event.touches[0]?.clientX ?? null;
+          rightPanelTouchCurrent.current = rightPanelTouchStart.current;
+        }}
+        onTouchMove={(event) => {
+          rightPanelTouchCurrent.current = event.touches[0]?.clientX ?? null;
+        }}
+        onTouchEnd={() => {
+          if (
+            rightPanelTouchStart.current !== null &&
+            rightPanelTouchCurrent.current !== null &&
+            rightPanelTouchCurrent.current - rightPanelTouchStart.current > 60
+          ) {
+            setIsRightDrawerOpen(false);
+          }
+
+          rightPanelTouchStart.current = null;
+          rightPanelTouchCurrent.current = null;
+        }}
+      >
+        <WorkspaceRightRail />
+      </Drawer>
+    </div>
+  );
+}
+
+function Drawer({
+  children,
+  open,
+  side,
+  title,
+  onClose,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd,
+}: {
+  children: React.ReactNode;
+  open: boolean;
+  side: "left" | "right";
+  title: string;
+  onClose: () => void;
+  onTouchStart: (event: React.TouchEvent<HTMLElement>) => void;
+  onTouchMove: (event: React.TouchEvent<HTMLElement>) => void;
+  onTouchEnd: () => void;
+}) {
+  const placement = side === "left" ? "left-2" : "right-2";
+  const translate = side === "left" ? "-translate-x-[110%]" : "translate-x-[110%]";
+
+  return (
+    <div
+      className={`fixed inset-0 z-50 xl:hidden ${open ? "pointer-events-auto" : "pointer-events-none"}`}
+      aria-hidden={!open}
+    >
+      <div
+        className={`absolute inset-0 bg-[rgba(18,28,24,0.24)] transition ${open ? "opacity-100" : "opacity-0"}`}
+        onClick={onClose}
+      />
+
+      <aside
+        className={`surface-card absolute ${placement} bottom-2 top-2 flex w-[min(88vw,360px)] flex-col rounded-[30px] p-3 transition-transform duration-300 ${open ? "translate-x-0" : translate}`}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
+            {title}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/90 text-[var(--foreground)]"
+            aria-label={`Закрыть ${title.toLowerCase()}`}
+          >
+            <CloseIcon />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto pr-1">{children}</div>
+      </aside>
     </div>
   );
 }
@@ -347,6 +431,14 @@ function CloseIcon() {
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
       <path d="M6 6l12 12" />
       <path d="M18 6l-12 12" />
+    </svg>
+  );
+}
+
+function SparkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" />
     </svg>
   );
 }

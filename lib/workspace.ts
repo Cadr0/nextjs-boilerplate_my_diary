@@ -17,8 +17,9 @@ export type DiaryEntryInput = {
   notes: string;
 };
 
-export type MetricInputType = "slider" | "text";
+export type MetricInputType = "scale" | "number" | "boolean" | "text";
 export type MetricPersistence = "server" | "local";
+export type MetricValue = number | string | boolean;
 
 export type MetricDefinition = {
   id: string;
@@ -40,7 +41,7 @@ export type WorkspaceDraft = {
   date: string;
   summary: string;
   notes: string;
-  metricValues: Record<string, number | string>;
+  metricValues: Record<string, MetricValue>;
 };
 
 export type TaskItem = {
@@ -60,6 +61,10 @@ export type WorkspaceProfile = {
   focus: string;
   bio: string;
   wellbeingGoal: string;
+  weekStartsOn: string;
+  compactMetrics: boolean;
+  keepRightRailOpen: boolean;
+  chatTone: string;
 };
 
 export type PersistedWorkspaceState = {
@@ -72,15 +77,29 @@ export type PersistedWorkspaceState = {
 
 export type SaveState = "idle" | "saving" | "saved" | "local" | "error";
 
-export const WORKSPACE_STORAGE_KEY = "diary-ai-workspace-v2";
-export const WORKSPACE_STORAGE_VERSION = 2;
+export const WORKSPACE_STORAGE_KEY = "diary-ai-workspace-v3";
+export const WORKSPACE_STORAGE_VERSION = 3;
+
+export const metricTypeOptions = [
+  { value: "scale", label: "Шкала" },
+  { value: "number", label: "Число" },
+  { value: "boolean", label: "Да / Нет" },
+  { value: "text", label: "Текст" },
+] satisfies Array<{ value: MetricInputType; label: string }>;
+
+export const metricUnitOptionsByType = {
+  scale: ["балл", "%", "ч", "мин", "шт"],
+  number: ["ч", "мин", "шт", "км", "л", "%", "стр"],
+  boolean: ["да/нет"],
+  text: ["текст"],
+} satisfies Record<MetricInputType, string[]>;
 
 export const metricLibrary: MetricDefinition[] = [
   {
     id: "sleep_hours",
     name: "Сон",
     description: "Сколько часов сна получилось набрать.",
-    type: "slider",
+    type: "scale",
     unit: "ч",
     min: 0,
     max: 14,
@@ -95,7 +114,7 @@ export const metricLibrary: MetricDefinition[] = [
     id: "mood",
     name: "Настроение",
     description: "Насколько день ощущается устойчивым и приятным.",
-    type: "slider",
+    type: "scale",
     unit: "балл",
     min: 0,
     max: 10,
@@ -110,7 +129,7 @@ export const metricLibrary: MetricDefinition[] = [
     id: "energy",
     name: "Энергия",
     description: "Сколько внутреннего ресурса было в течение дня.",
-    type: "slider",
+    type: "scale",
     unit: "балл",
     min: 0,
     max: 10,
@@ -125,7 +144,7 @@ export const metricLibrary: MetricDefinition[] = [
     id: "productivity",
     name: "Продуктивность",
     description: "Сколько важного реально удалось довести до конца.",
-    type: "slider",
+    type: "scale",
     unit: "балл",
     min: 0,
     max: 10,
@@ -139,7 +158,7 @@ export const metricLibrary: MetricDefinition[] = [
     id: "focus",
     name: "Фокус",
     description: "Насколько легко было удерживать внимание.",
-    type: "slider",
+    type: "scale",
     unit: "балл",
     min: 0,
     max: 10,
@@ -153,7 +172,7 @@ export const metricLibrary: MetricDefinition[] = [
     id: "stress",
     name: "Стресс",
     description: "Фон напряжения и внутренней загруженности.",
-    type: "slider",
+    type: "scale",
     unit: "балл",
     min: 0,
     max: 10,
@@ -185,6 +204,17 @@ export const metricLibrary: MetricDefinition[] = [
     showInDiary: false,
     showInAnalytics: false,
   },
+  {
+    id: "training",
+    name: "Тренировка",
+    description: "Была ли сегодня любая форма физической активности.",
+    type: "boolean",
+    unit: "да/нет",
+    accent: "var(--accent-teal)",
+    persistence: "local",
+    showInDiary: false,
+    showInAnalytics: false,
+  },
 ];
 
 export const defaultProfile: WorkspaceProfile = {
@@ -195,6 +225,10 @@ export const defaultProfile: WorkspaceProfile = {
   focus: "Спокойный ритм и понятная ежедневная система",
   bio: "Личное пространство для заметок, задач и наблюдений за собой.",
   wellbeingGoal: "Отслеживать динамику и не терять ощущение контроля.",
+  weekStartsOn: "monday",
+  compactMetrics: true,
+  keepRightRailOpen: true,
+  chatTone: "supportive",
 };
 
 export function getTodayIsoDate() {
@@ -223,6 +257,69 @@ export function formatCompactDate(value: string, locale = "ru-RU") {
   }).format(new Date(`${value}T12:00:00`));
 }
 
+export function getMetricDefaultValue(metric: MetricDefinition): MetricValue {
+  if (metric.type === "text") {
+    return "";
+  }
+
+  if (metric.type === "boolean") {
+    return false;
+  }
+
+  if (metric.serverField === "sleep_hours") {
+    return 7;
+  }
+
+  if (metric.serverField === "mood" || metric.serverField === "energy") {
+    return 6;
+  }
+
+  return typeof metric.min === "number" ? metric.min : 0;
+}
+
+export function getMetricUnitOptions(type: MetricInputType) {
+  return metricUnitOptionsByType[type];
+}
+
+export function sanitizeMetricDefinition(metric: MetricDefinition): MetricDefinition {
+  const allowedUnits = getMetricUnitOptions(metric.type);
+  const safeUnit = allowedUnits.includes(metric.unit) ? metric.unit : allowedUnits[0];
+
+  if (metric.type === "text") {
+    return {
+      ...metric,
+      unit: safeUnit,
+      min: undefined,
+      max: undefined,
+      step: undefined,
+    };
+  }
+
+  if (metric.type === "boolean") {
+    return {
+      ...metric,
+      unit: safeUnit,
+      min: undefined,
+      max: undefined,
+      step: undefined,
+      showInAnalytics: false,
+    };
+  }
+
+  const min = Number.isFinite(metric.min) ? Number(metric.min) : 0;
+  const max = Number.isFinite(metric.max) ? Number(metric.max) : metric.type === "scale" ? 10 : 100;
+  const safeMax = Math.max(max, min);
+  const step = Number.isFinite(metric.step) && Number(metric.step) > 0 ? Number(metric.step) : 1;
+
+  return {
+    ...metric,
+    unit: safeUnit,
+    min,
+    max: safeMax,
+    step,
+  };
+}
+
 export function createDraftFromEntry(entry: DiaryEntry | undefined): WorkspaceDraft {
   return {
     date: entry?.entry_date ?? getTodayIsoDate(),
@@ -236,6 +333,8 @@ export function createDraftFromEntry(entry: DiaryEntry | undefined): WorkspaceDr
       focus: 5,
       stress: 4,
       highlight: "",
+      gratitude: "",
+      training: false,
     },
   };
 }
@@ -274,10 +373,7 @@ export function buildServerPayload(
 
   return {
     entry_date: date,
-    mood:
-      typeof moodValue === "number"
-        ? moodValue
-        : Number.parseFloat(String(moodValue || 0)),
+    mood: typeof moodValue === "number" ? moodValue : Number.parseFloat(String(moodValue || 0)),
     energy:
       typeof energyValue === "number"
         ? energyValue
@@ -309,7 +405,9 @@ export function getVisibleMetricDefinitions(definitions: MetricDefinition[]) {
 
 export function getAnalyticsMetricDefinitions(definitions: MetricDefinition[]) {
   return definitions.filter(
-    (definition) => definition.showInAnalytics && definition.type === "slider",
+    (definition) =>
+      definition.showInAnalytics &&
+      (definition.type === "scale" || definition.type === "number"),
   );
 }
 

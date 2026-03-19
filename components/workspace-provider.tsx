@@ -15,6 +15,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type {
   DiaryEntry,
   MetricDefinition,
+  MetricValue,
   PersistedWorkspaceState,
   SaveState,
   TaskItem,
@@ -31,10 +32,12 @@ import {
   formatCompactDate,
   formatHumanDate,
   getAnalyticsMetricDefinitions,
+  getMetricDefaultValue,
   getTaskCompletionRatio,
   getTodayIsoDate,
   getVisibleMetricDefinitions,
   metricLibrary,
+  sanitizeMetricDefinition,
   serializeServerPayload,
   shiftIsoDate,
 } from "@/lib/workspace";
@@ -66,7 +69,7 @@ type WorkspaceContextValue = {
   metricDefinitions: MetricDefinition[];
   visibleMetricDefinitions: MetricDefinition[];
   analyticsMetricDefinitions: MetricDefinition[];
-  updateMetricValue: (metricId: string, value: number | string) => void;
+  updateMetricValue: (metricId: string, value: MetricValue) => void;
   addMetric: (metricId: string) => void;
   reorderMetric: (activeId: string, overId: string) => void;
   updateMetricDefinition: (
@@ -74,6 +77,7 @@ type WorkspaceContextValue = {
     patch: Partial<
       Pick<
         MetricDefinition,
+        | "type"
         | "name"
         | "description"
         | "unit"
@@ -139,7 +143,7 @@ function mergeWorkspaceState(
     metricDefinitions:
       Array.isArray(persistedState.metricDefinitions) &&
       persistedState.metricDefinitions.length > 0
-        ? persistedState.metricDefinitions
+        ? persistedState.metricDefinitions.map(sanitizeMetricDefinition)
         : baseState.metricDefinitions,
     profile: persistedState.profile ?? baseState.profile,
   } satisfies PersistedWorkspaceState;
@@ -165,15 +169,25 @@ function generateTaskId() {
 
 function clampMetricValue(
   definition: MetricDefinition | undefined,
-  value: number | string,
+  value: MetricValue,
 ) {
-  if (!definition || definition.type !== "slider" || typeof value !== "number") {
+  if (!definition) {
     return value;
   }
 
+  if (definition.type === "text") {
+    return typeof value === "string" ? value : "";
+  }
+
+  if (definition.type === "boolean") {
+    return Boolean(value);
+  }
+
+  const numericValue =
+    typeof value === "number" ? value : Number.parseFloat(String(value || 0));
   const min = definition.min ?? 0;
   const max = definition.max ?? 10;
-  return Math.min(max, Math.max(min, value));
+  return Math.min(max, Math.max(min, Number.isFinite(numericValue) ? numericValue : min));
 }
 
 export function WorkspaceProvider({
@@ -414,7 +428,7 @@ export function WorkspaceProvider({
     }));
   };
 
-  const updateMetricValue = (metricId: string, value: number | string) => {
+  const updateMetricValue = (metricId: string, value: MetricValue) => {
     const definition = metricDefinitions.find((metric) => metric.id === metricId);
 
     updateDraft((draft) => ({
@@ -441,20 +455,25 @@ export function WorkspaceProvider({
       if (existingMetric) {
         return {
           ...current,
-          metricDefinitions: current.metricDefinitions.map((metric) =>
-            metric.id === metricId
-              ? {
-                  ...metric,
-                  showInDiary: true,
-                }
-              : metric,
-          ),
+          metricDefinitions: current.metricDefinitions.map((metric) => {
+            if (metric.id !== metricId) {
+              return metric;
+            }
+
+            return sanitizeMetricDefinition({
+              ...metric,
+              showInDiary: true,
+            });
+          }),
         };
       }
 
       return {
         ...current,
-        metricDefinitions: [...current.metricDefinitions, template],
+        metricDefinitions: [
+          ...current.metricDefinitions,
+          sanitizeMetricDefinition(template),
+        ],
       };
     });
 
@@ -462,9 +481,11 @@ export function WorkspaceProvider({
       ...draft,
       metricValues: {
         ...draft.metricValues,
-        [metricId]: metricLibrary.find((metric) => metric.id === metricId)?.type === "text"
-          ? ""
-          : 5,
+        [metricId]:
+          draft.metricValues[metricId] ??
+          getMetricDefaultValue(
+            metricLibrary.find((metric) => metric.id === metricId) ?? metricLibrary[0],
+          ),
       },
     }));
   };
@@ -496,6 +517,7 @@ export function WorkspaceProvider({
     patch: Partial<
       Pick<
         MetricDefinition,
+        | "type"
         | "name"
         | "description"
         | "unit"
@@ -514,37 +536,33 @@ export function WorkspaceProvider({
           return metric;
         }
 
-        const nextMin =
-          typeof patch.min === "number"
-            ? patch.min
-            : metric.min;
-        const nextMax =
-          typeof patch.max === "number"
-            ? patch.max
-            : metric.max;
-        const nextStep =
-          typeof patch.step === "number"
-            ? patch.step
-            : metric.step;
-
-        return {
+        const nextMetric = sanitizeMetricDefinition({
           ...metric,
           ...patch,
-          min:
-            metric.type === "slider" && typeof nextMin === "number"
-              ? nextMin
-              : metric.min,
-          max:
-            metric.type === "slider" && typeof nextMax === "number"
-              ? Math.max(nextMax, typeof nextMin === "number" ? nextMin : nextMax)
-              : metric.max,
-          step:
-            metric.type === "slider" && typeof nextStep === "number" && nextStep > 0
-              ? nextStep
-              : metric.step,
-        };
+        });
+
+        return nextMetric;
       }),
     }));
+
+    updateDraft((draft) => {
+      const currentValue = draft.metricValues[metricId];
+      const updatedMetric = sanitizeMetricDefinition({
+        ...(metricDefinitions.find((metric) => metric.id === metricId) ?? metricLibrary[0]),
+        ...patch,
+      });
+
+      return {
+        ...draft,
+        metricValues: {
+          ...draft.metricValues,
+          [metricId]:
+            currentValue === undefined
+              ? getMetricDefaultValue(updatedMetric)
+              : clampMetricValue(updatedMetric, currentValue),
+        },
+      };
+    });
   };
 
   const toggleMetricVisibility = (metricId: string) => {
@@ -552,10 +570,10 @@ export function WorkspaceProvider({
       ...current,
       metricDefinitions: current.metricDefinitions.map((metric) =>
         metric.id === metricId
-          ? {
+          ? sanitizeMetricDefinition({
               ...metric,
               showInDiary: !metric.showInDiary,
-            }
+            })
           : metric,
       ),
     }));
@@ -566,10 +584,10 @@ export function WorkspaceProvider({
       ...current,
       metricDefinitions: current.metricDefinitions.map((metric) =>
         metric.id === metricId
-          ? {
+          ? sanitizeMetricDefinition({
               ...metric,
               showInAnalytics: !metric.showInAnalytics,
-            }
+            })
           : metric,
       ),
     }));
