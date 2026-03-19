@@ -36,15 +36,15 @@ function mapDiaryError(error: PostgrestError) {
     message.includes("daily_entries") &&
     message.includes("does not exist")
   ) {
-    return "Сначала создайте таблицу daily_entries, затем подключим рабочий дневник.";
+    return "Запустите Phase 1 SQL в Supabase: создайте daily_entries, profiles и базовые RLS-политики.";
   }
 
   if (message.includes("user_id") && message.includes("does not exist")) {
-    return "Дневник работает в защищенном режиме: добавьте user_id в daily_entries и включите RLS.";
+    return "Дневник работает в защищенном режиме: добавьте user_id в daily_entries и включите RLS. Готовый SQL лежит в supabase/sql.";
   }
 
   if (message.includes("row-level security") || message.includes("permission denied")) {
-    return "Нужны RLS-политики для daily_entries, чтобы пользователь видел только свои записи.";
+    return "Нужны RLS-политики для daily_entries, чтобы пользователь видел только свои записи. Запустите Phase 1 SQL и затем backfill для старых строк.";
   }
 
   return error.message;
