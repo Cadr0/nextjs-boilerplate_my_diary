@@ -110,6 +110,42 @@ export async function createDiaryEntry(input: DiaryEntryInput) {
   return data as DiaryEntry;
 }
 
+export async function saveDiaryEntry(input: DiaryEntryInput) {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const { data: existingEntry, error: fetchError } = await supabase
+    .from("daily_entries")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("entry_date", input.entry_date)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw new Error(mapDiaryError(fetchError));
+  }
+
+  if (!existingEntry) {
+    return createDiaryEntry(input);
+  }
+
+  const { data, error } = await supabase
+    .from("daily_entries")
+    .update(input)
+    .eq("id", existingEntry.id)
+    .eq("user_id", user.id)
+    .select(diaryEntrySelect)
+    .single();
+
+  if (error) {
+    throw new Error(mapDiaryError(error));
+  }
+
+  return data as DiaryEntry;
+}
+
 export async function getDiaryEntryById(id: string) {
   const user = await requireUser();
   const supabase = await createClient();

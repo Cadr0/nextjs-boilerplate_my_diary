@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAuthState } from "@/lib/auth";
-import { createDiaryEntry, getSupabaseConfigError } from "@/lib/diary";
+import { getSupabaseConfigError, saveDiaryEntry } from "@/lib/diary";
 
 export async function POST(request: Request) {
   const configError = getSupabaseConfigError();
@@ -29,21 +29,20 @@ export async function POST(request: Request) {
       !body.entry_date ||
       typeof body.mood !== "number" ||
       typeof body.energy !== "number" ||
-      typeof body.sleep_hours !== "number" ||
-      !body.notes?.trim()
+      typeof body.sleep_hours !== "number"
     ) {
       return NextResponse.json(
-        { error: "All fields are required." },
+        { error: "Date and core metrics are required." },
         { status: 400 },
       );
     }
 
-    const entry = await createDiaryEntry({
+    const entry = await saveDiaryEntry({
       entry_date: body.entry_date,
       mood: body.mood,
       energy: body.energy,
       sleep_hours: body.sleep_hours,
-      notes: body.notes.trim(),
+      notes: body.notes?.trim() ?? "",
     });
 
     return NextResponse.json({ entry }, { status: 201 });

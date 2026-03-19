@@ -5,12 +5,24 @@
   --foreground: #18211d;
   --surface: rgba(255, 250, 244, 0.8);
   --surface-strong: rgba(255, 248, 239, 0.94);
+  --surface-muted: rgba(251, 247, 240, 0.84);
   --muted: #5e675f;
   --line: rgba(24, 33, 29, 0.1);
+  --border: rgba(24, 33, 29, 0.1);
+  --border-strong: rgba(24, 33, 29, 0.18);
   --accent: #2f6f61;
   --accent-soft: rgba(47, 111, 97, 0.12);
   --accent-strong: #204d43;
+  --accent-mint: #67b98d;
+  --accent-lime: #92c36a;
+  --accent-sky: #7eb8d6;
+  --accent-gold: #d3ad62;
+  --accent-indigo: #8ea0d8;
+  --accent-rose: #d49197;
+  --accent-teal: #67b8ac;
+  --accent-apricot: #d9a47f;
   --warm: #c9965c;
+  --shadow-card: 0 18px 48px rgba(34, 39, 37, 0.1);
 }
 
 @theme inline {
@@ -22,6 +34,14 @@
 
 * {
   box-sizing: border-box;
+}
+
+body,
+button,
+input,
+textarea,
+select {
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 html {
@@ -57,6 +77,13 @@ a {
   backdrop-filter: blur(18px);
 }
 
+.surface-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(24px);
+}
+
 .surface-grid {
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px),
@@ -69,6 +96,13 @@ a {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.48),
     0 28px 72px rgba(34, 39, 37, 0.12);
+}
+
+.soft-grid {
+  background-image:
+    linear-gradient(rgba(24, 33, 29, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(24, 33, 29, 0.03) 1px, transparent 1px);
+  background-size: 16px 16px;
 }
 
 .fade-up {
