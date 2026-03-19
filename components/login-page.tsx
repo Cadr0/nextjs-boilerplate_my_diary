@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 
+import { ProductVisual } from "@/components/product-visual";
 import { createClient } from "@/lib/supabase/client";
 
 type AuthMode = "login" | "register";
@@ -41,6 +42,12 @@ const errorMessages: Record<string, string> = {
 const successMessages: Record<string, string> = {
   email_confirmed: "Email подтвержден. Теперь можно войти в аккаунт.",
 };
+
+const authPreviewPoints = [
+  "один входной поток без лишних развилок",
+  "Google и email/password в одном аккуратном экране",
+  "после входа сразу переход в личный дневник",
+];
 
 function getSafeNext(next: string | null) {
   if (!next || !next.startsWith("/") || next.startsWith("//")) {
@@ -120,35 +127,31 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
   const queryMessage = searchParams.get("message");
   const isLogin = mode === "login";
 
-  const pageCopy = useMemo(
-    () =>
-      isLogin
-        ? {
-            eyebrow: "Вход",
-            title: "Открой свой кабинет",
-            subtitle:
-              "Войди через Google или по email и паролю. Только нужные действия и понятный поток.",
-            submitLabel: "Войти",
-            switchLabel: "Нет аккаунта?",
-            switchHref: "/register",
-            switchAction: "Регистрация",
-            helper:
-              "Если у тебя уже есть аккаунт, вход по email сработает сразу после подтверждения адреса.",
-          }
-        : {
-            eyebrow: "Регистрация",
-            title: "Создай аккаунт без лишнего шума",
-            subtitle:
-              "Сначала регистрация, потом спокойный вход в дневник. Google и email-пароль работают на одном экране.",
-            submitLabel: "Создать аккаунт",
-            switchLabel: "Уже есть аккаунт?",
-            switchHref: "/login",
-            switchAction: "Войти",
-            helper:
-              "Если в Supabase включено подтверждение email, после регистрации проверь почту и подтверди адрес.",
-          },
-    [isLogin],
-  );
+  const pageCopy = isLogin
+    ? {
+        eyebrow: "Вход",
+        title: "Открой своё пространство наблюдения",
+        subtitle:
+          "Спокойный вход в личный кабинет без визуального шума. Google и email/password доступны на одном экране.",
+        submitLabel: "Войти",
+        switchLabel: "Нет аккаунта?",
+        switchHref: "/register",
+        switchAction: "Регистрация",
+        helper:
+          "После входа ты сразу попадёшь в дневник, где собраны запись дня, метрики и дальнейшая логика продукта.",
+      }
+    : {
+        eyebrow: "Регистрация",
+        title: "Создай аккаунт и начни вести свой ритм",
+        subtitle:
+          "Сначала понятная регистрация, затем личная система для заметок, состояний и постепенного роста.",
+        submitLabel: "Создать аккаунт",
+        switchLabel: "Уже есть аккаунт?",
+        switchHref: "/login",
+        switchAction: "Войти",
+        helper:
+          "Если в Supabase включено подтверждение email, после регистрации открой письмо и затем вернись ко входу.",
+      };
 
   async function handleGoogleSignIn() {
     if (!isConfigured) {
@@ -261,233 +264,244 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex items-center justify-between gap-4 py-2">
-        <Link
-          href="/"
-          className="text-xs uppercase tracking-[0.34em] text-[color:var(--accent)]"
-        >
-          Diary AI
-        </Link>
-        <Link
-          href="/"
-          className="rounded-full border border-[color:var(--line)] bg-white/72 px-4 py-2 text-sm text-slate-700 transition hover:bg-white"
-        >
-          На главный экран
-        </Link>
-      </div>
-
-      <section className="glass-panel soft-ring relative mt-4 flex min-h-[calc(100vh-6.5rem)] overflow-hidden rounded-[2.75rem] border border-white/70">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(47,111,97,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(201,150,92,0.14),transparent_26%),linear-gradient(180deg,rgba(255,250,244,0.82)_0%,rgba(248,242,234,0.96)_100%)]" />
-
-        <div className="relative grid w-full gap-8 px-6 py-8 sm:px-10 sm:py-10 lg:grid-cols-[0.92fr_1.08fr] lg:px-12 lg:py-12">
-          <div className="hidden flex-col justify-between rounded-[2.4rem] border border-slate-200/70 bg-white/56 p-7 shadow-[0_24px_80px_rgba(24,33,29,0.08)] lg:flex">
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
+      <header className="glass-panel soft-ring rounded-full border border-white/70 px-4 py-3 sm:px-6">
+        <div className="flex items-center justify-between gap-4">
+          <Link href="/" className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--accent-strong)] text-sm font-semibold text-white shadow-[0_12px_28px_rgba(32,77,67,0.24)]">
+              DA
+            </span>
             <div>
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs uppercase tracking-[0.24em] text-slate-500">
-                {pageCopy.eyebrow}
-              </span>
-              <h1 className="font-display mt-6 text-5xl leading-[1] text-slate-900">
-                {pageCopy.title}
-              </h1>
-              <p className="mt-5 max-w-md text-base leading-8 text-slate-600">
-                {pageCopy.subtitle}
-              </p>
+              <p className="text-sm font-semibold text-slate-900">Diary AI</p>
+              <p className="text-xs text-slate-500">единый входной поток</p>
+            </div>
+          </Link>
+
+          <div className="flex items-center gap-3">
+            <Link
+              href="/login"
+              className={`rounded-full px-4 py-2.5 text-sm font-medium transition ${
+                isLogin
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Вход
+            </Link>
+            <Link
+              href="/register"
+              className={`rounded-full px-4 py-2.5 text-sm font-medium transition ${
+                !isLogin
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Регистрация
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <section className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-10 lg:py-10">
+        <div className="grid gap-6 lg:grid-cols-[1.06fr_0.94fr]">
+          <div className="glass-panel soft-ring rounded-[2.6rem] border border-white/70 px-6 py-7 sm:px-8 sm:py-8">
+            <span className="text-[0.72rem] uppercase tracking-[0.28em] text-[color:var(--accent)]">
+              {pageCopy.eyebrow}
+            </span>
+            <h1 className="font-display mt-5 text-4xl leading-tight text-slate-950 sm:text-5xl">
+              {pageCopy.title}
+            </h1>
+            <p className="mt-5 text-base leading-8 text-slate-600">
+              {pageCopy.subtitle}
+            </p>
+
+            <div className="mt-8 space-y-3">
+              {authPreviewPoints.map((point) => (
+                <div
+                  key={point}
+                  className="flex items-start gap-3 rounded-[1.4rem] border border-white/80 bg-white/74 px-4 py-3"
+                >
+                  <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-700">
+                    +
+                  </span>
+                  <p className="text-sm leading-7 text-slate-600">{point}</p>
+                </div>
+              ))}
             </div>
 
-            <div className="relative mt-12 overflow-hidden rounded-[2.2rem] border border-slate-200/80 bg-[#f8f2ea] p-6">
-              <div className="absolute -left-8 top-8 h-24 w-24 rounded-full bg-emerald-900/10 blur-2xl" />
-              <div className="absolute bottom-2 right-0 h-28 w-28 rounded-full bg-amber-500/10 blur-2xl" />
-
-              <div className="relative">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 shadow-sm">
-                    <GoogleMark />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">
-                      Стандартный вход
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      Google и email/password без перегруженной формы.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-6 space-y-3">
-                  <div className="h-3 rounded-full bg-slate-900/7" />
-                  <div className="h-3 w-5/6 rounded-full bg-slate-900/7" />
-                  <div className="h-3 w-2/3 rounded-full bg-slate-900/7" />
-                </div>
-
-                <div className="mt-6 flex gap-3">
-                  <div className="h-11 flex-1 rounded-full border border-slate-200 bg-white/92" />
-                  <div className="h-11 w-28 rounded-full bg-[color:var(--accent-strong)]/92" />
-                </div>
-              </div>
-            </div>
+            <p className="mt-7 text-sm leading-7 text-slate-500">
+              {pageCopy.helper}
+            </p>
           </div>
 
-          <div className="flex items-center justify-center">
-            <div className="w-full max-w-[460px] rounded-[2.3rem] border border-white/80 bg-white/80 p-6 shadow-[0_30px_90px_rgba(24,33,29,0.12)] backdrop-blur sm:p-8">
-              <p className="text-xs uppercase tracking-[0.28em] text-[color:var(--accent)]">
-                {pageCopy.eyebrow}
-              </p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-                {pageCopy.title}
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">
-                {pageCopy.subtitle}
-              </p>
+          <div className="hidden lg:block">
+            <ProductVisual compact />
+          </div>
+        </div>
 
-              {!isConfigured ? (
-                <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  Auth пока не настроен: заполните публичные переменные Supabase и
-                  включите нужные auth-провайдеры.
-                </div>
-              ) : null}
-
-              {queryError ? (
-                <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  {errorMessages[queryError] ?? errorMessages.oauth_start}
-                </div>
-              ) : null}
-
-              {queryMessage ? (
-                <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  {successMessages[queryMessage] ?? queryMessage}
-                </div>
-              ) : null}
-
-              {status ? (
-                <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  {status}
-                </div>
-              ) : null}
-
-              {error ? (
-                <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  {error}
-                </div>
-              ) : null}
-
-              <div className="mt-6">
-                <button
-                  type="button"
-                  onClick={handleGoogleSignIn}
-                  disabled={isPending}
-                  className="flex w-full items-center justify-center gap-3 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <GoogleMark />
-                  {isLogin ? "Продолжить с Google" : "Зарегистрироваться через Google"}
-                </button>
+        <div className="mx-auto w-full max-w-[480px]">
+          <div className="glass-panel soft-ring rounded-[2.6rem] border border-white/75 px-6 py-7 sm:px-8 sm:py-8">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[0.7rem] uppercase tracking-[0.24em] text-[color:var(--accent)]">
+                  {pageCopy.eyebrow}
+                </p>
+                <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+                  {isLogin ? "Продолжить" : "Создать аккаунт"}
+                </h2>
               </div>
+              <Link
+                href="/"
+                className="rounded-full border border-slate-200 bg-white/88 px-4 py-2 text-sm text-slate-700 transition hover:bg-white"
+              >
+                Главная
+              </Link>
+            </div>
 
-              <div className="my-6 flex items-center gap-3">
-                <div className="h-px flex-1 bg-slate-200" />
-                <span className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                  или
-                </span>
-                <div className="h-px flex-1 bg-slate-200" />
+            {!isConfigured ? (
+              <div className="mt-5 rounded-[1.4rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                Auth пока не настроен: заполните публичные переменные Supabase и
+                включите нужные провайдеры.
               </div>
+            ) : null}
 
-              <form className="grid gap-4" onSubmit={handleSubmit}>
-                {!isLogin ? (
-                  <label className="grid gap-2 text-sm font-medium text-slate-700">
-                    Имя
-                    <input
-                      required
-                      type="text"
-                      value={formState.fullName}
-                      onChange={(event) =>
-                        setFormState((current) => ({
-                          ...current,
-                          fullName: event.target.value,
-                        }))
-                      }
-                      placeholder="Например, Марк"
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[color:var(--accent)]"
-                    />
-                  </label>
-                ) : null}
+            {queryError ? (
+              <div className="mt-5 rounded-[1.4rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-700">
+                {errorMessages[queryError] ?? errorMessages.oauth_start}
+              </div>
+            ) : null}
 
+            {queryMessage ? (
+              <div className="mt-5 rounded-[1.4rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-700">
+                {successMessages[queryMessage] ?? queryMessage}
+              </div>
+            ) : null}
+
+            {status ? (
+              <div className="mt-5 rounded-[1.4rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-700">
+                {status}
+              </div>
+            ) : null}
+
+            {error ? (
+              <div className="mt-5 rounded-[1.4rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-700">
+                {error}
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={isPending}
+              className="mt-6 flex w-full items-center justify-center gap-3 rounded-full border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <GoogleMark />
+              {isLogin
+                ? "Продолжить через Google"
+                : "Зарегистрироваться через Google"}
+            </button>
+
+            <div className="my-6 flex items-center gap-3">
+              <div className="h-px flex-1 bg-slate-200" />
+              <span className="text-xs uppercase tracking-[0.24em] text-slate-400">
+                или
+              </span>
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+
+            <form className="grid gap-4" onSubmit={handleSubmit}>
+              {!isLogin ? (
                 <label className="grid gap-2 text-sm font-medium text-slate-700">
-                  Email
+                  Имя
                   <input
                     required
-                    type="email"
-                    value={formState.email}
+                    type="text"
+                    value={formState.fullName}
                     onChange={(event) =>
                       setFormState((current) => ({
                         ...current,
-                        email: event.target.value,
+                        fullName: event.target.value,
                       }))
                     }
-                    placeholder="you@example.com"
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[color:var(--accent)]"
+                    placeholder="Например, Марк"
+                    className="rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)]"
                   />
                 </label>
+              ) : null}
 
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
+                Email
+                <input
+                  required
+                  type="email"
+                  value={formState.email}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      email: event.target.value,
+                    }))
+                  }
+                  placeholder="you@example.com"
+                  className="rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)]"
+                />
+              </label>
+
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
+                Пароль
+                <input
+                  required
+                  minLength={6}
+                  type="password"
+                  value={formState.password}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      password: event.target.value,
+                    }))
+                  }
+                  placeholder="Минимум 6 символов"
+                  className="rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)]"
+                />
+              </label>
+
+              {!isLogin ? (
                 <label className="grid gap-2 text-sm font-medium text-slate-700">
-                  Пароль
+                  Повторите пароль
                   <input
                     required
                     minLength={6}
                     type="password"
-                    value={formState.password}
+                    value={formState.confirmPassword}
                     onChange={(event) =>
                       setFormState((current) => ({
                         ...current,
-                        password: event.target.value,
+                        confirmPassword: event.target.value,
                       }))
                     }
-                    placeholder="Минимум 6 символов"
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[color:var(--accent)]"
+                    placeholder="Повторите пароль"
+                    className="rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)]"
                   />
                 </label>
+              ) : null}
 
-                {!isLogin ? (
-                  <label className="grid gap-2 text-sm font-medium text-slate-700">
-                    Повторите пароль
-                    <input
-                      required
-                      minLength={6}
-                      type="password"
-                      value={formState.confirmPassword}
-                      onChange={(event) =>
-                        setFormState((current) => ({
-                          ...current,
-                          confirmPassword: event.target.value,
-                        }))
-                      }
-                      placeholder="Повторите пароль"
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[color:var(--accent)]"
-                    />
-                  </label>
-                ) : null}
+              <button
+                type="submit"
+                disabled={isPending}
+                className="mt-2 rounded-full bg-[color:var(--accent-strong)] px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isPending ? "Подождите..." : pageCopy.submitLabel}
+              </button>
+            </form>
 
-                <button
-                  type="submit"
-                  disabled={isPending}
-                  className="mt-2 rounded-full bg-[color:var(--accent-strong)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isPending ? "Подождите..." : pageCopy.submitLabel}
-                </button>
-              </form>
-
-              <p className="mt-5 text-sm leading-7 text-slate-500">
-                {pageCopy.helper}
-              </p>
-
-              <p className="mt-5 text-sm text-slate-500">
-                {pageCopy.switchLabel}{" "}
-                <Link
-                  href={`${pageCopy.switchHref}?next=${encodeURIComponent(next)}`}
-                  className="font-semibold text-[color:var(--accent-strong)] transition hover:text-[color:var(--accent)]"
-                >
-                  {pageCopy.switchAction}
-                </Link>
-              </p>
-            </div>
+            <p className="mt-6 text-sm text-slate-500">
+              {pageCopy.switchLabel}{" "}
+              <Link
+                href={`${pageCopy.switchHref}?next=${encodeURIComponent(next)}`}
+                className="font-semibold text-[color:var(--accent-strong)] transition hover:text-[color:var(--accent)]"
+              >
+                {pageCopy.switchAction}
+              </Link>
+            </p>
           </div>
         </div>
       </section>

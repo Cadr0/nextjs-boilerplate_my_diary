@@ -1,303 +1,296 @@
 import Link from "next/link";
 
-import { LogoutButton } from "@/components/logout-button";
+import { ProductVisual } from "@/components/product-visual";
 
 type LandingPageProps = {
   isAuthenticated: boolean;
   isConfigured: boolean;
 };
 
-function SidebarPreview() {
-  return (
-    <div className="flex h-full flex-col rounded-[2rem] border border-slate-200/70 bg-white/76 p-4 shadow-[0_24px_70px_rgba(24,33,29,0.08)]">
-      <div className="flex items-center gap-3 rounded-[1.2rem] border border-emerald-100 bg-[#eef7f1] px-3 py-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--accent)] text-sm font-semibold text-white shadow-[0_12px_24px_rgba(47,111,97,0.22)]">
-          DF
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-slate-900">Diary Flow</p>
-          <p className="text-xs text-slate-500">Личный кабинет</p>
-        </div>
-      </div>
+const featureCards = [
+  {
+    title: "Один спокойный экран",
+    description:
+      "Без перегруза и лишних режимов. День, метрики и состояние собираются в понятный ежедневный ритуал.",
+  },
+  {
+    title: "Прогресс, который видно",
+    description:
+      "Ты не просто пишешь заметки, а замечаешь связи между сном, энергией, фокусом и выполнением задач.",
+  },
+  {
+    title: "Рост без хаоса",
+    description:
+      "Сервис помогает не давить на себя, а выстраивать устойчивый ритм и мягко улучшать показатели день за днём.",
+  },
+];
 
-      <div className="mt-5 grid gap-2 text-sm text-slate-600">
-        <div className="flex items-center gap-3 rounded-[1rem] px-3 py-2.5">
-          <span className="h-7 w-7 rounded-xl border border-slate-200 bg-white" />
-          <span>Обзор</span>
-        </div>
-        <div className="flex items-center gap-3 rounded-[1rem] border border-emerald-100 bg-[#eff7f2] px-3 py-2.5 font-medium text-slate-900">
-          <span className="h-7 w-7 rounded-xl bg-[color:var(--accent)]/16" />
-          <span>Дневник</span>
-        </div>
-        <div className="flex items-center gap-3 rounded-[1rem] px-3 py-2.5">
-          <span className="h-7 w-7 rounded-xl border border-slate-200 bg-white" />
-          <span>Аналитика</span>
-        </div>
-        <div className="flex items-center gap-3 rounded-[1rem] px-3 py-2.5">
-          <span className="h-7 w-7 rounded-xl border border-slate-200 bg-white" />
-          <span>Профиль</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DiaryPreview() {
-  return (
-    <div className="flex h-full flex-col gap-4 rounded-[2rem] border border-slate-200/70 bg-white/82 p-4 shadow-[0_24px_70px_rgba(24,33,29,0.08)]">
-      <div className="rounded-[1.6rem] border border-emerald-100 bg-[radial-gradient(circle_at_top_left,rgba(129,190,164,0.18),transparent_36%),linear-gradient(180deg,#f8fcf9_0%,#f2f7f3_100%)] p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <span className="rounded-full bg-[#e4f3ea] px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-[color:var(--accent)]">
-              Diary
-            </span>
-            <h3 className="mt-4 text-4xl font-semibold tracking-tight text-slate-900">
-              Дневник
-            </h3>
-            <p className="mt-2 max-w-xl text-sm leading-7 text-slate-500">
-              Пространство, где запись дня, метрики и следующий шаг собраны в одном ясном ритме.
-            </p>
-          </div>
-
-          <div className="hidden rounded-[1.25rem] border border-slate-200 bg-white/88 px-4 py-3 lg:block">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">
-              Дата
-            </p>
-            <p className="mt-1 text-sm font-medium text-slate-700">19.03.2026</p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-[1.3rem] border border-white bg-white/80 px-4 py-4">
-            <p className="text-3xl font-semibold text-slate-900">19.03.2026</p>
-            <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
-              дата записи
-            </p>
-          </div>
-          <div className="rounded-[1.3rem] border border-white bg-white/80 px-4 py-4">
-            <p className="text-3xl font-semibold text-slate-900">67%</p>
-            <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
-              выполнено задач
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid flex-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-[1.6rem] border border-slate-200/70 bg-white p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h4 className="text-xl font-semibold text-slate-900">Запись дня</h4>
-              <p className="mt-1 text-sm text-slate-500">
-                Главное за день и короткие заметки.
-              </p>
-            </div>
-            <span className="text-[11px] uppercase tracking-[0.22em] text-emerald-700">
-              сохранено
-            </span>
-          </div>
-
-          <div className="mt-5 space-y-4">
-            <div className="rounded-[1.25rem] border border-slate-200 bg-[#fbfcfb] p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                главное за день
-              </p>
-              <div className="mt-3 h-24 rounded-[1rem] bg-slate-900/4" />
-            </div>
-            <div className="rounded-[1.25rem] border border-slate-200 bg-[#fbfcfb] p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                заметки
-              </p>
-              <div className="mt-3 h-28 rounded-[1rem] bg-slate-900/4" />
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          {[
-            "Сон",
-            "Фокус",
-            "Энергия",
-            "Настроение",
-          ].map((item, index) => (
-            <article
-              key={item}
-              className="rounded-[1.5rem] border border-slate-200/70 bg-white p-4"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="rounded-full bg-[#eef4f0] px-2.5 py-1 text-[11px] text-slate-500">
-                  метрика
-                </span>
-                <span className="text-xs text-slate-400">
-                  {index % 2 === 0 ? "число" : "шкала"}
-                </span>
-              </div>
-              <h5 className="mt-5 text-lg font-semibold text-slate-900">{item}</h5>
-              <p className="mt-2 text-3xl font-semibold text-slate-900">
-                {index === 0 ? "7" : index === 1 ? "4" : index === 2 ? "6" : "8"}
-              </p>
-              <div className="mt-5 h-2 rounded-full bg-emerald-100">
-                <div
-                  className="h-2 rounded-full bg-[color:var(--accent)]"
-                  style={{
-                    width:
-                      index === 0 ? "52%" : index === 1 ? "40%" : index === 2 ? "62%" : "76%",
-                  }}
-                />
-              </div>
-            </article>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function HistoryPreview() {
-  return (
-    <div className="flex h-full flex-col gap-3 rounded-[2rem] border border-slate-200/70 bg-white/76 p-4 shadow-[0_24px_70px_rgba(24,33,29,0.08)]">
-      <div className="flex items-center justify-between gap-3">
-        <h4 className="text-lg font-semibold text-slate-900">История дней</h4>
-        <span className="text-xs text-slate-400">5 записей</span>
-      </div>
-
-      {[
-        ["2026-03-20", "0/0 задач"],
-        ["2026-03-19", "2/3 задач"],
-        ["2026-03-18", "3/3 задач"],
-        ["2026-03-17", "1/2 задач"],
-      ].map(([date, tasks], index) => (
-        <div
-          key={date}
-          className={`rounded-[1.1rem] border px-3 py-3 ${
-            index === 1
-              ? "border-emerald-100 bg-[#eef7f1]"
-              : "border-slate-200 bg-[#fcfdfc]"
-          }`}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">{date}</p>
-              <p className="mt-1 text-xs text-slate-400">{tasks}</p>
-            </div>
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-emerald-100 bg-white text-xs text-slate-500">
-              {index + 6}
-            </span>
-          </div>
-        </div>
-      ))}
-
-      <div className="mt-2 rounded-[1.5rem] border border-slate-200 bg-[#fcfdfc] p-4">
-        <div className="flex items-center justify-between gap-3">
-          <h5 className="text-base font-semibold text-slate-900">Задачи на день</h5>
-          <span className="text-xs text-slate-400">2/3</span>
-        </div>
-        <div className="mt-4 space-y-3">
-          <div className="flex items-center gap-3 rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
-            <span className="h-4 w-4 rounded border border-slate-300" />
-            <span className="text-sm text-slate-600">Что важно сделать сегодня?</span>
-          </div>
-          <div className="flex items-center gap-3 text-sm text-slate-600">
-            <span className="h-4 w-4 rounded border border-slate-300 bg-emerald-500/15" />
-            <span>Завершить основу сайта</span>
-          </div>
-          <div className="flex items-center gap-3 text-sm text-slate-600">
-            <span className="h-4 w-4 rounded border border-slate-300 bg-emerald-500/15" />
-            <span>Проверить ритм дневника</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+const rhythmPoints = [
+  "Ежедневная запись и свои метрики в одном потоке.",
+  "Приватное пространство с понятным входом через Google или email.",
+  "Основа для аналитики и AI без ощущения перегруженного дашборда.",
+];
 
 export function LandingPage({
   isAuthenticated,
   isConfigured,
 }: LandingPageProps) {
+  const primaryHref = isAuthenticated ? "/diary" : "/login";
+  const primaryLabel = isAuthenticated ? "Открыть дневник" : "Войти";
+  const secondaryHref = isAuthenticated ? "/diary" : "/register";
+  const secondaryLabel = isAuthenticated ? "Перейти в кабинет" : "Регистрация";
+
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-[1720px] flex-col px-3 py-3 sm:px-4 sm:py-4">
-      <section className="glass-panel soft-ring relative min-h-[calc(100vh-2rem)] overflow-hidden rounded-[2rem] border border-white/75 p-3 sm:p-4 lg:p-5">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(128,191,164,0.22),transparent_26%),radial-gradient(circle_at_top_right,rgba(187,225,208,0.16),transparent_22%),linear-gradient(180deg,rgba(250,248,243,0.96)_0%,rgba(242,246,241,0.92)_100%)]" />
-        <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(24,33,29,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(24,33,29,0.03)_1px,transparent_1px)] [background-size:24px_24px]" />
+    <main className="overflow-hidden">
+      <section className="mx-auto w-full max-w-7xl px-4 pb-14 pt-5 sm:px-6 lg:px-8 lg:pb-20">
+        <header className="glass-panel soft-ring fade-up rounded-full border border-white/70 px-4 py-3 sm:px-6">
+          <div className="flex items-center justify-between gap-4">
+            <Link href="/" className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--accent-strong)] text-sm font-semibold text-white shadow-[0_12px_28px_rgba(32,77,67,0.24)]">
+                DA
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Diary AI</p>
+                <p className="text-xs text-slate-500">личная система наблюдения</p>
+              </div>
+            </Link>
 
-        <div className="relative flex h-full flex-col gap-4">
-          <header className="flex items-center justify-between gap-4 rounded-[1.5rem] border border-white/85 bg-white/65 px-4 py-3 backdrop-blur">
-            <div>
-              <p className="text-xs uppercase tracking-[0.34em] text-[color:var(--accent)]">
-                Diary AI
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                Личный дневник для тех, кто хочет замечать, понимать и улучшать себя.
-              </p>
+            <nav className="hidden items-center gap-8 text-sm text-slate-600 lg:flex">
+              <a href="#how-it-works" className="transition hover:text-slate-900">
+                Как работает
+              </a>
+              <a href="#why" className="transition hover:text-slate-900">
+                Для чего
+              </a>
+              <a href="#flow" className="transition hover:text-slate-900">
+                Поток
+              </a>
+            </nav>
+
+            <div className="flex items-center gap-3">
+              <Link
+                href={primaryHref}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                {primaryLabel}
+              </Link>
+              <Link
+                href={secondaryHref}
+                className="rounded-full bg-[color:var(--accent-strong)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
+              >
+                {secondaryLabel}
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        <div className="grid items-center gap-12 pt-12 lg:grid-cols-[0.88fr_1.12fr] lg:pt-16">
+          <div className="fade-up max-w-xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-white/80 px-4 py-2 text-[0.7rem] uppercase tracking-[0.24em] text-[color:var(--accent)] shadow-sm">
+              Простая система входа и роста
+            </span>
+
+            <h1 className="font-display mt-7 text-5xl leading-[0.96] text-slate-950 sm:text-6xl lg:text-[4.7rem]">
+              Отслеживай день.
+              <br />
+              Замечай
+              <span className="relative mx-3 inline-flex">
+                <span className="relative z-10">прогресс</span>
+                <span className="absolute inset-x-[-0.18em] bottom-[0.1em] top-[0.28em] rounded-full bg-[color:var(--accent)]/22" />
+              </span>
+              мягко.
+            </h1>
+
+            <p className="mt-6 max-w-lg text-base leading-8 text-slate-600 sm:text-lg">
+              Diary AI помогает собирать день в понятную систему: записи,
+              ключевые показатели и постепенные улучшения без шума, давления и
+              перегруженных интерфейсов.
+            </p>
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href={primaryHref}
+                className="rounded-full bg-[color:var(--accent-strong)] px-6 py-3.5 text-center text-sm font-semibold text-white shadow-[0_16px_36px_rgba(32,77,67,0.2)] transition hover:bg-[color:var(--accent)]"
+              >
+                {primaryLabel}
+              </Link>
+              <Link
+                href={secondaryHref}
+                className="rounded-full border border-slate-200 bg-white/88 px-6 py-3.5 text-center text-sm font-medium text-slate-700 transition hover:bg-white"
+              >
+                {secondaryLabel}
+              </Link>
             </div>
 
-            {isAuthenticated ? <LogoutButton /> : null}
-          </header>
-
-          <div className="grid flex-1 gap-4 xl:grid-cols-[220px_minmax(0,1fr)_280px]">
-            <div className="hidden xl:block">
-              <SidebarPreview />
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-[1.6rem] border border-white/80 bg-white/70 px-4 py-4 shadow-[0_14px_34px_rgba(24,33,29,0.06)]">
+                <p className="text-[0.68rem] uppercase tracking-[0.22em] text-slate-400">
+                  Вход
+                </p>
+                <p className="mt-2 text-lg font-semibold text-slate-900">
+                  Google и email
+                </p>
+              </div>
+              <div className="rounded-[1.6rem] border border-white/80 bg-white/70 px-4 py-4 shadow-[0_14px_34px_rgba(24,33,29,0.06)]">
+                <p className="text-[0.68rem] uppercase tracking-[0.22em] text-slate-400">
+                  Ритм
+                </p>
+                <p className="mt-2 text-lg font-semibold text-slate-900">
+                  Один экран на день
+                </p>
+              </div>
+              <div className="rounded-[1.6rem] border border-white/80 bg-white/70 px-4 py-4 shadow-[0_14px_34px_rgba(24,33,29,0.06)]">
+                <p className="text-[0.68rem] uppercase tracking-[0.22em] text-slate-400">
+                  База
+                </p>
+                <p className="mt-2 text-lg font-semibold text-slate-900">
+                  Метрики и динамика
+                </p>
+              </div>
             </div>
 
-            <div className="grid gap-4">
-              <section className="rounded-[2rem] border border-white/85 bg-white/64 px-5 py-6 shadow-[0_24px_70px_rgba(24,33,29,0.08)] backdrop-blur sm:px-7 sm:py-7">
-                <div className="max-w-3xl">
-                  <h1 className="font-display text-4xl leading-[0.98] text-slate-900 sm:text-5xl xl:text-6xl">
-                    Дневник, который помогает видеть реальные изменения.
-                  </h1>
-                  <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">
-                    Фиксируй день, отслеживай состояние, замечай динамику и
-                    постепенно улучшай свои показатели без перегруженного интерфейса.
+            {!isConfigured ? (
+              <div className="mt-6 rounded-[1.5rem] border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm leading-6 text-amber-800">
+                Auth ещё не настроен до конца. После подключения Supabase и
+                провайдеров этот экран станет полноценной точкой входа.
+              </div>
+            ) : null}
+          </div>
+
+          <div className="fade-up-delay relative">
+            <ProductVisual />
+          </div>
+        </div>
+      </section>
+
+      <section id="how-it-works" className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid gap-5 lg:grid-cols-3">
+          {featureCards.map((card, index) => (
+            <article
+              key={card.title}
+              className="glass-panel rounded-[2rem] border border-white/70 p-7 shadow-[0_22px_54px_rgba(24,33,29,0.08)]"
+            >
+              <span className="text-[0.7rem] uppercase tracking-[0.24em] text-slate-400">
+                0{index + 1}
+              </span>
+              <h2 className="mt-4 text-2xl font-semibold text-slate-900">
+                {card.title}
+              </h2>
+              <p className="mt-4 text-sm leading-7 text-slate-600 sm:text-base">
+                {card.description}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="why" className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
+        <div className="grid items-center gap-10 lg:grid-cols-[1.02fr_0.98fr]">
+          <div className="glass-panel rounded-[2.4rem] border border-white/70 p-6 shadow-[0_28px_70px_rgba(24,33,29,0.08)] sm:p-8">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-[1.8rem] bg-white/88 p-5">
+                <p className="text-[0.7rem] uppercase tracking-[0.22em] text-slate-400">
+                  Утро
+                </p>
+                <p className="mt-3 text-xl font-semibold text-slate-900">
+                  Отметь состояние
+                </p>
+                <p className="mt-2 text-sm leading-7 text-slate-600">
+                  Несколько метрик и короткая запись, чтобы зафиксировать старт.
+                </p>
+              </div>
+              <div className="rounded-[1.8rem] bg-[color:var(--accent-strong)] p-5 text-white">
+                <p className="text-[0.7rem] uppercase tracking-[0.22em] text-white/70">
+                  День
+                </p>
+                <p className="mt-3 text-xl font-semibold">
+                  Сохрани фокус
+                </p>
+                <p className="mt-2 text-sm leading-7 text-white/78">
+                  Задачи и показатели остаются в одном спокойном рабочем поле.
+                </p>
+              </div>
+              <div className="rounded-[1.8rem] bg-white/88 p-5 sm:col-span-2">
+                <p className="text-[0.7rem] uppercase tracking-[0.22em] text-slate-400">
+                  Вечер
+                </p>
+                <p className="mt-3 text-xl font-semibold text-slate-900">
+                  Посмотри на динамику без самообмана
+                </p>
+                <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
+                  Когда данные собираются каждый день одинаково, рост становится
+                  заметным. Именно это и должно чувствоваться в продукте.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="max-w-xl">
+            <span className="text-[0.72rem] uppercase tracking-[0.28em] text-[color:var(--accent)]">
+              Почему это работает
+            </span>
+            <h2 className="font-display mt-5 text-4xl leading-tight text-slate-950 sm:text-5xl">
+              Сервис не отвлекает.
+              <br />
+              Он возвращает к себе.
+            </h2>
+            <p className="mt-5 text-base leading-8 text-slate-600">
+              Вместо ощущения очередного сложного трекера здесь должен быть
+              понятный, аккуратный и человеческий вход: сначала регистрация и
+              вход, потом личное пространство для наблюдения за собой.
+            </p>
+
+            <div className="mt-8 space-y-4">
+              {rhythmPoints.map((point) => (
+                <div
+                  key={point}
+                  className="flex items-start gap-3 rounded-[1.5rem] border border-white/70 bg-white/64 px-4 py-4"
+                >
+                  <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-700">
+                    +
+                  </span>
+                  <p className="text-sm leading-7 text-slate-600 sm:text-base">
+                    {point}
                   </p>
-
-                  {!isConfigured ? (
-                    <div className="mt-5 inline-flex rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-                      Сначала подключите Supabase Auth, чтобы включить вход и регистрацию.
-                    </div>
-                  ) : null}
-
-                  <div className="mt-8 flex flex-wrap gap-3">
-                    {isAuthenticated ? (
-                      <>
-                        <Link
-                          href="/diary"
-                          className="rounded-full bg-[color:var(--accent-strong)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
-                        >
-                          Открыть дневник
-                        </Link>
-                        <Link
-                          href="/login"
-                          className="rounded-full border border-[color:var(--line)] bg-white/78 px-6 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white"
-                        >
-                          Управление входом
-                        </Link>
-                      </>
-                    ) : (
-                      <>
-                        <Link
-                          href="/login"
-                          className="rounded-full bg-[color:var(--accent-strong)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
-                        >
-                          Войти
-                        </Link>
-                        <Link
-                          href="/register"
-                          className="rounded-full border border-[color:var(--line)] bg-white/78 px-6 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white"
-                        >
-                          Регистрация
-                        </Link>
-                      </>
-                    )}
-                  </div>
                 </div>
-              </section>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
 
-              <DiaryPreview />
+      <section id="flow" className="mx-auto w-full max-w-7xl px-4 pb-18 pt-6 sm:px-6 lg:px-8 lg:pb-24">
+        <div className="glass-panel rounded-[2.8rem] border border-white/70 px-6 py-8 shadow-[0_30px_80px_rgba(24,33,29,0.09)] sm:px-8 sm:py-10 lg:px-12">
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-2xl">
+              <span className="text-[0.72rem] uppercase tracking-[0.28em] text-[color:var(--accent)]">
+                Стартовый поток
+              </span>
+              <h2 className="font-display mt-4 text-4xl leading-tight text-slate-950 sm:text-5xl">
+                Сначала вход.
+                <br />
+                Потом личная система.
+              </h2>
+              <p className="mt-5 text-base leading-8 text-slate-600">
+                На первом этапе человеку не нужно ничего лишнего. Ему нужно
+                быстро понять продукт, войти удобным способом и попасть в своё
+                рабочее пространство без визуального хаоса.
+              </p>
             </div>
 
-            <div className="hidden xl:block">
-              <HistoryPreview />
+            <div className="grid gap-3 text-sm text-slate-600 sm:grid-cols-3 lg:max-w-[34rem]">
+              <div className="rounded-[1.6rem] bg-white/80 px-4 py-4">
+                <p className="font-semibold text-slate-900">01</p>
+                <p className="mt-2 leading-6">Главная объясняет суть и не спорит за внимание.</p>
+              </div>
+              <div className="rounded-[1.6rem] bg-white/80 px-4 py-4">
+                <p className="font-semibold text-slate-900">02</p>
+                <p className="mt-2 leading-6">Login и register выглядят как продолжение того же продукта.</p>
+              </div>
+              <div className="rounded-[1.6rem] bg-white/80 px-4 py-4">
+                <p className="font-semibold text-slate-900">03</p>
+                <p className="mt-2 leading-6">После входа пользователь попадает в основу дневника и метрик.</p>
+              </div>
             </div>
           </div>
         </div>
