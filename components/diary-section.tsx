@@ -29,7 +29,6 @@ import type {
 import {
   aiModelOptions,
   createBlankMetric,
-  formatCompactDate,
   formatHistoryDate,
   formatHumanDate,
   getMetricDefaultValue,
@@ -104,6 +103,32 @@ function parseNumberInput(value: string, fallback: number | undefined) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function getMetricProgress(metric: MetricDefinition, value: MetricValue | undefined) {
+  if (metric.type !== "scale" && metric.type !== "number") {
+    return 0;
+  }
+
+  const min = Number(metric.min ?? 0);
+  const max = Number(metric.max ?? 10);
+  const numericValue = typeof value === "number" ? value : Number(value ?? min);
+
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min || !Number.isFinite(numericValue)) {
+    return 0;
+  }
+
+  const normalized = ((numericValue - min) / (max - min)) * 100;
+  return Math.min(100, Math.max(0, normalized));
+}
+
+function getMetricRangeStyle(metric: MetricDefinition, value: MetricValue | undefined) {
+  const progress = getMetricProgress(metric, value);
+
+  return {
+    accentColor: metric.accent,
+    background: `linear-gradient(90deg, ${metric.accent} 0%, ${metric.accent} ${progress}%, rgba(24,33,29,0.08) ${progress}%, rgba(24,33,29,0.08) 100%)`,
+  };
+}
+
 function getSidebarDateLabel(value: string) {
   const today = getTodayIsoDate();
   const yesterday = shiftIsoDate(today, -1);
@@ -150,6 +175,10 @@ const metricIconOptions = [
   "leaf",
   "target",
   "note",
+  "heart",
+  "sun",
+  "flame",
+  "book",
 ];
 
 export function DiarySection() {
@@ -394,9 +423,8 @@ export function DiarySection() {
 
             <div className="min-w-0 flex-1 text-center">
               <p className="truncate text-sm font-semibold text-[var(--foreground)]">
-                {getHeadingDateLabel(selectedDate)}
+                {getSidebarDateLabel(selectedDate)}
               </p>
-              <p className="text-xs text-[var(--muted)]">{getSidebarDateLabel(selectedDate)}</p>
             </div>
 
             <button
@@ -412,10 +440,7 @@ export function DiarySection() {
           <div className="surface-card rounded-[34px] p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">
-                  {formatCompactDate(selectedDate)}
-                </p>
-                <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-4xl">
+                <h1 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-4xl">
                   {getHeadingDateLabel(selectedDate)}
                 </h1>
                 <div className="mt-4 hidden items-center gap-2 sm:flex">
@@ -428,7 +453,7 @@ export function DiarySection() {
                     <ChevronLeftIcon />
                   </button>
                   <div className="rounded-full border border-[var(--border)] bg-white/92 px-4 py-2 text-sm font-medium text-[var(--foreground)]">
-                    Активный день: {getSidebarDateLabel(selectedDate)}
+                    {getSidebarDateLabel(selectedDate)}
                   </div>
                   <button
                     type="button"
@@ -466,7 +491,7 @@ export function DiarySection() {
                   onChange={updateNotes}
                   placeholder="Что сегодня произошло, как ты себя чувствовал и что было важным?"
                   minRows={5}
-                  className="w-full rounded-[24px] border border-[var(--border)] bg-[rgba(255,255,255,0.96)] px-4 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  className="w-full rounded-[24px] border border-[var(--border)] bg-[rgba(255,255,255,0.96)] px-4 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:text-[15px]"
                 />
               </label>
 
@@ -581,8 +606,7 @@ export function DiarySection() {
               drawerTouchCurrent.current = null;
             }}
           >
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold text-[var(--foreground)]">Дни и профиль</p>
+            <div className="mb-3 flex items-center justify-end">
               <button
                 type="button"
                 onClick={() => setIsMobileSidebarOpen(false)}
@@ -648,7 +672,6 @@ function SortableMetricCard({
     transition,
     isDragging,
   } = useSortable({ id: metric.id });
-
   return (
     <div
       ref={setNodeRef}
@@ -659,45 +682,58 @@ function SortableMetricCard({
       className={isDragging ? "z-20" : ""}
     >
       <article
-        className={`rounded-[24px] border bg-white/94 p-4 shadow-[0_16px_34px_rgba(30,34,40,0.07)] transition ${
+        className={`rounded-[22px] border bg-white/94 p-3 shadow-[0_16px_34px_rgba(30,34,40,0.07)] transition sm:rounded-[24px] sm:p-4 ${
           isDragging ? "shadow-[0_22px_44px_rgba(30,34,40,0.14)]" : ""
         }`}
-        style={{ borderColor: `${metric.accent}55` }}
+        style={{
+          borderColor: `${metric.accent}55`,
+          boxShadow: `inset 0 1px 0 ${metric.accent}33`,
+        }}
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)]">
-              {metric.name}
-            </p>
-            <p className="mt-2 text-[2.15rem] leading-none font-semibold tracking-[-0.05em] text-[var(--foreground)]">
-              {formatMetricValue(metric, value)}
-              <span className="ml-2 text-lg font-medium text-[var(--muted)]">{metric.unit}</span>
-            </p>
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] border text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]"
+              style={{
+                borderColor: `${metric.accent}4d`,
+                background: `linear-gradient(180deg, ${metric.accent}1f, ${metric.accent}12)`,
+                color: metric.accent,
+              }}
+            >
+              <MetricIcon icon={metric.icon} />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-base font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-lg">
+                {metric.name}
+              </p>
+              <p className="mt-2 flex flex-wrap items-end gap-1 text-[1.9rem] leading-none font-semibold tracking-[-0.05em] text-[var(--foreground)] sm:text-[2.15rem]">
+                <span>{formatMetricValue(metric, value)}</span>
+                <span className="pb-1 text-sm font-medium text-[var(--muted)] sm:text-lg">
+                  {metric.unit}
+                </span>
+              </p>
+            </div>
           </div>
 
-          <button
-            type="button"
-            data-no-drag="true"
-            onClick={onEdit}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-white/95 text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.24)] hover:text-[var(--accent)]"
-            aria-label="Редактировать метрику"
-          >
-            <EditIcon />
-          </button>
-        </div>
-
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            data-no-drag="true"
-            {...attributes}
-            {...listeners}
-            className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.92)] px-3 text-xs font-medium text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-            aria-label="Перетащить метрику"
-          >
-            <DragHandleIcon />
-            Переместить
-          </button>
+          <div className="flex shrink-0 items-start gap-2">
+            <div
+              {...attributes}
+              {...listeners}
+              className="mt-0.5 flex h-12 w-16 items-center justify-center rounded-[18px] border border-dashed bg-[rgba(247,249,246,0.92)] text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] active:cursor-grabbing"
+              aria-label="Перетащить метрику"
+            >
+              <DragHandleIcon />
+            </div>
+            <button
+              type="button"
+              data-no-drag="true"
+              onClick={onEdit}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-white/95 text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.24)] hover:text-[var(--accent)]"
+              aria-label="Редактировать метрику"
+            >
+              <EditIcon />
+            </button>
+          </div>
         </div>
 
         <div className="mt-4" data-no-drag="true">
@@ -783,8 +819,8 @@ function MetricInputField({
         step={metric.step}
         value={typeof value === "number" ? value : Number(value ?? metric.min ?? 0)}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-[rgba(24,33,29,0.08)]"
-        style={{ accentColor: metric.accent }}
+        className="h-2.5 w-full cursor-pointer appearance-none rounded-full"
+        style={getMetricRangeStyle(metric, value)}
       />
       <div className="flex justify-between text-[11px] text-[var(--muted)]">
         <span>{metric.min}</span>
@@ -850,6 +886,7 @@ function AutoGrowTextarea({
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       className={className}
+      style={{ resize: "none", overflow: "hidden" }}
     />
   );
 }
@@ -900,9 +937,9 @@ function MetricBuilderModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(25,31,30,0.18)] px-4 py-6">
-      <div className="surface-card relative w-full max-w-3xl rounded-[34px] border border-white/80 bg-[rgba(255,250,246,0.94)] p-5 shadow-[0_38px_90px_rgba(24,33,29,0.18)] sm:p-6">
-        <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(25,31,30,0.18)] px-0 py-0 sm:items-center sm:px-4 sm:py-6">
+      <div className="surface-card relative flex h-[100dvh] w-full flex-col overflow-hidden rounded-none border border-white/80 bg-[rgba(255,250,246,0.94)] shadow-[0_38px_90px_rgba(24,33,29,0.18)] sm:h-[min(92vh,860px)] sm:max-w-3xl sm:rounded-[34px]">
+        <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] px-4 pb-4 pt-5 sm:px-6">
           <div className="flex items-center gap-5 text-lg">
             <button
               type="button"
@@ -912,7 +949,7 @@ function MetricBuilderModal({
                   : "border-transparent text-[var(--muted)]"
               }`}
             >
-              Создать метрику
+              ??????? ???????
             </button>
             <button
               type="button"
@@ -922,7 +959,7 @@ function MetricBuilderModal({
                   : "border-transparent text-[var(--muted)]"
               }`}
             >
-              Редактировать метрику
+              ????????????? ???????
             </button>
           </div>
 
@@ -930,318 +967,321 @@ function MetricBuilderModal({
             type="button"
             onClick={onClose}
             className="flex h-10 w-10 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-white/90 hover:text-[var(--foreground)]"
-            aria-label="Закрыть конструктор"
+            aria-label="??????? ???????????"
           >
             <CloseIcon />
           </button>
         </div>
 
-        <div className="mt-5 grid gap-5">
-          <div className="rounded-[28px] border border-[var(--border)] bg-white/90 p-4">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsAppearancePickerOpen((current) => !current)}
-                  className="flex h-12 w-12 items-center justify-center rounded-[18px] text-white"
-                  style={{ backgroundColor: metric.accent }}
-                  aria-label="Выбрать цвет и иконку"
-                >
-                  <MetricIcon icon={metric.icon} />
-                </button>
-
-                {isAppearancePickerOpen ? (
-                  <div className="absolute left-0 top-[3.75rem] z-20 w-[280px] rounded-[24px] border border-[var(--border)] bg-white p-4 shadow-[0_24px_48px_rgba(24,33,29,0.14)]">
-                    <div className="flex flex-wrap gap-3">
-                      {metricAccentOptions.map((accent) => (
-                        <button
-                          key={accent}
-                          type="button"
-                          onClick={() =>
-                            setMetric((current) => ({
-                              ...current,
-                              accent,
-                            }))
-                          }
-                          className={`flex h-9 w-9 items-center justify-center rounded-full border transition ${
-                            metric.accent === accent
-                              ? "border-[rgba(24,33,29,0.24)]"
-                              : "border-transparent"
-                          }`}
-                          style={{ backgroundColor: accent }}
-                          aria-label={`Выбрать цвет ${accent}`}
-                        >
-                          {metric.accent === accent ? <CheckIcon /> : null}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="my-4 h-px bg-[var(--border)]" />
-
-                    <div className="grid grid-cols-5 gap-3">
-                      {metricIconOptions.map((icon) => (
-                        <button
-                          key={icon}
-                          type="button"
-                          onClick={() =>
-                            setMetric((current) => ({
-                              ...current,
-                              icon,
-                            }))
-                          }
-                          className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition ${
-                            metric.icon === icon
-                              ? "border-[var(--accent)] bg-[rgba(47,111,97,0.08)] text-[var(--accent)]"
-                              : "border-[var(--border)] bg-white text-[var(--foreground)]"
-                          }`}
-                          aria-label={`Выбрать иконку ${icon}`}
-                        >
-                          <MetricIcon icon={icon} />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              <input
-                value={metric.name}
-                onChange={(event) =>
-                  setMetric((current) =>
-                    sanitizeMetricDefinition({
-                      ...current,
-                      name: event.target.value,
-                    }),
-                  )
-                }
-                className="min-h-12 flex-1 rounded-[18px] border border-[var(--border)] bg-white px-4 text-lg font-semibold text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-              />
-            </div>
-          </div>
-
-          {mode === "create" ? (
-            <div className="grid gap-2">
-              <p className="text-sm font-medium text-[var(--foreground)]">Быстрые заготовки</p>
-              <div className="flex flex-wrap gap-2">
-                {templates.map((template) => (
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-5 sm:px-6 sm:pb-6">
+          <div className="grid gap-5">
+            <div className="rounded-[24px] border border-[var(--border)] bg-white/90 p-4 sm:rounded-[28px]">
+              <div className="flex items-center gap-3">
+                <div className="relative">
                   <button
-                    key={template.id}
                     type="button"
-                    onClick={() => applyTemplate(template)}
-                    className="rounded-full border border-[var(--border)] bg-white/90 px-3 py-2 text-sm text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.24)] hover:text-[var(--accent)]"
+                    onClick={() => setIsAppearancePickerOpen((current) => !current)}
+                    className="flex h-12 w-12 items-center justify-center rounded-[18px] text-white shadow-[0_16px_30px_rgba(24,33,29,0.12)]"
+                    style={{ backgroundColor: metric.accent }}
+                    aria-label="??????? ???? ? ??????"
                   >
-                    {template.name}
+                    <MetricIcon icon={metric.icon} />
+                  </button>
+
+                  {isAppearancePickerOpen ? (
+                    <div className="absolute left-0 top-[3.75rem] z-20 w-[min(80vw,280px)] rounded-[24px] border border-[var(--border)] bg-white p-4 shadow-[0_24px_48px_rgba(24,33,29,0.14)] sm:w-[280px]">
+                      <div className="flex flex-wrap gap-3">
+                        {metricAccentOptions.map((accent) => (
+                          <button
+                            key={accent}
+                            type="button"
+                            onClick={() =>
+                              setMetric((current) => ({
+                                ...current,
+                                accent,
+                              }))
+                            }
+                            className={`flex h-9 w-9 items-center justify-center rounded-full border transition ${
+                              metric.accent === accent
+                                ? "border-[rgba(24,33,29,0.24)]"
+                                : "border-transparent"
+                            }`}
+                            style={{ backgroundColor: accent }}
+                            aria-label={`??????? ???? ${accent}`}
+                          >
+                            {metric.accent === accent ? <CheckIcon /> : null}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="my-4 h-px bg-[var(--border)]" />
+
+                      <div className="grid grid-cols-4 gap-3 sm:grid-cols-5">
+                        {metricIconOptions.map((icon) => (
+                          <button
+                            key={icon}
+                            type="button"
+                            onClick={() =>
+                              setMetric((current) => ({
+                                ...current,
+                                icon,
+                              }))
+                            }
+                            className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition ${
+                              metric.icon === icon
+                                ? "border-[var(--accent)] bg-[rgba(47,111,97,0.08)] text-[var(--accent)]"
+                                : "border-[var(--border)] bg-white text-[var(--foreground)]"
+                            }`}
+                            aria-label={`??????? ?????? ${icon}`}
+                          >
+                            <MetricIcon icon={icon} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                <input
+                  value={metric.name}
+                  onChange={(event) =>
+                    setMetric((current) =>
+                      sanitizeMetricDefinition({
+                        ...current,
+                        name: event.target.value,
+                      }),
+                    )
+                  }
+                  className="min-h-12 flex-1 rounded-[18px] border border-[var(--border)] bg-white px-4 text-base font-semibold text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:text-lg"
+                />
+              </div>
+            </div>
+
+            {mode === "create" ? (
+              <div className="grid gap-2">
+                <p className="text-sm font-medium text-[var(--foreground)]">??????? ?????????</p>
+                <div className="flex flex-wrap gap-2">
+                  {templates.map((template) => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => applyTemplate(template)}
+                      className="rounded-full border border-[var(--border)] bg-white/90 px-3 py-2 text-sm text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.24)] hover:text-[var(--accent)]"
+                    >
+                      {template.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="grid gap-3">
+              <p className="text-sm font-medium text-[var(--foreground)]">???</p>
+              <div className="grid gap-2 sm:grid-cols-4">
+                {metricTypeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      const nextUnitOption = getMetricUnitOptions(option.value)[0];
+
+                      setMetric((current) =>
+                        sanitizeMetricDefinition({
+                          ...current,
+                          type: option.value,
+                          unitPreset: nextUnitOption.value,
+                          unit: nextUnitOption.defaultUnit,
+                          min: nextUnitOption.defaultMin,
+                          max: nextUnitOption.defaultMax,
+                          step: nextUnitOption.defaultStep,
+                          showInAnalytics:
+                            option.value === "boolean" || option.value === "text"
+                              ? false
+                              : current.showInAnalytics,
+                        }),
+                      );
+                    }}
+                    className={`rounded-[18px] border px-4 py-3 text-left transition sm:rounded-[20px] ${
+                      metric.type === option.value
+                        ? "border-[rgba(136,117,186,0.36)] bg-[rgba(136,117,186,0.12)] text-[var(--foreground)]"
+                        : "border-[var(--border)] bg-white/88 text-[var(--muted)]"
+                    }`}
+                  >
+                    <p className="text-sm font-semibold">{option.label}</p>
+                    <p className="mt-1 text-xs leading-5">{option.description}</p>
                   </button>
                 ))}
               </div>
             </div>
-          ) : null}
 
-          <div className="grid gap-3">
-            <p className="text-sm font-medium text-[var(--foreground)]">Тип</p>
-            <div className="grid gap-2 sm:grid-cols-4">
-              {metricTypeOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => {
-                    const nextUnitOption = getMetricUnitOptions(option.value)[0];
-
-                    setMetric((current) =>
-                      sanitizeMetricDefinition({
-                        ...current,
-                        type: option.value,
-                        unitPreset: nextUnitOption.value,
-                        unit: nextUnitOption.defaultUnit,
-                        min: nextUnitOption.defaultMin,
-                        max: nextUnitOption.defaultMax,
-                        step: nextUnitOption.defaultStep,
-                        showInAnalytics:
-                          option.value === "boolean" || option.value === "text"
-                            ? false
-                            : current.showInAnalytics,
-                      }),
-                    );
-                  }}
-                  className={`rounded-[20px] border px-4 py-3 text-left transition ${
-                    metric.type === option.value
-                      ? "border-[rgba(136,117,186,0.36)] bg-[rgba(136,117,186,0.12)] text-[var(--foreground)]"
-                      : "border-[var(--border)] bg-white/88 text-[var(--muted)]"
-                  }`}
-                >
-                  <p className="text-sm font-semibold">{option.label}</p>
-                  <p className="mt-1 text-xs leading-5">{option.description}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid gap-3">
-            <p className="text-sm font-medium text-[var(--foreground)]">Юниты</p>
-            <div className="grid gap-2 sm:grid-cols-4">
-              {unitOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() =>
-                    setMetric((current) =>
-                      sanitizeMetricDefinition({
-                        ...current,
-                        unitPreset: option.value,
-                        unit: option.defaultUnit,
-                        min: option.defaultMin,
-                        max: option.defaultMax,
-                        step: option.defaultStep,
-                      }),
-                    )
-                  }
-                  className={`rounded-[20px] border px-4 py-3 text-left transition ${
-                    metric.unitPreset === option.value
-                      ? "border-[rgba(109,143,207,0.32)] bg-[rgba(109,143,207,0.12)] text-[var(--foreground)]"
-                      : "border-[var(--border)] bg-white/88 text-[var(--muted)]"
-                  }`}
-                >
-                  <p className="text-sm font-semibold">{option.label}</p>
-                  <p className="mt-1 text-xs leading-5">{option.description}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[22px] border border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-4">
-            <p className="text-sm font-medium text-[var(--foreground)]">Вид метрики</p>
-            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Нажми на иконку слева от названия, чтобы выбрать цвет и иконку в выпадающем окне.
-            </p>
-          </div>
-
-          <div className="grid gap-3 rounded-[28px] border border-[var(--border)] bg-white/88 p-4">
-            <label className="grid gap-2">
-              <span className="text-sm font-medium text-[var(--foreground)]">Описание</span>
-              <AutoGrowTextarea
-                value={metric.description}
-                onChange={(value) => setMetric((current) => ({ ...current, description: value }))}
-                minRows={2}
-                className="w-full rounded-[18px] border border-[var(--border)] bg-white px-3 py-3 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-              />
-            </label>
-
-            <label className="grid gap-2">
-              <span className="text-sm font-medium text-[var(--foreground)]">Подпись единицы</span>
-              <input
-                value={metric.unit}
-                onChange={(event) => setMetric((current) => ({ ...current, unit: event.target.value }))}
-                className="min-h-11 rounded-[18px] border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-              />
-            </label>
-
-            {metric.type === "scale" || metric.type === "number" ? (
-              <>
-                <div className="rounded-[22px] border border-[var(--border)] bg-[rgba(244,248,255,0.78)] px-4 py-4">
-                  <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-[var(--foreground)]">Шкала</span>
-                    <span className="font-semibold text-[var(--foreground)]">
-                      {formatMetricValue(metric, getMetricDefaultValue(metric))}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={metric.min}
-                    max={metric.max}
-                    step={metric.step}
-                    value={
-                      typeof getMetricDefaultValue(metric) === "number"
-                        ? Number(getMetricDefaultValue(metric))
-                        : 0
+            <div className="grid gap-3">
+              <p className="text-sm font-medium text-[var(--foreground)]">?????</p>
+              <div className="grid gap-2 sm:grid-cols-4">
+                {unitOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() =>
+                      setMetric((current) =>
+                        sanitizeMetricDefinition({
+                          ...current,
+                          unitPreset: option.value,
+                          unit: option.defaultUnit,
+                          min: option.defaultMin,
+                          max: option.defaultMax,
+                          step: option.defaultStep,
+                        }),
+                      )
                     }
-                    readOnly
-                    className="mt-3 h-2 w-full cursor-default appearance-none rounded-full bg-[rgba(24,33,29,0.08)]"
-                    style={{ accentColor: metric.accent }}
-                  />
-                </div>
+                    className={`rounded-[18px] border px-4 py-3 text-left transition sm:rounded-[20px] ${
+                      metric.unitPreset === option.value
+                        ? "border-[rgba(109,143,207,0.32)] bg-[rgba(109,143,207,0.12)] text-[var(--foreground)]"
+                        : "border-[var(--border)] bg-white/88 text-[var(--muted)]"
+                    }`}
+                  >
+                    <p className="text-sm font-semibold">{option.label}</p>
+                    <p className="mt-1 text-xs leading-5">{option.description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <label className="grid gap-2">
-                    <span className="text-sm font-medium text-[var(--foreground)]">Минимум</span>
-                    <input
-                      type="number"
-                      value={metric.min ?? 0}
-                      onChange={(event) =>
-                        setMetric((current) =>
-                          sanitizeMetricDefinition({
-                            ...current,
-                            min: parseNumberInput(event.target.value, current.min),
-                          }),
-                        )
-                      }
-                      className="min-h-11 rounded-[18px] border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                    />
-                  </label>
-                  <label className="grid gap-2">
-                    <span className="text-sm font-medium text-[var(--foreground)]">Максимум</span>
-                    <input
-                      type="number"
-                      value={metric.max ?? 10}
-                      onChange={(event) =>
-                        setMetric((current) =>
-                          sanitizeMetricDefinition({
-                            ...current,
-                            max: parseNumberInput(event.target.value, current.max),
-                          }),
-                        )
-                      }
-                      className="min-h-11 rounded-[18px] border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                    />
-                  </label>
-                  <label className="grid gap-2">
-                    <span className="text-sm font-medium text-[var(--foreground)]">Шаг</span>
-                    <input
-                      type="number"
-                      min="0.1"
-                      step="0.1"
-                      value={metric.step ?? 1}
-                      onChange={(event) =>
-                        setMetric((current) =>
-                          sanitizeMetricDefinition({
-                            ...current,
-                            step: parseNumberInput(event.target.value, current.step),
-                          }),
-                        )
-                      }
-                      className="min-h-11 rounded-[18px] border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                    />
-                  </label>
-                </div>
-              </>
-            ) : null}
+            <div className="rounded-[22px] border border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-4">
+              <p className="text-sm font-medium text-[var(--foreground)]">??? ???????</p>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                ????? ?? ?????? ????? ?? ????????, ????? ??????? ???? ? ?????? ? ?????????? ????.
+              </p>
+            </div>
 
-            <div className="flex flex-wrap gap-2">
-              <ToggleChip
-                active={metric.showInDiary}
-                onClick={() =>
-                  setMetric((current) => ({
-                    ...current,
-                    showInDiary: !current.showInDiary,
-                    isActive: true,
-                  }))
-                }
-                label="Показывать в дневнике"
-              />
-              <ToggleChip
-                active={metric.showInAnalytics}
-                onClick={() =>
-                  setMetric((current) => ({
-                    ...current,
-                    showInAnalytics: !current.showInAnalytics,
-                    isActive: true,
-                  }))
-                }
-                label="Показывать в аналитике"
-              />
+            <div className="grid gap-3 rounded-[24px] border border-[var(--border)] bg-white/88 p-4 sm:rounded-[28px]">
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-[var(--foreground)]">????????</span>
+                <AutoGrowTextarea
+                  value={metric.description}
+                  onChange={(value) => setMetric((current) => ({ ...current, description: value }))}
+                  minRows={2}
+                  className="w-full rounded-[18px] border border-[var(--border)] bg-white px-3 py-3 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                />
+              </label>
+
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-[var(--foreground)]">??????? ???????</span>
+                <input
+                  value={metric.unit}
+                  onChange={(event) => setMetric((current) => ({ ...current, unit: event.target.value }))}
+                  className="min-h-11 rounded-[18px] border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                />
+              </label>
+
+              {metric.type === "scale" || metric.type === "number" ? (
+                <>
+                  <div className="rounded-[22px] border border-[var(--border)] bg-[rgba(244,248,255,0.78)] px-4 py-4">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="text-[var(--foreground)]">?????</span>
+                      <span className="font-semibold text-[var(--foreground)]">
+                        {formatMetricValue(metric, getMetricDefaultValue(metric))}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={metric.min}
+                      max={metric.max}
+                      step={metric.step}
+                      value={
+                        typeof getMetricDefaultValue(metric) === "number"
+                          ? Number(getMetricDefaultValue(metric))
+                          : 0
+                      }
+                      readOnly
+                      className="mt-3 h-2.5 w-full cursor-default appearance-none rounded-full"
+                      style={getMetricRangeStyle(metric, getMetricDefaultValue(metric))}
+                    />
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="grid gap-2">
+                      <span className="text-sm font-medium text-[var(--foreground)]">???????</span>
+                      <input
+                        type="number"
+                        value={metric.min ?? 0}
+                        onChange={(event) =>
+                          setMetric((current) =>
+                            sanitizeMetricDefinition({
+                              ...current,
+                              min: parseNumberInput(event.target.value, current.min),
+                            }),
+                          )
+                        }
+                        className="min-h-11 rounded-[18px] border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                      />
+                    </label>
+                    <label className="grid gap-2">
+                      <span className="text-sm font-medium text-[var(--foreground)]">????????</span>
+                      <input
+                        type="number"
+                        value={metric.max ?? 10}
+                        onChange={(event) =>
+                          setMetric((current) =>
+                            sanitizeMetricDefinition({
+                              ...current,
+                              max: parseNumberInput(event.target.value, current.max),
+                            }),
+                          )
+                        }
+                        className="min-h-11 rounded-[18px] border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                      />
+                    </label>
+                    <label className="grid gap-2">
+                      <span className="text-sm font-medium text-[var(--foreground)]">???</span>
+                      <input
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={metric.step ?? 1}
+                        onChange={(event) =>
+                          setMetric((current) =>
+                            sanitizeMetricDefinition({
+                              ...current,
+                              step: parseNumberInput(event.target.value, current.step),
+                            }),
+                          )
+                        }
+                        className="min-h-11 rounded-[18px] border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                      />
+                    </label>
+                  </div>
+                </>
+              ) : null}
+
+              <div className="flex flex-wrap gap-2">
+                <ToggleChip
+                  active={metric.showInDiary}
+                  onClick={() =>
+                    setMetric((current) => ({
+                      ...current,
+                      showInDiary: !current.showInDiary,
+                      isActive: true,
+                    }))
+                  }
+                  label="?????????? ? ????????"
+                />
+                <ToggleChip
+                  active={metric.showInAnalytics}
+                  onClick={() =>
+                    setMetric((current) => ({
+                      ...current,
+                      showInAnalytics: !current.showInAnalytics,
+                      isActive: true,
+                    }))
+                  }
+                  label="?????????? ? ?????????"
+                />
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-4 py-4 sm:px-6">
           <div>
             {onDelete ? (
               <button
@@ -1249,7 +1289,7 @@ function MetricBuilderModal({
                 onClick={onDelete}
                 className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/92 px-5 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgba(208,138,149,0.26)] hover:text-[rgb(136,47,63)]"
               >
-                Удалить
+                ???????
               </button>
             ) : null}
           </div>
@@ -1257,9 +1297,9 @@ function MetricBuilderModal({
           <button
             type="button"
             onClick={() => onSave(metric)}
-            className="inline-flex min-h-12 items-center rounded-[20px] bg-[linear-gradient(135deg,#8b79bd,#6c5b99)] px-6 text-sm font-semibold text-white shadow-[0_18px_36px_rgba(108,91,153,0.28)] transition hover:brightness-105"
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-[20px] bg-[linear-gradient(135deg,#8b79bd,#6c5b99)] px-6 text-sm font-semibold text-white shadow-[0_18px_36px_rgba(108,91,153,0.28)] transition hover:brightness-105 sm:w-auto"
           >
-            Сохранить метрику
+            ????????? ???????
           </button>
         </div>
       </div>
@@ -1286,9 +1326,9 @@ function DiarySettingsModal({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(25,31,30,0.18)] px-4 py-6">
-      <div className="surface-card flex w-full max-w-5xl overflow-hidden rounded-[34px] border border-white/80 bg-[rgba(255,250,246,0.96)] shadow-[0_38px_90px_rgba(24,33,29,0.18)]">
-        <div className="flex w-full max-w-[290px] flex-col border-r border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(25,31,30,0.18)] px-0 py-0 sm:items-center sm:px-4 sm:py-6">
+      <div className="surface-card flex h-[100dvh] w-full flex-col overflow-hidden rounded-none border border-white/80 bg-[rgba(255,250,246,0.96)] shadow-[0_38px_90px_rgba(24,33,29,0.18)] sm:h-[min(90vh,760px)] sm:max-w-5xl sm:flex-row sm:rounded-[34px]">
+        <div className="flex w-full shrink-0 flex-col border-b border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-4 sm:max-w-[290px] sm:border-b-0 sm:border-r">
           <button
             type="button"
             onClick={onClose}
@@ -1298,13 +1338,13 @@ function DiarySettingsModal({
             <CloseIcon />
           </button>
 
-          <div className="grid gap-2">
+          <div className="flex gap-2 overflow-x-auto pb-1 sm:grid sm:overflow-visible sm:pb-0">
             {tabs.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setTab(item.id)}
-                className={`rounded-[18px] px-4 py-3 text-left text-base transition ${
+                className={`shrink-0 rounded-[18px] px-4 py-3 text-left text-sm transition sm:text-base ${
                   tab === item.id
                     ? "bg-white text-[var(--foreground)] shadow-[0_12px_24px_rgba(24,33,29,0.08)]"
                     : "text-[var(--muted)] hover:bg-white/70"
@@ -1316,10 +1356,10 @@ function DiarySettingsModal({
           </div>
         </div>
 
-        <div className="min-w-0 flex-1 p-6 sm:p-8">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-5 sm:p-8">
           {tab === "general" ? (
-            <div className="grid gap-6">
-              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+            <div className="grid min-h-full content-start gap-6">
+              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
                 Общее
               </h2>
               <SettingsRow
@@ -1358,8 +1398,8 @@ function DiarySettingsModal({
           ) : null}
 
           {tab === "profile" ? (
-            <div className="grid gap-6">
-              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+            <div className="grid min-h-full content-start gap-6">
+              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
                 Профиль
               </h2>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -1393,8 +1433,8 @@ function DiarySettingsModal({
           ) : null}
 
           {tab === "assistant" ? (
-            <div className="grid gap-6">
-              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+            <div className="grid min-h-full content-start gap-6">
+              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
                 Ассистент
               </h2>
               <SettingsRow
@@ -1431,8 +1471,8 @@ function DiarySettingsModal({
           ) : null}
 
           {tab === "account" ? (
-            <div className="grid gap-6">
-              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+            <div className="grid min-h-full content-start gap-6">
+              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
                 Учетная запись
               </h2>
               <p className="max-w-2xl text-sm leading-7 text-[var(--muted)]">
@@ -1458,8 +1498,8 @@ function SettingsRow({
   control: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] pb-5">
-      <p className="text-xl text-[var(--foreground)]">{label}</p>
+    <div className="flex flex-col gap-3 border-b border-[var(--border)] pb-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <p className="text-lg text-[var(--foreground)] sm:text-xl">{label}</p>
       {control}
     </div>
   );
@@ -1544,6 +1584,14 @@ function MetricIcon({ icon }: { icon: string }) {
       return <TargetIcon />;
     case "note":
       return <NoteIcon />;
+    case "heart":
+      return <HeartIcon />;
+    case "sun":
+      return <SunIcon />;
+    case "flame":
+      return <FlameIcon />;
+    case "book":
+      return <BookIcon />;
     default:
       return <SparkIcon />;
   }
@@ -1696,6 +1744,48 @@ function NoteIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
       <path d="M7 4h10a2 2 0 0 1 2 2v12l-4-2-4 2-4-2-4 2V6a2 2 0 0 1 2-2h2" />
+    </svg>
+  );
+}
+
+function HeartIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" />
+    </svg>
+  );
+}
+
+function SunIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v3" />
+      <path d="M12 19v3" />
+      <path d="m4.9 4.9 2.1 2.1" />
+      <path d="m17 17 2.1 2.1" />
+      <path d="M2 12h3" />
+      <path d="M19 12h3" />
+      <path d="m4.9 19.1 2.1-2.1" />
+      <path d="m17 7 2.1-2.1" />
+    </svg>
+  );
+}
+
+function FlameIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 3c1.4 3.5 5 4.9 5 9a5 5 0 0 1-10 0c0-2.6 1.3-4.2 2.9-5.9.8-.9 1.6-1.8 2.1-3.1Z" />
+      <path d="M12 11c.8 1.4 2 2.1 2 3.9a2 2 0 1 1-4 0c0-1.2.8-2.3 2-3.9Z" />
+    </svg>
+  );
+}
+
+function BookIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M6 4h11a2 2 0 0 1 2 2v12H8a2 2 0 0 0-2 2V4Z" />
+      <path d="M6 18a2 2 0 0 1 2-2h11" />
     </svg>
   );
 }

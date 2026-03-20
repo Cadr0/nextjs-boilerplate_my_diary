@@ -177,19 +177,19 @@ export function DiaryAssistantPanel() {
 
   return (
     <div className="grid gap-4">
-      <div className="surface-card rounded-[34px] p-5 sm:p-6">
+      <div className="surface-card rounded-[28px] p-4 sm:rounded-[34px] sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[rgba(47,111,97,0.14)] bg-white/90 text-[var(--accent)]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[rgba(47,111,97,0.14)] bg-white/90 text-[var(--accent)] sm:h-11 sm:w-11">
               <RobotIcon />
             </div>
             <div>
-              <p className="text-sm font-medium text-[var(--muted)]">AI-разбор дня</p>
-              <h2 className="text-xl font-semibold text-[var(--foreground)]">Анализ и чат</h2>
+              <p className="text-xs font-medium text-[var(--muted)] sm:text-sm">AI-разбор дня</p>
+              <h2 className="text-lg font-semibold text-[var(--foreground)] sm:text-xl">Анализ и чат</h2>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="hidden flex-wrap items-center gap-2 sm:flex">
             {aiModelOptions.map((option) => (
               <button
                 key={option.id}
@@ -208,7 +208,7 @@ export function DiaryAssistantPanel() {
           </div>
         </div>
 
-        <div className="mt-5 rounded-[28px] border border-[var(--border)] bg-white/92 p-5">
+        <div className="mt-4 rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:mt-5 sm:rounded-[28px] sm:p-5">
           {selectedEntry?.ai_analysis ? (
             <div className="grid gap-3 text-sm leading-7 text-[var(--foreground)]">
               {selectedEntry.ai_analysis
@@ -241,14 +241,14 @@ export function DiaryAssistantPanel() {
               key={prompt}
               type="button"
               onClick={() => void sendChatMessage(prompt)}
-              className="rounded-full border border-[var(--border)] bg-white/92 px-4 py-2 text-sm text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.24)] hover:text-[var(--accent)]"
+              className="rounded-full border border-[var(--border)] bg-white/92 px-3 py-2 text-xs text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.24)] hover:text-[var(--accent)] sm:px-4 sm:text-sm"
             >
               {prompt}
             </button>
           ))}
         </div>
 
-        <div className="mt-5 grid gap-3 pb-28">
+        <div className="mt-5 grid gap-3 pb-32 sm:pb-28">
           {chatMessages.length === 0 ? (
             <div className="rounded-[24px] border border-dashed border-[var(--border)] bg-[rgba(247,249,246,0.84)] px-4 py-5 text-sm leading-7 text-[var(--muted)]">
               Спроси AI про запись, метрики и причины текущего состояния.
@@ -260,7 +260,7 @@ export function DiaryAssistantPanel() {
                 className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[92%] rounded-[24px] px-4 py-3 text-sm leading-7 ${
+                  className={`max-w-[94%] rounded-[22px] px-3 py-2.5 text-sm leading-6 sm:max-w-[92%] sm:rounded-[24px] sm:px-4 sm:py-3 sm:leading-7 ${
                     message.role === "user"
                       ? "bg-[var(--accent)] text-white shadow-[0_16px_30px_rgba(47,111,97,0.2)]"
                       : "border border-[var(--border)] bg-white/92 text-[var(--foreground)]"
@@ -274,7 +274,7 @@ export function DiaryAssistantPanel() {
 
           {chatState === "sending" ? (
             <div className="flex justify-start">
-              <div className="rounded-[24px] border border-[var(--border)] bg-white/92 px-4 py-3 text-sm text-[var(--muted)]">
+              <div className="rounded-[22px] border border-[var(--border)] bg-white/92 px-3 py-2.5 text-sm text-[var(--muted)] sm:rounded-[24px] sm:px-4 sm:py-3">
                 AI печатает...
               </div>
             </div>
@@ -290,12 +290,12 @@ export function DiaryAssistantPanel() {
             void sendChatMessage(chatInput);
           }}
         >
-          <div className="flex flex-wrap items-center gap-3 rounded-[30px] border border-[var(--border)] bg-[rgba(255,255,255,0.98)] px-4 py-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] backdrop-blur">
+          <div className="grid grid-cols-[44px_minmax(0,1fr)_48px] gap-3 rounded-[28px] border border-[var(--border)] bg-[rgba(255,255,255,0.98)] p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] backdrop-blur sm:flex sm:flex-wrap sm:items-center sm:gap-3 sm:rounded-[30px] sm:px-4 sm:py-3">
             <button
               type="button"
               onClick={() => void requestEntryAnalysis()}
               disabled={analysisState === "loading"}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="row-start-1 flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
               aria-label="Запустить анализ"
             >
               <PlusIcon />
@@ -305,13 +305,13 @@ export function DiaryAssistantPanel() {
               value={chatInput}
               onChange={(event) => setChatInput(event.target.value)}
               placeholder="Спросите Diary AI"
-              className="min-w-[220px] flex-1 bg-transparent text-base text-[var(--foreground)] outline-none placeholder:text-[var(--muted)]"
+              className="col-start-2 row-start-1 min-w-0 bg-transparent text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] sm:min-w-[220px] sm:flex-1 sm:text-base"
             />
 
             <select
               value={profile.aiModel}
               onChange={(event) => updateProfile("aiModel", event.target.value)}
-              className="min-h-10 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.92)] px-3 text-sm text-[var(--foreground)] outline-none"
+              className="col-span-2 row-start-2 min-h-10 max-w-[144px] rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.92)] px-3 text-xs text-[var(--foreground)] outline-none sm:col-auto sm:row-auto sm:max-w-none sm:text-sm"
             >
               {aiModelOptions.map((option) => (
                 <option key={option.id} value={option.id}>
@@ -323,7 +323,7 @@ export function DiaryAssistantPanel() {
             <button
               type="submit"
               disabled={chatState === "sending"}
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_16px_28px_rgba(47,111,97,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+              className="col-start-3 row-start-1 flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_16px_28px_rgba(47,111,97,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
               aria-label="Отправить"
             >
               <SendIcon />
