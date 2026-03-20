@@ -554,10 +554,7 @@ export function getMetricDefaultValue(metric: MetricDefinition): MetricValue {
     return false;
   }
 
-  const min = metric.min ?? 0;
-  const max = metric.max ?? 10;
-  const midpoint = min + (max - min) / 2;
-  return normalizeMetricValue(metric, midpoint);
+  return normalizeMetricValue(metric, metric.min ?? 0);
 }
 
 export function createMetricFromTemplate(

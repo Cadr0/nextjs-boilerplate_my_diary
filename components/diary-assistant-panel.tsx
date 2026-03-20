@@ -248,7 +248,7 @@ export function DiaryAssistantPanel() {
           ))}
         </div>
 
-        <div className="mt-5 grid gap-3">
+        <div className="mt-5 grid gap-3 pb-28">
           {chatMessages.length === 0 ? (
             <div className="rounded-[24px] border border-dashed border-[var(--border)] bg-[rgba(247,249,246,0.84)] px-4 py-5 text-sm leading-7 text-[var(--muted)]">
               Спроси AI про запись, метрики и причины текущего состояния.
@@ -284,13 +284,13 @@ export function DiaryAssistantPanel() {
         {chatError ? <p className="mt-3 text-sm text-[rgb(136,47,63)]">{chatError}</p> : null}
 
         <form
-          className="mt-5"
+          className="sticky bottom-3 z-20 mt-5"
           onSubmit={(event) => {
             event.preventDefault();
             void sendChatMessage(chatInput);
           }}
         >
-          <div className="flex flex-wrap items-center gap-3 rounded-[30px] border border-[var(--border)] bg-white px-4 py-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)]">
+          <div className="flex flex-wrap items-center gap-3 rounded-[30px] border border-[var(--border)] bg-[rgba(255,255,255,0.98)] px-4 py-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] backdrop-blur">
             <button
               type="button"
               onClick={() => void requestEntryAnalysis()}

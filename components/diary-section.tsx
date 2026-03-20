@@ -142,6 +142,16 @@ type MetricModalState =
 
 type SettingsTab = "general" | "profile" | "assistant" | "account";
 
+const metricIconOptions = [
+  "spark",
+  "moon",
+  "smile",
+  "pulse",
+  "leaf",
+  "target",
+  "note",
+];
+
 export function DiarySection() {
   const {
     analysisError,
@@ -168,6 +178,10 @@ export function DiarySection() {
 
   const [metricModal, setMetricModal] = useState<MetricModalState>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const edgeTouchStart = useRef<number | null>(null);
+  const drawerTouchStart = useRef<number | null>(null);
+  const drawerTouchCurrent = useRef<number | null>(null);
 
   const sensors = useSensors(
     useSensor(NonInteractivePointerSensor, {
@@ -200,110 +214,201 @@ export function DiarySection() {
     reorderMetric(String(active.id), String(over.id));
   };
 
-  return (
-    <>
-      <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="surface-card flex min-h-[calc(100vh-2rem)] flex-col rounded-[32px] p-4">
-          <div className="flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 px-4 py-3">
-            <button
-              type="button"
-              onClick={() =>
-                setMetricModal({
-                  mode: "create",
-                  metric: createBlankMetric(metricDefinitions.length),
-                })
-              }
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-              aria-label="Добавить метрику"
-            >
-              <PlusIcon />
-            </button>
-            <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
-                Diary AI
-              </p>
-              <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-                Дневник
-              </p>
-            </div>
-          </div>
+  useEffect(() => {
+    if (!isSettingsOpen && !metricModal && !isMobileSidebarOpen) {
+      return;
+    }
 
-          <div className="mt-4 rounded-[26px] border border-[var(--border)] bg-white/88 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-                  Анализ
-                </p>
-                <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-                  {selectedEntry?.ai_analysis ? "Разбор готов" : "Ожидает запуска"}
-                </p>
-              </div>
-              <div className="rounded-full bg-[rgba(47,111,97,0.08)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
-                {profile.aiModel === "openrouter/free" ? "free" : "custom"}
-              </div>
-            </div>
-            <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-              {selectedEntry?.ai_analysis
-                ? selectedEntry.ai_analysis.split("\n").filter(Boolean)[0]
-                : "Основной разбор и чат находятся ниже под метриками, как единый поток."}
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileSidebarOpen, isSettingsOpen, metricModal]);
+
+  const goToRelativeDay = (offset: number) => {
+    setSelectedDate(shiftIsoDate(selectedDate, offset));
+  };
+
+  const sidebarContent = (
+    <>
+      <div className="flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 px-4 py-3">
+        <button
+          type="button"
+          onClick={() =>
+            setMetricModal({
+              mode: "create",
+              metric: createBlankMetric(metricDefinitions.length),
+            })
+          }
+          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          aria-label="Добавить метрику"
+        >
+          <PlusIcon />
+        </button>
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">Diary AI</p>
+          <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+            Дневник
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-[26px] border border-[var(--border)] bg-white/88 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+              Анализ
+            </p>
+            <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+              {selectedEntry?.ai_analysis ? "Разбор готов" : "Ожидает запуска"}
             </p>
           </div>
-
-          <div className="mt-4 min-h-0 flex-1 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
-            <div className="mb-2 flex items-center justify-between px-1">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-                Дни
-              </p>
-              <span className="text-xs text-[var(--muted)]">{days.length}</span>
-            </div>
-            <div className="grid max-h-[52vh] gap-1.5 overflow-y-auto pr-1">
-              {days.slice(0, 40).map((day) => (
-                <button
-                  key={day.date}
-                  type="button"
-                  onClick={() => setSelectedDate(day.date)}
-                  className={`grid gap-1 rounded-[20px] px-3 py-3 text-left transition ${
-                    day.date === selectedDate
-                      ? "bg-[var(--accent)] text-white shadow-[0_14px_30px_rgba(47,111,97,0.22)]"
-                      : "text-[var(--foreground)] hover:bg-[rgba(47,111,97,0.08)]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-medium">{getSidebarDateLabel(day.date)}</span>
-                    {day.date === selectedDate ? <ChevronDownIcon /> : null}
-                  </div>
-                  <span
-                    className={`truncate text-xs ${
-                      day.date === selectedDate ? "text-white/80" : "text-[var(--muted)]"
-                    }`}
-                  >
-                    {day.summary || day.notesPreview || "Пустой день"}
-                  </span>
-                </button>
-              ))}
-            </div>
+          <div className="rounded-full bg-[rgba(47,111,97,0.08)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
+            {profile.aiModel === "openrouter/free" ? "free" : "custom"}
           </div>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+          {selectedEntry?.ai_analysis
+            ? selectedEntry.ai_analysis.split("\n").filter(Boolean)[0]
+            : "Основной разбор и чат находятся ниже под метриками, как единый поток."}
+        </p>
+      </div>
 
-          <button
-            type="button"
-            onClick={() => setIsSettingsOpen(true)}
-            className="mt-4 flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 p-4 text-left transition hover:border-[rgba(47,111,97,0.24)]"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white">
-              {initials}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-semibold text-[var(--foreground)]">
-                {profile.firstName}
-                {profile.lastName ? ` ${profile.lastName}` : ""}
-              </p>
-              <p className="mt-1 text-xs text-[var(--muted)]">Профиль и настройки</p>
-            </div>
-            <DotsIcon />
-          </button>
+      <div className="mt-4 min-h-0 flex-1 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
+        <div className="mb-2 flex items-center justify-between px-1">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+            Дни
+          </p>
+          <span className="text-xs text-[var(--muted)]">{days.length}</span>
+        </div>
+        <div className="grid max-h-[52vh] gap-1.5 overflow-y-auto pr-1">
+          {days.slice(0, 40).map((day) => (
+            <button
+              key={day.date}
+              type="button"
+              onClick={() => {
+                setSelectedDate(day.date);
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`grid gap-1 rounded-[20px] px-3 py-3 text-left transition ${
+                day.date === selectedDate
+                  ? "bg-[var(--accent)] text-white shadow-[0_14px_30px_rgba(47,111,97,0.22)]"
+                  : "text-[var(--foreground)] hover:bg-[rgba(47,111,97,0.08)]"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium">{getSidebarDateLabel(day.date)}</span>
+                {day.date === selectedDate ? <ChevronDownIcon /> : null}
+              </div>
+              <span
+                className={`truncate text-xs ${
+                  day.date === selectedDate ? "text-white/80" : "text-[var(--muted)]"
+                }`}
+              >
+                {day.summary || day.notesPreview || "Пустой день"}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => {
+          setIsSettingsOpen(true);
+          setIsMobileSidebarOpen(false);
+        }}
+        className="mt-4 flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 p-4 text-left transition hover:border-[rgba(47,111,97,0.24)]"
+      >
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white">
+          {initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-base font-semibold text-[var(--foreground)]">
+            {profile.firstName}
+            {profile.lastName ? ` ${profile.lastName}` : ""}
+          </p>
+          <p className="mt-1 text-xs text-[var(--muted)]">Профиль и настройки</p>
+        </div>
+        <DotsIcon />
+      </button>
+    </>
+  );
+
+  return (
+    <>
+      <div
+        className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]"
+        onTouchStart={(event) => {
+          if (window.innerWidth >= 1280 || isMobileSidebarOpen) {
+            return;
+          }
+
+          const touchX = event.touches[0]?.clientX ?? 0;
+
+          if (touchX <= 24) {
+            edgeTouchStart.current = touchX;
+          }
+        }}
+        onTouchMove={(event) => {
+          if (window.innerWidth >= 1280 || isMobileSidebarOpen || edgeTouchStart.current === null) {
+            return;
+          }
+
+          const touchX = event.touches[0]?.clientX ?? 0;
+
+          if (touchX - edgeTouchStart.current > 54) {
+            setIsMobileSidebarOpen(true);
+            edgeTouchStart.current = null;
+          }
+        }}
+        onTouchEnd={() => {
+          edgeTouchStart.current = null;
+        }}
+      >
+        <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
+          {sidebarContent}
         </aside>
 
         <div className="grid gap-4">
+          <div className="surface-card sticky top-3 z-20 flex items-center justify-between gap-3 rounded-[24px] px-4 py-3 xl:hidden">
+            <button
+              type="button"
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
+              aria-label="Открыть боковую панель"
+            >
+              <MenuIcon />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => goToRelativeDay(-1)}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
+              aria-label="Предыдущий день"
+            >
+              <ChevronLeftIcon />
+            </button>
+
+            <div className="min-w-0 flex-1 text-center">
+              <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                {getHeadingDateLabel(selectedDate)}
+              </p>
+              <p className="text-xs text-[var(--muted)]">{getSidebarDateLabel(selectedDate)}</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => goToRelativeDay(1)}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
+              aria-label="Следующий день"
+            >
+              <ChevronRightIcon />
+            </button>
+          </div>
+
           <div className="surface-card rounded-[34px] p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -313,6 +418,27 @@ export function DiarySection() {
                 <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-4xl">
                   {getHeadingDateLabel(selectedDate)}
                 </h1>
+                <div className="mt-4 hidden items-center gap-2 sm:flex">
+                  <button
+                    type="button"
+                    onClick={() => goToRelativeDay(-1)}
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                    aria-label="Предыдущий день"
+                  >
+                    <ChevronLeftIcon />
+                  </button>
+                  <div className="rounded-full border border-[var(--border)] bg-white/92 px-4 py-2 text-sm font-medium text-[var(--foreground)]">
+                    Активный день: {getSidebarDateLabel(selectedDate)}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => goToRelativeDay(1)}
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                    aria-label="Следующий день"
+                  >
+                    <ChevronRightIcon />
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -425,6 +551,52 @@ export function DiarySection() {
         </div>
       </div>
 
+      {isMobileSidebarOpen ? (
+        <div className="fixed inset-0 z-40 xl:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-[rgba(24,33,29,0.2)]"
+            aria-label="Закрыть боковую панель"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+          <aside
+            className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col rounded-r-[28px] p-4"
+            onTouchStart={(event) => {
+              drawerTouchStart.current = event.touches[0]?.clientX ?? null;
+              drawerTouchCurrent.current = drawerTouchStart.current;
+            }}
+            onTouchMove={(event) => {
+              drawerTouchCurrent.current = event.touches[0]?.clientX ?? null;
+            }}
+            onTouchEnd={() => {
+              if (
+                drawerTouchStart.current !== null &&
+                drawerTouchCurrent.current !== null &&
+                drawerTouchStart.current - drawerTouchCurrent.current > 54
+              ) {
+                setIsMobileSidebarOpen(false);
+              }
+
+              drawerTouchStart.current = null;
+              drawerTouchCurrent.current = null;
+            }}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-semibold text-[var(--foreground)]">Дни и профиль</p>
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-2xl text-[var(--foreground)]"
+                aria-label="Закрыть боковую панель"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+            {sidebarContent}
+          </aside>
+        </div>
+      ) : null}
+
       {metricModal ? (
         <MetricBuilderModal
           mode={metricModal.mode}
@@ -487,10 +659,8 @@ function SortableMetricCard({
       className={isDragging ? "z-20" : ""}
     >
       <article
-        {...attributes}
-        {...listeners}
         className={`rounded-[24px] border bg-white/94 p-4 shadow-[0_16px_34px_rgba(30,34,40,0.07)] transition ${
-          isDragging ? "cursor-grabbing shadow-[0_22px_44px_rgba(30,34,40,0.14)]" : "cursor-grab"
+          isDragging ? "shadow-[0_22px_44px_rgba(30,34,40,0.14)]" : ""
         }`}
         style={{ borderColor: `${metric.accent}55` }}
       >
@@ -513,6 +683,20 @@ function SortableMetricCard({
             aria-label="Редактировать метрику"
           >
             <EditIcon />
+          </button>
+        </div>
+
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            data-no-drag="true"
+            {...attributes}
+            {...listeners}
+            className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.92)] px-3 text-xs font-medium text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            aria-label="Перетащить метрику"
+          >
+            <DragHandleIcon />
+            Переместить
           </button>
         </div>
 
@@ -686,6 +870,7 @@ function MetricBuilderModal({
   onSave: (metric: MetricDefinition) => void;
 }) {
   const [metric, setMetric] = useState(initialMetric);
+  const [isAppearancePickerOpen, setIsAppearancePickerOpen] = useState(false);
 
   useEffect(() => {
     setMetric(initialMetric);
@@ -754,11 +939,69 @@ function MetricBuilderModal({
         <div className="mt-5 grid gap-5">
           <div className="rounded-[28px] border border-[var(--border)] bg-white/90 p-4">
             <div className="flex items-center gap-3">
-              <div
-                className="flex h-12 w-12 items-center justify-center rounded-[18px] text-white"
-                style={{ backgroundColor: metric.accent }}
-              >
-                <MetricIcon icon={metric.icon} />
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsAppearancePickerOpen((current) => !current)}
+                  className="flex h-12 w-12 items-center justify-center rounded-[18px] text-white"
+                  style={{ backgroundColor: metric.accent }}
+                  aria-label="Выбрать цвет и иконку"
+                >
+                  <MetricIcon icon={metric.icon} />
+                </button>
+
+                {isAppearancePickerOpen ? (
+                  <div className="absolute left-0 top-[3.75rem] z-20 w-[280px] rounded-[24px] border border-[var(--border)] bg-white p-4 shadow-[0_24px_48px_rgba(24,33,29,0.14)]">
+                    <div className="flex flex-wrap gap-3">
+                      {metricAccentOptions.map((accent) => (
+                        <button
+                          key={accent}
+                          type="button"
+                          onClick={() =>
+                            setMetric((current) => ({
+                              ...current,
+                              accent,
+                            }))
+                          }
+                          className={`flex h-9 w-9 items-center justify-center rounded-full border transition ${
+                            metric.accent === accent
+                              ? "border-[rgba(24,33,29,0.24)]"
+                              : "border-transparent"
+                          }`}
+                          style={{ backgroundColor: accent }}
+                          aria-label={`Выбрать цвет ${accent}`}
+                        >
+                          {metric.accent === accent ? <CheckIcon /> : null}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="my-4 h-px bg-[var(--border)]" />
+
+                    <div className="grid grid-cols-5 gap-3">
+                      {metricIconOptions.map((icon) => (
+                        <button
+                          key={icon}
+                          type="button"
+                          onClick={() =>
+                            setMetric((current) => ({
+                              ...current,
+                              icon,
+                            }))
+                          }
+                          className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition ${
+                            metric.icon === icon
+                              ? "border-[var(--accent)] bg-[rgba(47,111,97,0.08)] text-[var(--accent)]"
+                              : "border-[var(--border)] bg-white text-[var(--foreground)]"
+                          }`}
+                          aria-label={`Выбрать иконку ${icon}`}
+                        >
+                          <MetricIcon icon={icon} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
               <input
                 value={metric.name}
@@ -864,26 +1107,11 @@ function MetricBuilderModal({
             </div>
           </div>
 
-          <div className="grid gap-3">
-            <p className="text-sm font-medium text-[var(--foreground)]">Цвет</p>
-            <div className="flex flex-wrap gap-3">
-              {metricAccentOptions.map((accent) => (
-                <button
-                  key={accent}
-                  type="button"
-                  onClick={() => setMetric((current) => ({ ...current, accent }))}
-                  className={`flex h-9 w-9 items-center justify-center rounded-full border transition ${
-                    metric.accent === accent
-                      ? "border-[rgba(24,33,29,0.24)]"
-                      : "border-transparent"
-                  }`}
-                  style={{ backgroundColor: accent }}
-                  aria-label={`Выбрать цвет ${accent}`}
-                >
-                  {metric.accent === accent ? <CheckIcon /> : null}
-                </button>
-              ))}
-            </div>
+          <div className="rounded-[22px] border border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-4">
+            <p className="text-sm font-medium text-[var(--foreground)]">Вид метрики</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+              Нажми на иконку слева от названия, чтобы выбрать цвет и иконку в выпадающем окне.
+            </p>
           </div>
 
           <div className="grid gap-3 rounded-[28px] border border-[var(--border)] bg-white/88 p-4">
@@ -1343,6 +1571,42 @@ function PlusIcon() {
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
       <path d="M12 5v14" />
       <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+function DragHandleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+      <path d="M8 6h8" />
+      <path d="M8 12h8" />
+      <path d="M8 18h8" />
+    </svg>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
+    </svg>
+  );
+}
+
+function ChevronLeftIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+      <path d="m15 6-6 6 6 6" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+      <path d="m9 6 6 6-6 6" />
     </svg>
   );
 }
