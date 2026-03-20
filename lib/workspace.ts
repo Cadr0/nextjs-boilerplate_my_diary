@@ -327,14 +327,19 @@ export const aiModelOptions = [
     description: "OpenRouter free router.",
   },
   {
-    id: "meta-llama/llama-3.2-3b-instruct:free",
-    label: "Llama 3.2",
-    description: "Fast free model for short chat replies.",
+    id: "nvidia/nemotron-3-super-120b-a12b:free",
+    label: "Nemotron 120B",
+    description: "Large free reasoning model from NVIDIA.",
   },
   {
-    id: "mistralai/mistral-7b-instruct:free",
-    label: "Mistral 7B",
-    description: "Compact free instruct model.",
+    id: "stepfun/step-3.5-flash:free",
+    label: "Step 3.5 Flash",
+    description: "Fast free chat model for quick responses.",
+  },
+  {
+    id: "arcee-ai/trinity-large-preview:free",
+    label: "Trinity Large",
+    description: "Free large preview model for deeper replies.",
   },
 ] as const;
 

@@ -24,38 +24,6 @@ function createChatMessage(role: ChatMessage["role"], content: string): ChatMess
   };
 }
 
-function buildFallbackInsight(
-  metrics: ReturnType<typeof useWorkspace>["visibleMetricDefinitions"],
-  values: Record<string, string | number | boolean>,
-) {
-  const numericMetrics = metrics
-    .filter((metric) => metric.type === "scale" || metric.type === "number")
-    .map((metric) => ({
-      metric,
-      value:
-        typeof values[metric.id] === "number"
-          ? Number(values[metric.id])
-          : Number(values[metric.id] ?? metric.min ?? 0),
-    }))
-    .filter((item) => Number.isFinite(item.value));
-
-  if (numericMetrics.length === 0) {
-    return {
-      title: "Сначала просто зафиксируй день",
-      reason: "Пока мало числовых метрик, поэтому AI в основном опирается на текст записи.",
-      recommendation: "Добавь 3-4 ключевые метрики, чтобы разбор стал точнее.",
-    };
-  }
-
-  const lowestMetric = [...numericMetrics].sort((left, right) => left.value - right.value)[0];
-
-  return {
-    title: `Просела метрика «${lowestMetric.metric.name}»`,
-    reason: `Текущее значение: ${lowestMetric.value}${lowestMetric.metric.unit ? ` ${lowestMetric.metric.unit}` : ""}. Это самый слабый сигнал среди текущих метрик.`,
-    recommendation: "Запусти анализ и проверь, что именно повлияло на это состояние.",
-  };
-}
-
 export function DiaryAssistantPanel() {
   const {
     analysisError,
@@ -68,7 +36,6 @@ export function DiaryAssistantPanel() {
     selectedEntry,
     selectedTasks,
     updateProfile,
-    visibleMetricDefinitions,
   } = useWorkspace();
 
   const [chatInput, setChatInput] = useState("");
@@ -131,11 +98,6 @@ export function DiaryAssistantPanel() {
   const quickPrompts = useMemo(
     () => ["Разбери мой день", "Что влияет на настроение?", "Есть ли риск перегруза?"],
     [],
-  );
-
-  const fallbackInsight = useMemo(
-    () => buildFallbackInsight(visibleMetricDefinitions, selectedDraft.metricValues),
-    [selectedDraft.metricValues, visibleMetricDefinitions],
   );
 
   const updateChatForDate = (
@@ -237,11 +199,10 @@ export function DiaryAssistantPanel() {
           ) : (
             <div className="grid gap-3">
               <p className="text-lg font-semibold text-[var(--foreground)]">
-                {fallbackInsight.title}
+                Анализ пока не запущен
               </p>
-              <p className="text-sm leading-7 text-[var(--muted)]">{fallbackInsight.reason}</p>
-              <p className="text-sm font-medium text-[var(--foreground)]">
-                Рекомендация: {fallbackInsight.recommendation}
+              <p className="text-sm leading-7 text-[var(--muted)]">
+                Когда запись и метрики будут готовы, запусти анализ и здесь появится разбор дня.
               </p>
             </div>
           )}

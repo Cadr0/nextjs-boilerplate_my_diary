@@ -1454,6 +1454,20 @@ function DiarySettingsModal({
   const providerLabel = getProviderLabel(accountInfo?.provider);
   const profileName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
   const tabs: Array<{ id: SettingsTab; label: string }> = [
     { id: "general", label: "Общее" },
     { id: "profile", label: "Профиль" },
@@ -1462,7 +1476,14 @@ function DiarySettingsModal({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(25,31,30,0.18)] px-0 py-0 sm:items-center sm:px-4 sm:py-6">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(25,31,30,0.18)] px-0 py-0 sm:items-center sm:px-4 sm:py-6"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div className="surface-card flex h-[100dvh] w-full flex-col overflow-hidden rounded-none border border-white/80 bg-[rgba(255,250,246,0.96)] shadow-[0_38px_90px_rgba(24,33,29,0.18)] sm:h-[min(90vh,760px)] sm:max-w-5xl sm:flex-row sm:rounded-[34px]">
         <div className="flex w-full shrink-0 flex-col border-b border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-4 sm:max-w-[290px] sm:border-b-0 sm:border-r">
           <button
