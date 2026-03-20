@@ -777,32 +777,9 @@ function MetricInputField({
   onChange: (value: MetricValue) => void;
 }) {
   if (metric.type === "boolean") {
-    const active = Boolean(value);
-
     return (
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => onChange(true)}
-          className={`min-h-11 rounded-2xl border text-sm font-medium transition ${
-            active
-              ? "border-transparent bg-[var(--accent)] text-white"
-              : "border-[var(--border)] bg-white text-[var(--foreground)]"
-          }`}
-        >
-          Да
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(false)}
-          className={`min-h-11 rounded-2xl border text-sm font-medium transition ${
-            !active
-              ? "border-transparent bg-[rgba(24,33,29,0.86)] text-white"
-              : "border-[var(--border)] bg-white text-[var(--foreground)]"
-          }`}
-        >
-          Нет
-        </button>
+      <div className="flex min-h-11 items-center">
+        <ToggleSwitch active={Boolean(value)} onToggle={() => onChange(!Boolean(value))} />
       </div>
     );
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useWorkspace } from "@/components/workspace-provider";
 import { aiModelOptions } from "@/lib/workspace";
@@ -51,7 +51,7 @@ function buildFallbackInsight(
 
   return {
     title: `Просела метрика «${lowestMetric.metric.name}»`,
-    reason: `Текущее значение — ${lowestMetric.value}${lowestMetric.metric.unit ? ` ${lowestMetric.metric.unit}` : ""}. Это самый слабый сигнал среди текущих метрик.`,
+    reason: `Текущее значение: ${lowestMetric.value}${lowestMetric.metric.unit ? ` ${lowestMetric.metric.unit}` : ""}. Это самый слабый сигнал среди текущих метрик.`,
     recommendation: "Запусти анализ и проверь, что именно повлияло на это состояние.",
   };
 }
@@ -75,6 +75,8 @@ export function DiaryAssistantPanel() {
   const [chatMessagesByDate, setChatMessagesByDate] = useState<Record<string, ChatMessage[]>>({});
   const [chatState, setChatState] = useState<"idle" | "sending" | "error">("idle");
   const [chatError, setChatError] = useState<string | null>(null);
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  const modelMenuRef = useRef<HTMLDivElement | null>(null);
 
   const chatMessages = chatMessagesByDate[selectedDate] ?? [];
 
@@ -96,12 +98,38 @@ export function DiaryAssistantPanel() {
     window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(chatMessagesByDate));
   }, [chatMessagesByDate]);
 
+  useEffect(() => {
+    if (!isModelMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!(event.target instanceof Node)) {
+        return;
+      }
+
+      if (!modelMenuRef.current?.contains(event.target)) {
+        setIsModelMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsModelMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isModelMenuOpen]);
+
   const quickPrompts = useMemo(
-    () => [
-      "Разбери мой день",
-      "Что влияет на настроение?",
-      "Есть ли риск перегруза?",
-    ],
+    () => ["Разбери мой день", "Что влияет на настроение?", "Есть ли риск перегруза?"],
     [],
   );
 
@@ -159,7 +187,7 @@ export function DiaryAssistantPanel() {
       const result = (await response.json()) as { reply?: string; error?: string };
 
       if (!response.ok || !result.reply) {
-        throw new Error(result.error ?? "Не удалось получить ответ от OpenRouter.");
+        throw new Error(result.error ?? "Не удалось получить ответ от AI-провайдера.");
       }
 
       updateChatForDate(selectedDate, (current) => [
@@ -185,26 +213,14 @@ export function DiaryAssistantPanel() {
             </div>
             <div>
               <p className="text-xs font-medium text-[var(--muted)] sm:text-sm">AI-разбор дня</p>
-              <h2 className="text-lg font-semibold text-[var(--foreground)] sm:text-xl">Анализ и чат</h2>
+              <h2 className="text-lg font-semibold text-[var(--foreground)] sm:text-xl">
+                Анализ и чат
+              </h2>
             </div>
           </div>
 
-          <div className="hidden flex-wrap items-center gap-2 sm:flex">
-            {aiModelOptions.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => updateProfile("aiModel", option.id)}
-                className={`rounded-full px-3 py-2 text-xs font-medium transition ${
-                  profile.aiModel === option.id
-                    ? "bg-[var(--accent)] text-white shadow-[0_14px_30px_rgba(47,111,97,0.22)]"
-                    : "border border-[var(--border)] bg-white/92 text-[var(--foreground)] hover:border-[rgba(47,111,97,0.24)]"
-                }`}
-                title={option.description}
-              >
-                {option.label}
-              </button>
-            ))}
+          <div className="text-right text-xs text-[var(--muted)] sm:text-sm">
+            Модель можно переключить в поле ввода ниже.
           </div>
         </div>
 
@@ -308,17 +324,20 @@ export function DiaryAssistantPanel() {
               className="col-start-2 row-start-1 min-w-0 bg-transparent text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] sm:min-w-[220px] sm:flex-1 sm:text-base"
             />
 
-            <select
-              value={profile.aiModel}
-              onChange={(event) => updateProfile("aiModel", event.target.value)}
-              className="col-span-2 row-start-2 min-h-10 max-w-[144px] rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.92)] px-3 text-xs text-[var(--foreground)] outline-none sm:col-auto sm:row-auto sm:max-w-none sm:text-sm"
+            <div
+              ref={modelMenuRef}
+              className="col-span-2 row-start-2 justify-self-start sm:col-auto sm:row-auto"
             >
-              {aiModelOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              <ModelPicker
+                activeModel={profile.aiModel}
+                isOpen={isModelMenuOpen}
+                onSelect={(model) => {
+                  updateProfile("aiModel", model);
+                  setIsModelMenuOpen(false);
+                }}
+                onToggle={() => setIsModelMenuOpen((current) => !current)}
+              />
+            </div>
 
             <button
               type="submit"
@@ -331,6 +350,64 @@ export function DiaryAssistantPanel() {
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function ModelPicker({
+  activeModel,
+  isOpen,
+  onSelect,
+  onToggle,
+}: {
+  activeModel: string;
+  isOpen: boolean;
+  onSelect: (model: string) => void;
+  onToggle: () => void;
+}) {
+  const activeOption =
+    aiModelOptions.find((option) => option.id === activeModel) ?? aiModelOptions[0];
+
+  return (
+    <div className="relative">
+      {isOpen ? (
+        <div className="absolute bottom-full left-0 z-30 mb-2 w-[min(76vw,220px)] overflow-hidden rounded-[22px] border border-[rgba(24,33,29,0.12)] bg-[rgba(255,255,255,0.98)] p-2 shadow-[0_24px_48px_rgba(24,33,29,0.18)] backdrop-blur sm:left-auto sm:right-0 sm:w-[220px]">
+          <div className="grid gap-1">
+            {aiModelOptions.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => onSelect(option.id)}
+                className={`rounded-[16px] px-3 py-2.5 text-left transition ${
+                  option.id === activeOption.id
+                    ? "bg-[var(--accent)] text-white shadow-[0_12px_24px_rgba(47,111,97,0.2)]"
+                    : "text-[var(--foreground)] hover:bg-[rgba(47,111,97,0.08)]"
+                }`}
+              >
+                <div className="text-sm font-medium">{option.label}</div>
+                <div
+                  className={`mt-1 text-[11px] leading-5 ${
+                    option.id === activeOption.id ? "text-white/78" : "text-[var(--muted)]"
+                  }`}
+                >
+                  {option.description}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={onToggle}
+        className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3.5 text-xs text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition hover:border-[rgba(47,111,97,0.24)] sm:min-h-11 sm:px-4 sm:text-sm"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        <span className="truncate">{activeOption.label}</span>
+        <ChevronUpDownIcon open={isOpen} />
+      </button>
     </div>
   );
 }
@@ -362,6 +439,20 @@ function SendIcon() {
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
       <path d="M4 12 20 4l-4 16-3.5-6.5L4 12Z" />
       <path d="M12.5 13.5 20 4" />
+    </svg>
+  );
+}
+
+function ChevronUpDownIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className={`h-4 w-4 shrink-0 transition ${open ? "rotate-180" : ""}`}
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path d="m7 10 5 5 5-5" />
     </svg>
   );
 }
