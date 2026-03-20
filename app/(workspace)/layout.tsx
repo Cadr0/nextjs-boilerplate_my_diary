@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { WorkspaceProvider } from "@/components/workspace-provider";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { getAuthState, getUserDisplayName } from "@/lib/auth";
-import { getSupabaseConfigError, listLatestEntries } from "@/lib/diary";
+import { getSupabaseConfigError, getWorkspaceBootstrap } from "@/lib/diary";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +18,8 @@ export default async function WorkspaceLayout({
     return (
       <WorkspaceProvider
         initialEntries={[]}
+        initialMetricDefinitions={[]}
+        initialIdSeed="local"
         initialError={configError}
         isConfigured={false}
       >
@@ -37,12 +39,14 @@ export default async function WorkspaceLayout({
     redirect("/login?next=/diary");
   }
 
-  const { entries, error } = await listLatestEntries(90);
+  const { entries, metricDefinitions, error } = await getWorkspaceBootstrap(90);
   const displayName = getUserDisplayName(user);
 
   return (
     <WorkspaceProvider
       initialEntries={entries}
+      initialMetricDefinitions={metricDefinitions}
+      initialIdSeed={user.id}
       initialError={error}
       isConfigured
       initialProfile={{

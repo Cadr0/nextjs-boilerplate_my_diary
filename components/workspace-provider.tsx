@@ -15,6 +15,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type {
   DiaryEntry,
   MetricDefinition,
+  MetricTemplate,
   MetricValue,
   PersistedWorkspaceState,
   SaveState,
@@ -27,16 +28,18 @@ import {
   WORKSPACE_STORAGE_VERSION,
   buildEntryFingerprint,
   buildServerPayload,
+  createBlankMetric,
   createDefaultWorkspaceState,
   createDraftFromEntry,
+  createMetricFromTemplate,
   formatCompactDate,
-  formatHumanDate,
   getAnalyticsMetricDefinitions,
   getMetricDefaultValue,
   getTaskCompletionRatio,
   getTodayIsoDate,
   getVisibleMetricDefinitions,
-  metricLibrary,
+  metricTemplateLibrary,
+  normalizeMetricValue,
   sanitizeMetricDefinition,
   serializeServerPayload,
   shiftIsoDate,
@@ -44,7 +47,6 @@ import {
 
 type WorkspaceDay = {
   date: string;
-  humanDate: string;
   compactDate: string;
   summary: string;
   notesPreview: string;
@@ -55,43 +57,52 @@ type WorkspaceDay = {
   hasServerEntry: boolean;
 };
 
+type MetricDefinitionPatch = Partial<
+  Pick<
+    MetricDefinition,
+    | "name"
+    | "description"
+    | "type"
+    | "unitPreset"
+    | "unit"
+    | "min"
+    | "max"
+    | "step"
+    | "accent"
+    | "icon"
+    | "showInDiary"
+    | "showInAnalytics"
+    | "isActive"
+  >
+>;
+
 type WorkspaceContextValue = {
   isConfigured: boolean;
   initialError: string | null;
   error: string | null;
   saveState: SaveState;
+  analysisState: "idle" | "loading" | "error";
+  analysisError: string | null;
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   drafts: Record<string, WorkspaceDraft>;
   selectedDraft: WorkspaceDraft;
+  selectedEntry: DiaryEntry | undefined;
   updateSummary: (value: string) => void;
   updateNotes: (value: string) => void;
   metricDefinitions: MetricDefinition[];
   visibleMetricDefinitions: MetricDefinition[];
   analyticsMetricDefinitions: MetricDefinition[];
   updateMetricValue: (metricId: string, value: MetricValue) => void;
-  addMetric: (metricId: string) => void;
+  createMetric: (templateId?: string) => string;
+  saveMetricDefinition: (metric: MetricDefinition) => string;
   reorderMetric: (activeId: string, overId: string) => void;
-  updateMetricDefinition: (
-    metricId: string,
-    patch: Partial<
-      Pick<
-        MetricDefinition,
-        | "type"
-        | "name"
-        | "description"
-        | "unit"
-        | "min"
-        | "max"
-        | "step"
-        | "showInDiary"
-        | "showInAnalytics"
-      >
-    >,
-  ) => void;
+  updateMetricDefinition: (metricId: string, patch: MetricDefinitionPatch) => void;
+  archiveMetric: (metricId: string) => void;
   toggleMetricVisibility: (metricId: string) => void;
   toggleMetricAnalytics: (metricId: string) => void;
-  availableMetricTemplates: MetricDefinition[];
+  availableMetricTemplates: MetricTemplate[];
+  requestEntryAnalysis: () => Promise<void>;
   tasks: TaskItem[];
   selectedTasks: TaskItem[];
   overdueTasks: TaskItem[];
@@ -114,10 +125,21 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 type WorkspaceProviderProps = {
   children: React.ReactNode;
   initialEntries: DiaryEntry[];
+  initialMetricDefinitions: MetricDefinition[];
+  initialIdSeed: string;
   initialError: string | null;
   isConfigured: boolean;
   initialProfile?: Partial<WorkspaceProfile>;
 };
+
+type SaveResponse =
+  | {
+      entry: DiaryEntry;
+      metricDefinitions: MetricDefinition[];
+    }
+  | {
+      error: string;
+    };
 
 function buildEntriesByDate(entries: DiaryEntry[]) {
   return entries.reduce<Record<string, DiaryEntry>>((result, entry) => {
@@ -152,7 +174,7 @@ function mergeWorkspaceState(
 function sortEntries(entries: DiaryEntry[]) {
   return [...entries].sort((left, right) => {
     if (left.entry_date === right.entry_date) {
-      return right.created_at.localeCompare(left.created_at);
+      return right.updated_at.localeCompare(left.updated_at);
     }
 
     return right.entry_date.localeCompare(left.entry_date);
@@ -167,32 +189,11 @@ function generateTaskId() {
   return `task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function clampMetricValue(
-  definition: MetricDefinition | undefined,
-  value: MetricValue,
-) {
-  if (!definition) {
-    return value;
-  }
-
-  if (definition.type === "text") {
-    return typeof value === "string" ? value : "";
-  }
-
-  if (definition.type === "boolean") {
-    return Boolean(value);
-  }
-
-  const numericValue =
-    typeof value === "number" ? value : Number.parseFloat(String(value || 0));
-  const min = definition.min ?? 0;
-  const max = definition.max ?? 10;
-  return Math.min(max, Math.max(min, Number.isFinite(numericValue) ? numericValue : min));
-}
-
 export function WorkspaceProvider({
   children,
   initialEntries,
+  initialMetricDefinitions,
+  initialIdSeed,
   initialError,
   isConfigured,
   initialProfile,
@@ -202,22 +203,34 @@ export function WorkspaceProvider({
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get("date") ?? getTodayIsoDate();
 
+  const initialStateRef = useRef(
+    createDefaultWorkspaceState(
+      initialEntries,
+      initialMetricDefinitions,
+      initialProfile,
+      initialIdSeed,
+    ),
+  );
   const [selectedDate, setSelectedDateState] = useState(requestedDate);
   const [serverEntries, setServerEntries] = useState(() => sortEntries(initialEntries));
-  const [workspaceState, setWorkspaceState] = useState(() =>
-    createDefaultWorkspaceState(initialEntries, initialProfile),
-  );
+  const [workspaceState, setWorkspaceState] = useState(initialStateRef.current);
   const [saveState, setSaveState] = useState<SaveState>(
-    initialError ? "error" : isConfigured ? "saved" : "local",
+    isConfigured ? (initialError ? "error" : "saved") : "local",
   );
-  const [error, setError] = useState<string | null>(initialError);
+  const [error, setError] = useState<string | null>(isConfigured ? initialError : null);
+  const [analysisState, setAnalysisState] = useState<"idle" | "loading" | "error">("idle");
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
   const savedFingerprints = useRef<Record<string, string>>(
     Object.fromEntries(
       initialEntries.map((entry) => [
         entry.entry_date,
-        buildEntryFingerprint(entry, entry.entry_date),
+        buildEntryFingerprint(
+          entry,
+          entry.entry_date,
+          initialStateRef.current.metricDefinitions,
+        ),
       ]),
     ),
   );
@@ -262,6 +275,25 @@ export function WorkspaceProvider({
     );
   }, [workspaceState, isHydrated]);
 
+  const entriesByDate = useMemo(() => buildEntriesByDate(serverEntries), [serverEntries]);
+  const metricDefinitions = workspaceState.metricDefinitions;
+  const visibleMetricDefinitions = useMemo(
+    () => getVisibleMetricDefinitions(metricDefinitions),
+    [metricDefinitions],
+  );
+  const analyticsMetricDefinitions = useMemo(
+    () => getAnalyticsMetricDefinitions(metricDefinitions),
+    [metricDefinitions],
+  );
+
+  const selectedEntry = entriesByDate[selectedDate];
+  const selectedDraft = useMemo(
+    () =>
+      workspaceState.drafts[selectedDate] ??
+      createDraftFromEntry(selectedEntry, metricDefinitions, selectedDate),
+    [metricDefinitions, selectedDate, selectedEntry, workspaceState.drafts],
+  );
+
   useEffect(() => {
     setWorkspaceState((current) => {
       let nextDrafts = current.drafts;
@@ -270,7 +302,11 @@ export function WorkspaceProvider({
         if (!nextDrafts[entry.entry_date]) {
           nextDrafts = {
             ...nextDrafts,
-            [entry.entry_date]: createDraftFromEntry(entry),
+            [entry.entry_date]: createDraftFromEntry(
+              entry,
+              current.metricDefinitions,
+              entry.entry_date,
+            ),
           };
         }
       }
@@ -286,77 +322,71 @@ export function WorkspaceProvider({
     });
   }, [serverEntries]);
 
-  const entriesByDate = useMemo(() => buildEntriesByDate(serverEntries), [serverEntries]);
-  const metricDefinitions = workspaceState.metricDefinitions;
-  const visibleMetricDefinitions = useMemo(
-    () => getVisibleMetricDefinitions(metricDefinitions),
-    [metricDefinitions],
-  );
-  const analyticsMetricDefinitions = useMemo(
-    () => getAnalyticsMetricDefinitions(metricDefinitions),
-    [metricDefinitions],
-  );
-
-  const selectedDraft = useMemo(
-    () =>
-      workspaceState.drafts[selectedDate] ??
-      createDraftFromEntry(entriesByDate[selectedDate]),
-    [entriesByDate, selectedDate, workspaceState.drafts],
-  );
-
   const selectedPayload = useMemo(
-    () => buildServerPayload(selectedDate, selectedDraft),
-    [selectedDate, selectedDraft],
+    () => buildServerPayload(selectedDate, selectedDraft, metricDefinitions),
+    [metricDefinitions, selectedDate, selectedDraft],
   );
   const selectedPayloadFingerprint = useMemo(
     () => serializeServerPayload(selectedPayload),
     [selectedPayload],
   );
 
-  const persistDraft = useEffectEvent(
-    async (payloadFingerprint: string, payload: typeof selectedPayload) => {
-      try {
-        setSaveState(isConfigured ? "saving" : "local");
-        setError(null);
+  const saveSelectedPayload = async (
+    payloadFingerprint: string,
+    payload: typeof selectedPayload,
+  ) => {
+    try {
+      setSaveState(isConfigured ? "saving" : "local");
+      setError(null);
 
-        if (!isConfigured) {
-          savedFingerprints.current[payload.entry_date] = payloadFingerprint;
-          setSaveState("local");
-          return;
-        }
-
-        const response = await fetch("/api/entries", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
-
-        const result = (await response.json()) as
-          | { entry: DiaryEntry }
-          | { error: string };
-
-        if (!response.ok || !("entry" in result)) {
-          throw new Error("error" in result ? result.error : "Не удалось сохранить день.");
-        }
-
+      if (!isConfigured) {
         savedFingerprints.current[payload.entry_date] = payloadFingerprint;
-        setServerEntries((current) =>
-          sortEntries([
-            result.entry,
-            ...current.filter((entry) => entry.entry_date !== result.entry.entry_date),
-          ]),
-        );
-        setSaveState("saved");
-      } catch (saveError) {
-        setSaveState("error");
-        setError(
-          saveError instanceof Error
-            ? saveError.message
-            : "Не удалось сохранить изменения.",
-        );
+        setSaveState("local");
+        return null;
       }
+
+      const response = await fetch("/api/entries", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = (await response.json()) as SaveResponse;
+
+      if (!response.ok || !("entry" in result)) {
+        throw new Error("error" in result ? result.error : "Не удалось сохранить запись.");
+      }
+
+      savedFingerprints.current[payload.entry_date] = payloadFingerprint;
+      setServerEntries((current) =>
+        sortEntries([
+          result.entry,
+          ...current.filter((entry) => entry.entry_date !== result.entry.entry_date),
+        ]),
+      );
+      setWorkspaceState((current) => ({
+        ...current,
+        metricDefinitions: result.metricDefinitions.map(sanitizeMetricDefinition),
+      }));
+      setSaveState("saved");
+
+      return result.entry;
+    } catch (saveError) {
+      setSaveState("error");
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить изменения.",
+      );
+      return null;
+    }
+  };
+
+  const syncSelectedPayload = useEffectEvent(
+    (payloadFingerprint: string, payload: typeof selectedPayload) => {
+      void saveSelectedPayload(payloadFingerprint, payload);
     },
   );
 
@@ -373,8 +403,8 @@ export function WorkspaceProvider({
     setSaveState(isConfigured ? "saving" : "local");
 
     const timeoutId = window.setTimeout(() => {
-      void persistDraft(selectedPayloadFingerprint, selectedPayload);
-    }, 850);
+      void syncSelectedPayload(selectedPayloadFingerprint, selectedPayload);
+    }, 750);
 
     return () => {
       window.clearTimeout(timeoutId);
@@ -390,7 +420,8 @@ export function WorkspaceProvider({
   const updateDraft = (updater: (draft: WorkspaceDraft) => WorkspaceDraft) => {
     setWorkspaceState((current) => {
       const existingDraft =
-        current.drafts[selectedDate] ?? createDraftFromEntry(entriesByDate[selectedDate]);
+        current.drafts[selectedDate] ??
+        createDraftFromEntry(entriesByDate[selectedDate], current.metricDefinitions, selectedDate);
 
       return {
         ...current,
@@ -435,59 +466,63 @@ export function WorkspaceProvider({
       ...draft,
       metricValues: {
         ...draft.metricValues,
-        [metricId]: clampMetricValue(definition, value),
+        [metricId]: normalizeMetricValue(definition, value),
       },
     }));
   };
 
-  const addMetric = (metricId: string) => {
-    setWorkspaceState((current) => {
-      const template = metricLibrary.find((metric) => metric.id === metricId);
+  const createMetric = (templateId?: string) => {
+    const nextSortOrder = metricDefinitions.length;
+    const metric = templateId
+      ? createMetricFromTemplate(templateId, nextSortOrder)
+      : createBlankMetric(nextSortOrder);
 
-      if (!template) {
-        return current;
-      }
+    saveMetricDefinition(metric);
 
-      const existingMetric = current.metricDefinitions.find(
-        (metric) => metric.id === metricId,
-      );
+    return metric.id;
+  };
 
-      if (existingMetric) {
-        return {
-          ...current,
-          metricDefinitions: current.metricDefinitions.map((metric) => {
-            if (metric.id !== metricId) {
-              return metric;
-            }
+  const saveMetricDefinition = (metric: MetricDefinition) => {
+    setWorkspaceState((current) => ({
+      ...current,
+      metricDefinitions: (() => {
+        const existingIndex = current.metricDefinitions.findIndex(
+          (definition) => definition.id === metric.id,
+        );
+        const sanitizedMetric = sanitizeMetricDefinition(metric);
+        const nextDefinitions =
+          existingIndex === -1
+            ? [...current.metricDefinitions, sanitizedMetric]
+            : current.metricDefinitions.map((definition) =>
+                definition.id === metric.id ? sanitizedMetric : definition,
+              );
 
-            return sanitizeMetricDefinition({
-              ...metric,
-              showInDiary: true,
-            });
+        return nextDefinitions.map((definition, index) =>
+          sanitizeMetricDefinition({
+            ...definition,
+            sortOrder: index,
           }),
-        };
-      }
+        );
+      })(),
+    }));
+
+    updateDraft((draft) => {
+      const currentValue = draft.metricValues[metric.id];
+      const sanitizedMetric = sanitizeMetricDefinition(metric);
 
       return {
-        ...current,
-        metricDefinitions: [
-          ...current.metricDefinitions,
-          sanitizeMetricDefinition(template),
-        ],
+        ...draft,
+        metricValues: {
+          ...draft.metricValues,
+          [metric.id]:
+            currentValue === undefined
+              ? getMetricDefaultValue(sanitizedMetric)
+              : normalizeMetricValue(sanitizedMetric, currentValue),
+        },
       };
     });
 
-    updateDraft((draft) => ({
-      ...draft,
-      metricValues: {
-        ...draft.metricValues,
-        [metricId]:
-          draft.metricValues[metricId] ??
-          getMetricDefaultValue(
-            metricLibrary.find((metric) => metric.id === metricId) ?? metricLibrary[0],
-          ),
-      },
-    }));
+    return metric.id;
   };
 
   const reorderMetric = (activeId: string, overId: string) => {
@@ -507,50 +542,55 @@ export function WorkspaceProvider({
 
       return {
         ...current,
-        metricDefinitions: reordered,
+        metricDefinitions: reordered.map((definition, index) =>
+          sanitizeMetricDefinition({
+            ...definition,
+            sortOrder: index,
+          }),
+        ),
       };
     });
   };
 
-  const updateMetricDefinition = (
-    metricId: string,
-    patch: Partial<
-      Pick<
-        MetricDefinition,
-        | "type"
-        | "name"
-        | "description"
-        | "unit"
-        | "min"
-        | "max"
-        | "step"
-        | "showInDiary"
-        | "showInAnalytics"
-      >
-    >,
-  ) => {
-    setWorkspaceState((current) => ({
-      ...current,
-      metricDefinitions: current.metricDefinitions.map((metric) => {
+  const updateMetricDefinition = (metricId: string, patch: MetricDefinitionPatch) => {
+    setWorkspaceState((current) => {
+      const nextDefinitions = current.metricDefinitions.map((metric) => {
         if (metric.id !== metricId) {
           return metric;
         }
 
-        const nextMetric = sanitizeMetricDefinition({
+        return sanitizeMetricDefinition({
           ...metric,
           ...patch,
         });
+      });
 
-        return nextMetric;
-      }),
-    }));
+      return {
+        ...current,
+        metricDefinitions: nextDefinitions.map((metric, index) =>
+          sanitizeMetricDefinition({
+            ...metric,
+            sortOrder: index,
+          }),
+        ),
+      };
+    });
 
     updateDraft((draft) => {
+      const currentDefinition =
+        metricDefinitions.find((metric) => metric.id === metricId) ?? metricDefinitions[0];
+      const nextDefinition = currentDefinition
+        ? sanitizeMetricDefinition({
+            ...currentDefinition,
+            ...patch,
+          })
+        : undefined;
+
+      if (!nextDefinition) {
+        return draft;
+      }
+
       const currentValue = draft.metricValues[metricId];
-      const updatedMetric = sanitizeMetricDefinition({
-        ...(metricDefinitions.find((metric) => metric.id === metricId) ?? metricLibrary[0]),
-        ...patch,
-      });
 
       return {
         ...draft,
@@ -558,39 +598,85 @@ export function WorkspaceProvider({
           ...draft.metricValues,
           [metricId]:
             currentValue === undefined
-              ? getMetricDefaultValue(updatedMetric)
-              : clampMetricValue(updatedMetric, currentValue),
+              ? getMetricDefaultValue(nextDefinition)
+              : normalizeMetricValue(nextDefinition, currentValue),
         },
       };
     });
   };
 
+  const archiveMetric = (metricId: string) => {
+    updateMetricDefinition(metricId, {
+      isActive: false,
+      showInDiary: false,
+      showInAnalytics: false,
+    });
+  };
+
   const toggleMetricVisibility = (metricId: string) => {
-    setWorkspaceState((current) => ({
-      ...current,
-      metricDefinitions: current.metricDefinitions.map((metric) =>
-        metric.id === metricId
-          ? sanitizeMetricDefinition({
-              ...metric,
-              showInDiary: !metric.showInDiary,
-            })
-          : metric,
-      ),
-    }));
+    const metric = metricDefinitions.find((item) => item.id === metricId);
+
+    if (!metric) {
+      return;
+    }
+
+    updateMetricDefinition(metricId, {
+      isActive: true,
+      showInDiary: !metric.showInDiary,
+    });
   };
 
   const toggleMetricAnalytics = (metricId: string) => {
-    setWorkspaceState((current) => ({
-      ...current,
-      metricDefinitions: current.metricDefinitions.map((metric) =>
-        metric.id === metricId
-          ? sanitizeMetricDefinition({
-              ...metric,
-              showInAnalytics: !metric.showInAnalytics,
-            })
-          : metric,
-      ),
-    }));
+    const metric = metricDefinitions.find((item) => item.id === metricId);
+
+    if (!metric) {
+      return;
+    }
+
+    updateMetricDefinition(metricId, {
+      isActive: true,
+      showInAnalytics: !metric.showInAnalytics,
+    });
+  };
+
+  const requestEntryAnalysis = async () => {
+    setAnalysisState("loading");
+    setAnalysisError(null);
+
+    try {
+      const payload = buildServerPayload(selectedDate, selectedDraft, metricDefinitions);
+      const payloadFingerprint = serializeServerPayload(payload);
+      const syncedEntry =
+        savedFingerprints.current[selectedDate] === payloadFingerprint && selectedEntry
+          ? selectedEntry
+          : await saveSelectedPayload(payloadFingerprint, payload);
+
+      if (!syncedEntry) {
+        throw new Error("Сначала нужно сохранить день перед анализом.");
+      }
+
+      const response = await fetch(`/api/entries/${syncedEntry.id}/analyze`, {
+        method: "POST",
+      });
+      const result = (await response.json()) as { entry?: DiaryEntry; error?: string };
+
+      if (!response.ok || !result.entry) {
+        throw new Error(result.error ?? "Не удалось запустить анализ.");
+      }
+
+      setServerEntries((current) =>
+        sortEntries([
+          result.entry!,
+          ...current.filter((entry) => entry.entry_date !== result.entry!.entry_date),
+        ]),
+      );
+      setAnalysisState("idle");
+    } catch (requestError) {
+      setAnalysisState("error");
+      setAnalysisError(
+        requestError instanceof Error ? requestError.message : "Не удалось выполнить анализ.",
+      );
+    }
   };
 
   const addTask = (title: string) => {
@@ -675,20 +761,16 @@ export function WorkspaceProvider({
     }));
   };
 
-  const availableMetricTemplates = useMemo(
-    () =>
-      metricLibrary.filter(
-        (template) =>
-          !metricDefinitions.some((metric) => metric.id === template.id && metric.showInDiary),
-      ),
-    [metricDefinitions],
-  );
+  const availableMetricTemplates = metricTemplateLibrary;
 
   const selectedTasks = useMemo(
     () =>
       [...workspaceState.tasks]
         .filter((task) => task.scheduledDate === selectedDate)
-        .sort((left, right) => Number(Boolean(left.completedAt)) - Number(Boolean(right.completedAt))),
+        .sort(
+          (left, right) =>
+            Number(Boolean(left.completedAt)) - Number(Boolean(right.completedAt)),
+        ),
     [selectedDate, workspaceState.tasks],
   );
 
@@ -719,11 +801,12 @@ export function WorkspaceProvider({
     return [...knownDates]
       .map((date) => {
         const draft =
-          workspaceState.drafts[date] ?? createDraftFromEntry(entriesByDate[date]);
+          workspaceState.drafts[date] ??
+          createDraftFromEntry(entriesByDate[date], metricDefinitions, date);
         const tasks = workspaceState.tasks.filter((task) => task.scheduledDate === date);
-        const visibleMetrics = visibleMetricDefinitions.filter((metric) => {
+        const visibleMetrics = getVisibleMetricDefinitions(metricDefinitions).filter((metric) => {
           const value = draft.metricValues[metric.id];
-          return typeof value === "string" ? value.trim().length > 0 : Number.isFinite(value);
+          return typeof value === "string" ? value.trim().length > 0 : value !== undefined;
         });
         const completedTasks = tasks.filter((task) => task.completedAt).length;
         const summary =
@@ -733,7 +816,6 @@ export function WorkspaceProvider({
 
         return {
           date,
-          humanDate: formatHumanDate(date),
           compactDate: formatCompactDate(date),
           summary,
           notesPreview: draft.notes.trim() || "Запись пока пустая.",
@@ -745,29 +827,35 @@ export function WorkspaceProvider({
         } satisfies WorkspaceDay;
       })
       .sort((left, right) => right.date.localeCompare(left.date));
-  }, [entriesByDate, selectedDate, visibleMetricDefinitions, workspaceState.drafts, workspaceState.tasks]);
+  }, [entriesByDate, metricDefinitions, selectedDate, workspaceState.drafts, workspaceState.tasks]);
 
   const value = {
     isConfigured,
     initialError,
     error,
     saveState,
+    analysisState,
+    analysisError,
     selectedDate,
     setSelectedDate,
     drafts: workspaceState.drafts,
     selectedDraft,
+    selectedEntry,
     updateSummary,
     updateNotes,
     metricDefinitions,
     visibleMetricDefinitions,
     analyticsMetricDefinitions,
     updateMetricValue,
-    addMetric,
+    createMetric,
+    saveMetricDefinition,
     reorderMetric,
     updateMetricDefinition,
+    archiveMetric,
     toggleMetricVisibility,
     toggleMetricAnalytics,
     availableMetricTemplates,
+    requestEntryAnalysis,
     tasks: workspaceState.tasks,
     selectedTasks,
     overdueTasks,
@@ -782,11 +870,7 @@ export function WorkspaceProvider({
     serverEntries,
   };
 
-  return (
-    <WorkspaceContext.Provider value={value}>
-      {children}
-    </WorkspaceContext.Provider>
-  );
+  return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
 
 export function useWorkspace() {

@@ -1,7 +1,6 @@
 import "server-only";
 
-import type { DiaryEntry } from "@/lib/diary";
-import type { TaskItem, WorkspaceDraft } from "@/lib/workspace";
+import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
 
 const routerAiBaseUrl =
   process.env.ROUTERAI_BASE_URL ?? "https://routerai.ru/api/v1";
@@ -16,7 +15,19 @@ export function getRouterAiConfigError() {
   return null;
 }
 
-export async function analyzeDiaryEntry(entry: DiaryEntry) {
+type AnalyzeDiaryEntryInput = {
+  entryDate: string;
+  summary: string;
+  notes: string;
+  metrics: Array<{
+    name: string;
+    type: string;
+    unit: string;
+    value: string | number | boolean;
+  }>;
+};
+
+export async function analyzeDiaryEntry(entry: AnalyzeDiaryEntryInput) {
   const configError = getRouterAiConfigError();
 
   if (configError) {
@@ -37,16 +48,23 @@ export async function analyzeDiaryEntry(entry: DiaryEntry) {
         {
           role: "system",
           content:
-            "You analyze short diary entries. Reply in Russian with 3 short bullet points: main emotional state, likely cause, one gentle suggestion. Be concise and practical.",
+            "Ты анализируешь короткие дневниковые записи. Отвечай по-русски. Верни 3 коротких пункта: главное состояние дня, вероятная причина, один практичный следующий шаг. Будь конкретным и спокойным.",
         },
         {
           role: "user",
           content: [
-            `Date: ${entry.entry_date}`,
-            `Mood: ${entry.mood}/10`,
-            `Energy: ${entry.energy}/10`,
-            `Sleep: ${entry.sleep_hours} hours`,
-            `Notes: ${entry.notes}`,
+            `Дата: ${entry.entryDate}`,
+            `Главное за день: ${entry.summary || "—"}`,
+            `Заметки: ${entry.notes || "—"}`,
+            "Метрики:",
+            entry.metrics.length > 0
+              ? entry.metrics
+                  .map(
+                    (metric) =>
+                      `- ${metric.name}: ${String(metric.value)}${metric.unit ? ` ${metric.unit}` : ""} (${metric.type})`,
+                  )
+                  .join("\n")
+              : "- Нет сохранённых метрик.",
           ].join("\n"),
         },
       ],
@@ -88,6 +106,7 @@ type RouterAiChatMessage = {
 type RouterAiDiaryContext = {
   date: string;
   draft: WorkspaceDraft;
+  metricDefinitions: MetricDefinition[];
   tasks: TaskItem[];
 };
 
@@ -138,8 +157,16 @@ async function requestRouterAi(messages: RouterAiChatMessage[], maxTokens = 280)
 }
 
 function buildDiaryContextPrompt(context: RouterAiDiaryContext) {
-  const metricLines = Object.entries(context.draft.metricValues)
-    .map(([key, value]) => `${key}: ${typeof value === "string" ? value || "—" : value}`)
+  const metricLines = context.metricDefinitions
+    .filter((metric) => metric.isActive)
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((metric) => {
+      const value = context.draft.metricValues[metric.id];
+      const displayValue =
+        typeof value === "string" ? value || "—" : typeof value === "boolean" ? (value ? "Да" : "Нет") : value;
+
+      return `${metric.name}: ${displayValue}${metric.unit ? ` ${metric.unit}` : ""}`;
+    })
     .join("\n");
   const taskLines =
     context.tasks.length === 0

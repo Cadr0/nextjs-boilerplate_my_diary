@@ -63,6 +63,10 @@ export function WorkspaceShell({
     };
   }, [isLeftDrawerOpen, isRightDrawerOpen]);
 
+  if (pathname === "/diary") {
+    return <div className="min-h-screen px-3 py-3 sm:px-4 sm:py-4">{children}</div>;
+  }
+
   const renderNavigation = (mobile = false) => (
     <nav className="grid gap-2">
       {navItems.map((item) => {

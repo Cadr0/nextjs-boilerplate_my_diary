@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 
 import { getAuthState } from "@/lib/auth";
 import { getSupabaseConfigError, saveDiaryEntry } from "@/lib/diary";
+import type { DiaryEntryInput, MetricDefinition } from "@/lib/workspace";
+
+type RequestPayload = {
+  entry_date?: string;
+  summary?: string;
+  notes?: string;
+  metric_definitions?: MetricDefinition[];
+  metric_values?: Record<string, string | number | boolean>;
+};
 
 export async function POST(request: Request) {
   const configError = getSupabaseConfigError();
@@ -17,35 +26,31 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = (await request.json()) as {
-      entry_date?: string;
-      mood?: number;
-      energy?: number;
-      sleep_hours?: number;
-      notes?: string;
-    };
+    const body = (await request.json()) as RequestPayload;
 
     if (
       !body.entry_date ||
-      typeof body.mood !== "number" ||
-      typeof body.energy !== "number" ||
-      typeof body.sleep_hours !== "number"
+      !Array.isArray(body.metric_definitions) ||
+      typeof body.metric_values !== "object" ||
+      body.metric_values === null
     ) {
       return NextResponse.json(
-        { error: "Date and core metrics are required." },
+        { error: "Entry date, metric definitions and metric values are required." },
         { status: 400 },
       );
     }
 
-    const entry = await saveDiaryEntry({
+    const payload: DiaryEntryInput = {
       entry_date: body.entry_date,
-      mood: body.mood,
-      energy: body.energy,
-      sleep_hours: body.sleep_hours,
+      summary: body.summary?.trim() ?? "",
       notes: body.notes?.trim() ?? "",
-    });
+      metric_definitions: body.metric_definitions,
+      metric_values: body.metric_values,
+    };
 
-    return NextResponse.json({ entry }, { status: 201 });
+    const result = await saveDiaryEntry(payload);
+
+    return NextResponse.json(result, { status: 200 });
   } catch (error) {
     return NextResponse.json(
       {

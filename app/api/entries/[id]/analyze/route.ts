@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getAuthState } from "@/lib/auth";
 import {
-  getDiaryEntryById,
+  getDiaryEntryAnalysisContext,
   getSupabaseConfigError,
   updateDiaryEntryAnalysis,
 } from "@/lib/diary";
@@ -40,8 +40,18 @@ export async function POST(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Entry id is required." }, { status: 400 });
     }
 
-    const entry = await getDiaryEntryById(id);
-    const aiAnalysis = await analyzeDiaryEntry(entry);
+    const { entry, metrics } = await getDiaryEntryAnalysisContext(id);
+    const aiAnalysis = await analyzeDiaryEntry({
+      entryDate: entry.entry_date,
+      summary: entry.summary ?? "",
+      notes: entry.notes ?? "",
+      metrics: metrics.map((metric) => ({
+        name: metric.name,
+        type: metric.type,
+        unit: metric.unit,
+        value: metric.value,
+      })),
+    });
     const updatedEntry = await updateDiaryEntryAnalysis(id, aiAnalysis);
 
     return NextResponse.json({ entry: updatedEntry }, { status: 200 });

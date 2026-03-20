@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getAuthState } from "@/lib/auth";
 import { chatWithRouterAi, getRouterAiConfigError } from "@/lib/routerai";
-import type { TaskItem, WorkspaceDraft } from "@/lib/workspace";
+import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
 
 type RequestPayload = {
   messages?: Array<{
@@ -12,6 +12,7 @@ type RequestPayload = {
   context?: {
     date?: string;
     draft?: WorkspaceDraft;
+    metricDefinitions?: MetricDefinition[];
     tasks?: TaskItem[];
   };
 };
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
 
     const date = payload.context?.date;
     const draft = payload.context?.draft;
+    const metricDefinitions = payload.context?.metricDefinitions ?? [];
     const tasks = payload.context?.tasks ?? [];
 
     if (!date || !draft) {
@@ -53,11 +55,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "At least one message is required." }, { status: 400 });
     }
 
-    const reply = await chatWithRouterAi(messages, {
-      date,
-      draft,
-      tasks,
-    });
+      const reply = await chatWithRouterAi(messages, {
+        date,
+        draft,
+        metricDefinitions,
+        tasks,
+      });
 
     return NextResponse.json({ reply }, { status: 200 });
   } catch (error) {

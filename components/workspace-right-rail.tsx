@@ -27,6 +27,7 @@ function createChatMessage(role: ChatMessage["role"], content: string): ChatMess
 export function WorkspaceRightRail() {
   const {
     addTask,
+    metricDefinitions,
     moveTaskToNextDay,
     moveTaskToSelectedDate,
     overdueTasks,
@@ -112,6 +113,7 @@ export function WorkspaceRightRail() {
           context: {
             date: selectedDate,
             draft: selectedDraft,
+            metricDefinitions: metricDefinitions.filter((metric) => metric.isActive),
             tasks: selectedTasks,
           },
         }),
