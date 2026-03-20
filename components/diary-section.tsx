@@ -3,7 +3,8 @@
 import {
   closestCenter,
   DndContext,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -14,7 +15,11 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type {
+  MouseEvent as ReactMouseEvent,
+  ReactNode,
+  TouchEvent as ReactTouchEvent,
+} from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { DiaryAssistantPanel } from "@/components/diary-assistant-panel";
@@ -41,11 +46,21 @@ import {
   shiftIsoDate,
 } from "@/lib/workspace";
 
-class NonInteractivePointerSensor extends PointerSensor {
+class NonInteractiveMouseSensor extends MouseSensor {
   static activators = [
     {
-      eventName: "onPointerDown" as const,
-      handler: ({ nativeEvent }: ReactPointerEvent) =>
+      eventName: "onMouseDown" as const,
+      handler: ({ nativeEvent }: ReactMouseEvent) =>
+        shouldStartDrag(nativeEvent.target),
+    },
+  ];
+}
+
+class NonInteractiveTouchSensor extends TouchSensor {
+  static activators = [
+    {
+      eventName: "onTouchStart" as const,
+      handler: ({ nativeEvent }: ReactTouchEvent) =>
         shouldStartDrag(nativeEvent.target),
     },
   ];
@@ -213,9 +228,15 @@ export function DiarySection() {
   const drawerTouchCurrent = useRef<number | null>(null);
 
   const sensors = useSensors(
-    useSensor(NonInteractivePointerSensor, {
+    useSensor(NonInteractiveMouseSensor, {
       activationConstraint: {
-        distance: 10,
+        distance: 8,
+      },
+    }),
+    useSensor(NonInteractiveTouchSensor, {
+      activationConstraint: {
+        delay: 180,
+        tolerance: 10,
       },
     }),
   );
@@ -682,8 +703,12 @@ function SortableMetricCard({
       className={isDragging ? "z-20" : ""}
     >
       <article
+        {...attributes}
+        {...listeners}
         className={`rounded-[22px] border bg-white/94 p-3 shadow-[0_16px_34px_rgba(30,34,40,0.07)] transition sm:rounded-[24px] sm:p-4 ${
-          isDragging ? "shadow-[0_22px_44px_rgba(30,34,40,0.14)]" : ""
+          isDragging
+            ? "cursor-grabbing shadow-[0_22px_44px_rgba(30,34,40,0.14)]"
+            : "cursor-grab"
         }`}
         style={{
           borderColor: `${metric.accent}55`,
@@ -716,14 +741,6 @@ function SortableMetricCard({
           </div>
 
           <div className="flex shrink-0 items-start gap-2">
-            <div
-              {...attributes}
-              {...listeners}
-              className="mt-0.5 flex h-12 w-16 items-center justify-center rounded-[18px] border border-dashed bg-[rgba(247,249,246,0.92)] text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] active:cursor-grabbing"
-              aria-label="Перетащить метрику"
-            >
-              <DragHandleIcon />
-            </div>
             <button
               type="button"
               data-no-drag="true"
@@ -1282,29 +1299,6 @@ function MetricBuilderModal({
 
               {metric.type === "scale" || metric.type === "number" ? (
                 <>
-                  <div className="rounded-[22px] border border-[var(--border)] bg-[rgba(244,248,255,0.78)] px-4 py-4">
-                    <div className="flex items-center justify-between gap-3 text-sm">
-                      <span className="text-[var(--foreground)]">Шкала</span>
-                      <span className="font-semibold text-[var(--foreground)]">
-                        {formatMetricValue(metric, getMetricDefaultValue(metric))}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={metric.min}
-                      max={metric.max}
-                      step={metric.step}
-                      value={
-                        typeof getMetricDefaultValue(metric) === "number"
-                          ? Number(getMetricDefaultValue(metric))
-                          : 0
-                      }
-                      readOnly
-                      className="mt-3 h-2.5 w-full cursor-default appearance-none rounded-full"
-                      style={getMetricRangeStyle(metric, getMetricDefaultValue(metric))}
-                    />
-                  </div>
-
                   <div className="grid gap-3 sm:grid-cols-3">
                     <label className="grid gap-2">
                       <span className="text-sm font-medium text-[var(--foreground)]">Минимум</span>
@@ -1739,16 +1733,6 @@ function PlusIcon() {
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
       <path d="M12 5v14" />
       <path d="M5 12h14" />
-    </svg>
-  );
-}
-
-function DragHandleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
-      <path d="M8 6h8" />
-      <path d="M8 12h8" />
-      <path d="M8 18h8" />
     </svg>
   );
 }
