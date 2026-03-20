@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Diary AI
 
-## Getting Started
+Next.js 16 приложение для личного дневника с Supabase Auth, приватными записями, гибкими метриками и AI-помощником.
 
-First, run the development server:
+## Что в проекте оставлено
+
+- `app/`:
+  рабочие страницы, auth-callback и API routes
+- `components/`:
+  UI дневника, аналитики, профиля, диагностики и AI
+- `lib/`:
+  auth, Supabase, diary persistence, workspace state
+- `supabase/sql/`:
+  актуальные SQL-миграции проекта
+- `docs/database_schema_v3.md`:
+  текущая схема БД
+- `docs/diary_rls_hardening.md`:
+  актуальный RLS hardening для существующей схемы
+
+## Быстрый старт
+
+1. Установить зависимости:
+
+```bash
+npm install
+```
+
+2. Заполнить `.env.local` на основе `.env.example`.
+
+Нужны как минимум:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Для AI-функций:
+
+- `OPENROUTER_API_KEY`
+- при использовании RouterAI: `ROUTERAI_API_KEY`
+
+3. Применить SQL в Supabase.
+
+Для новой схемы основной источник истины:
+
+- `supabase/sql/2026-03-20_phase2_flexible_diary.sql`
+
+Для ужесточения RLS поверх уже существующей Phase 2 схемы:
+
+- `supabase/sql/2026-03-20_phase3_diary_rls_hardening.sql`
+
+4. Запустить проект:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Проверка
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run lint
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Полезные маршруты
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `/` — лендинг
+- `/login` — вход
+- `/register` — регистрация
+- `/diary` — основной дневник
+- `/analytics` — аналитика
+- `/profile` — профиль
+- `/diagnostics` — диагностика auth и записи в БД

@@ -4,7 +4,7 @@ Use this when the flexible diary schema already exists in Supabase and you need 
 
 Apply:
 
-- [2026-03-20_phase3_diary_rls_hardening.sql](/C:/Users/marut/Desktop/Diary_AI/repo/supabase/sql/2026-03-20_phase3_diary_rls_hardening.sql)
+- `supabase/sql/2026-03-20_phase3_diary_rls_hardening.sql`
 
 What it changes:
 
@@ -17,4 +17,4 @@ What it changes:
 
 Use Phase 2 for fresh installs:
 
-- [2026-03-20_phase2_flexible_diary.sql](/C:/Users/marut/Desktop/Diary_AI/repo/supabase/sql/2026-03-20_phase2_flexible_diary.sql)
+- `supabase/sql/2026-03-20_phase2_flexible_diary.sql`
