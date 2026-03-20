@@ -949,7 +949,7 @@ function MetricBuilderModal({
                   : "border-transparent text-[var(--muted)]"
               }`}
             >
-              ??????? ???????
+              Создать метрику
             </button>
             <button
               type="button"
@@ -959,7 +959,7 @@ function MetricBuilderModal({
                   : "border-transparent text-[var(--muted)]"
               }`}
             >
-              ????????????? ???????
+              Редактировать метрику
             </button>
           </div>
 
@@ -967,7 +967,7 @@ function MetricBuilderModal({
             type="button"
             onClick={onClose}
             className="flex h-10 w-10 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-white/90 hover:text-[var(--foreground)]"
-            aria-label="??????? ???????????"
+            aria-label="Закрыть конструктор"
           >
             <CloseIcon />
           </button>
@@ -983,7 +983,7 @@ function MetricBuilderModal({
                     onClick={() => setIsAppearancePickerOpen((current) => !current)}
                     className="flex h-12 w-12 items-center justify-center rounded-[18px] text-white shadow-[0_16px_30px_rgba(24,33,29,0.12)]"
                     style={{ backgroundColor: metric.accent }}
-                    aria-label="??????? ???? ? ??????"
+                    aria-label="Выбрать цвет и иконку"
                   >
                     <MetricIcon icon={metric.icon} />
                   </button>
@@ -1007,7 +1007,7 @@ function MetricBuilderModal({
                                 : "border-transparent"
                             }`}
                             style={{ backgroundColor: accent }}
-                            aria-label={`??????? ???? ${accent}`}
+                            aria-label={`Выбрать цвет ${accent}`}
                           >
                             {metric.accent === accent ? <CheckIcon /> : null}
                           </button>
@@ -1032,7 +1032,7 @@ function MetricBuilderModal({
                                 ? "border-[var(--accent)] bg-[rgba(47,111,97,0.08)] text-[var(--accent)]"
                                 : "border-[var(--border)] bg-white text-[var(--foreground)]"
                             }`}
-                            aria-label={`??????? ?????? ${icon}`}
+                            aria-label={`Выбрать иконку ${icon}`}
                           >
                             <MetricIcon icon={icon} />
                           </button>
@@ -1059,7 +1059,7 @@ function MetricBuilderModal({
 
             {mode === "create" ? (
               <div className="grid gap-2">
-                <p className="text-sm font-medium text-[var(--foreground)]">??????? ?????????</p>
+                <p className="text-sm font-medium text-[var(--foreground)]">Быстрые заготовки</p>
                 <div className="flex flex-wrap gap-2">
                   {templates.map((template) => (
                     <button
@@ -1076,7 +1076,7 @@ function MetricBuilderModal({
             ) : null}
 
             <div className="grid gap-3">
-              <p className="text-sm font-medium text-[var(--foreground)]">???</p>
+              <p className="text-sm font-medium text-[var(--foreground)]">Тип</p>
               <div className="grid gap-2 sm:grid-cols-4">
                 {metricTypeOptions.map((option) => (
                   <button
@@ -1115,7 +1115,7 @@ function MetricBuilderModal({
             </div>
 
             <div className="grid gap-3">
-              <p className="text-sm font-medium text-[var(--foreground)]">?????</p>
+              <p className="text-sm font-medium text-[var(--foreground)]">Юниты</p>
               <div className="grid gap-2 sm:grid-cols-4">
                 {unitOptions.map((option) => (
                   <button
@@ -1147,15 +1147,15 @@ function MetricBuilderModal({
             </div>
 
             <div className="rounded-[22px] border border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-4">
-              <p className="text-sm font-medium text-[var(--foreground)]">??? ???????</p>
+              <p className="text-sm font-medium text-[var(--foreground)]">Вид метрики</p>
               <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                ????? ?? ?????? ????? ?? ????????, ????? ??????? ???? ? ?????? ? ?????????? ????.
+                Нажми на иконку слева от названия, чтобы выбрать цвет и иконку в выпадающем окне.
               </p>
             </div>
 
             <div className="grid gap-3 rounded-[24px] border border-[var(--border)] bg-white/88 p-4 sm:rounded-[28px]">
               <label className="grid gap-2">
-                <span className="text-sm font-medium text-[var(--foreground)]">????????</span>
+                <span className="text-sm font-medium text-[var(--foreground)]">Описание</span>
                 <AutoGrowTextarea
                   value={metric.description}
                   onChange={(value) => setMetric((current) => ({ ...current, description: value }))}
@@ -1165,7 +1165,7 @@ function MetricBuilderModal({
               </label>
 
               <label className="grid gap-2">
-                <span className="text-sm font-medium text-[var(--foreground)]">??????? ???????</span>
+                <span className="text-sm font-medium text-[var(--foreground)]">Подпись единицы</span>
                 <input
                   value={metric.unit}
                   onChange={(event) => setMetric((current) => ({ ...current, unit: event.target.value }))}
@@ -1177,7 +1177,7 @@ function MetricBuilderModal({
                 <>
                   <div className="rounded-[22px] border border-[var(--border)] bg-[rgba(244,248,255,0.78)] px-4 py-4">
                     <div className="flex items-center justify-between gap-3 text-sm">
-                      <span className="text-[var(--foreground)]">?????</span>
+                      <span className="text-[var(--foreground)]">Шкала</span>
                       <span className="font-semibold text-[var(--foreground)]">
                         {formatMetricValue(metric, getMetricDefaultValue(metric))}
                       </span>
@@ -1200,7 +1200,7 @@ function MetricBuilderModal({
 
                   <div className="grid gap-3 sm:grid-cols-3">
                     <label className="grid gap-2">
-                      <span className="text-sm font-medium text-[var(--foreground)]">???????</span>
+                      <span className="text-sm font-medium text-[var(--foreground)]">Минимум</span>
                       <input
                         type="number"
                         value={metric.min ?? 0}
@@ -1216,7 +1216,7 @@ function MetricBuilderModal({
                       />
                     </label>
                     <label className="grid gap-2">
-                      <span className="text-sm font-medium text-[var(--foreground)]">????????</span>
+                      <span className="text-sm font-medium text-[var(--foreground)]">Максимум</span>
                       <input
                         type="number"
                         value={metric.max ?? 10}
@@ -1232,7 +1232,7 @@ function MetricBuilderModal({
                       />
                     </label>
                     <label className="grid gap-2">
-                      <span className="text-sm font-medium text-[var(--foreground)]">???</span>
+                      <span className="text-sm font-medium text-[var(--foreground)]">Шаг</span>
                       <input
                         type="number"
                         min="0.1"
@@ -1263,7 +1263,7 @@ function MetricBuilderModal({
                       isActive: true,
                     }))
                   }
-                  label="?????????? ? ????????"
+                  label="Показывать в дневнике"
                 />
                 <ToggleChip
                   active={metric.showInAnalytics}
@@ -1274,7 +1274,7 @@ function MetricBuilderModal({
                       isActive: true,
                     }))
                   }
-                  label="?????????? ? ?????????"
+                  label="Показывать в аналитике"
                 />
               </div>
             </div>
@@ -1289,7 +1289,7 @@ function MetricBuilderModal({
                 onClick={onDelete}
                 className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/92 px-5 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgba(208,138,149,0.26)] hover:text-[rgb(136,47,63)]"
               >
-                ???????
+                Удалить
               </button>
             ) : null}
           </div>
@@ -1299,7 +1299,7 @@ function MetricBuilderModal({
             onClick={() => onSave(metric)}
             className="inline-flex min-h-12 w-full items-center justify-center rounded-[20px] bg-[linear-gradient(135deg,#8b79bd,#6c5b99)] px-6 text-sm font-semibold text-white shadow-[0_18px_36px_rgba(108,91,153,0.28)] transition hover:brightness-105 sm:w-auto"
           >
-            ????????? ???????
+            Сохранить метрику
           </button>
         </div>
       </div>
