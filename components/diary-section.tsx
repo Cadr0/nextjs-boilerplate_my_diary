@@ -77,7 +77,7 @@ function formatMetricValue(metric: MetricDefinition, value: MetricValue | undefi
   }
 
   if (metric.type === "boolean") {
-    return Boolean(value) ? "Р”Р°" : "РќРµС‚";
+    return Boolean(value) ? "Да" : "Нет";
   }
 
   const numericValue =
@@ -134,11 +134,11 @@ function getSidebarDateLabel(value: string) {
   const yesterday = shiftIsoDate(today, -1);
 
   if (value === today) {
-    return "РЎРµРіРѕРґРЅСЏ";
+    return "Сегодня";
   }
 
   if (value === yesterday) {
-    return "Р’С‡РµСЂР°";
+    return "Вчера";
   }
 
   return formatHumanDate(value);
@@ -148,7 +148,7 @@ function getHeadingDateLabel(value: string) {
   const today = getTodayIsoDate();
 
   if (value === today) {
-    return `РЎРµРіРѕРґРЅСЏ, ${formatHumanDate(value)}`;
+    return `Сегодня, ${formatHumanDate(value)}`;
   }
 
   return formatHistoryDate(value);
@@ -224,14 +224,14 @@ export function DiarySection() {
   const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
   const saveCopy =
     saveState === "saving"
-      ? "РЎРѕС…СЂР°РЅСЏРµРј РёР·РјРµРЅРµРЅРёСЏ..."
+      ? "Сохраняем изменения..."
       : saveState === "saved"
-        ? "Р’СЃРµ РёР·РјРµРЅРµРЅРёСЏ СЃРѕС…СЂР°РЅРµРЅС‹"
+        ? "Все изменения сохранены"
         : saveState === "local"
-          ? "РР·РјРµРЅРµРЅРёСЏ СЃРѕС…СЂР°РЅРµРЅС‹ С‚РѕР»СЊРєРѕ Р»РѕРєР°Р»СЊРЅРѕ"
+          ? "Изменения сохранены только локально"
           : saveState === "error"
-            ? "Р•СЃС‚СЊ РѕС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ"
-            : "Р Р°Р±РѕС‡РµРµ РїСЂРѕСЃС‚СЂР°РЅСЃС‚РІРѕ РіРѕС‚РѕРІРѕ";
+            ? "Есть ошибка сохранения"
+            : "Рабочее пространство готово";
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -272,14 +272,14 @@ export function DiarySection() {
             })
           }
           className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          aria-label="Р”РѕР±Р°РІРёС‚СЊ РјРµС‚СЂРёРєСѓ"
+          aria-label="Добавить метрику"
         >
           <PlusIcon />
         </button>
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">Diary AI</p>
           <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-            Р”РЅРµРІРЅРёРє
+            Дневник
           </p>
         </div>
       </div>
@@ -288,10 +288,10 @@ export function DiarySection() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-              РђРЅР°Р»РёР·
+              Анализ
             </p>
             <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-              {selectedEntry?.ai_analysis ? "Р Р°Р·Р±РѕСЂ РіРѕС‚РѕРІ" : "РћР¶РёРґР°РµС‚ Р·Р°РїСѓСЃРєР°"}
+              {selectedEntry?.ai_analysis ? "Разбор готов" : "Ожидает запуска"}
             </p>
           </div>
           <div className="rounded-full bg-[rgba(47,111,97,0.08)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
@@ -301,14 +301,14 @@ export function DiarySection() {
         <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
           {selectedEntry?.ai_analysis
             ? selectedEntry.ai_analysis.split("\n").filter(Boolean)[0]
-            : "РћСЃРЅРѕРІРЅРѕР№ СЂР°Р·Р±РѕСЂ Рё С‡Р°С‚ РЅР°С…РѕРґСЏС‚СЃСЏ РЅРёР¶Рµ РїРѕРґ РјРµС‚СЂРёРєР°РјРё, РєР°Рє РµРґРёРЅС‹Р№ РїРѕС‚РѕРє."}
+            : "Основной разбор и чат находятся ниже под метриками, как единый поток."}
         </p>
       </div>
 
       <div className="mt-4 min-h-0 flex-1 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
         <div className="mb-2 flex items-center justify-between px-1">
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-            Р”РЅРё
+            Дни
           </p>
           <span className="text-xs text-[var(--muted)]">{days.length}</span>
         </div>
@@ -336,7 +336,7 @@ export function DiarySection() {
                   day.date === selectedDate ? "text-white/80" : "text-[var(--muted)]"
                 }`}
               >
-                {day.summary || day.notesPreview || "РџСѓСЃС‚РѕР№ РґРµРЅСЊ"}
+                {day.summary || day.notesPreview || "Пустой день"}
               </span>
             </button>
           ))}
@@ -359,7 +359,7 @@ export function DiarySection() {
             {profile.firstName}
             {profile.lastName ? ` ${profile.lastName}` : ""}
           </p>
-          <p className="mt-1 text-xs text-[var(--muted)]">РџСЂРѕС„РёР»СЊ Рё РЅР°СЃС‚СЂРѕР№РєРё</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">Профиль и настройки</p>
         </div>
         <DotsIcon />
       </button>
@@ -407,7 +407,7 @@ export function DiarySection() {
               type="button"
               onClick={() => setIsMobileSidebarOpen(true)}
               className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
-              aria-label="РћС‚РєСЂС‹С‚СЊ Р±РѕРєРѕРІСѓСЋ РїР°РЅРµР»СЊ"
+              aria-label="Открыть боковую панель"
             >
               <MenuIcon />
             </button>
@@ -416,7 +416,7 @@ export function DiarySection() {
               type="button"
               onClick={() => goToRelativeDay(-1)}
               className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
-              aria-label="РџСЂРµРґС‹РґСѓС‰РёР№ РґРµРЅСЊ"
+              aria-label="Предыдущий день"
             >
               <ChevronLeftIcon />
             </button>
@@ -431,7 +431,7 @@ export function DiarySection() {
               type="button"
               onClick={() => goToRelativeDay(1)}
               className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
-              aria-label="РЎР»РµРґСѓСЋС‰РёР№ РґРµРЅСЊ"
+              aria-label="Следующий день"
             >
               <ChevronRightIcon />
             </button>
@@ -448,7 +448,7 @@ export function DiarySection() {
                     type="button"
                     onClick={() => goToRelativeDay(-1)}
                     className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                    aria-label="РџСЂРµРґС‹РґСѓС‰РёР№ РґРµРЅСЊ"
+                    aria-label="Предыдущий день"
                   >
                     <ChevronLeftIcon />
                   </button>
@@ -459,7 +459,7 @@ export function DiarySection() {
                     type="button"
                     onClick={() => goToRelativeDay(1)}
                     className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                    aria-label="РЎР»РµРґСѓСЋС‰РёР№ РґРµРЅСЊ"
+                    aria-label="Следующий день"
                   >
                     <ChevronRightIcon />
                   </button>
@@ -474,7 +474,7 @@ export function DiarySection() {
                   type="button"
                   onClick={() => setIsSettingsOpen(true)}
                   className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/94 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                  aria-label="РћС‚РєСЂС‹С‚СЊ РЅР°СЃС‚СЂРѕР№РєРё"
+                  aria-label="Открыть настройки"
                 >
                   <DotsIcon />
                 </button>
@@ -484,23 +484,23 @@ export function DiarySection() {
             <div className="mt-5 rounded-[28px] border border-[var(--border)] bg-white/88 p-5">
               <label className="grid gap-3">
                 <span className="text-[1.05rem] font-medium text-[var(--foreground)]">
-                  РљР°Рє РїСЂРѕС€РµР» РґРµРЅСЊ?
+                  Как прошел день?
                 </span>
                 <AutoGrowTextarea
                   value={selectedDraft.notes}
                   onChange={updateNotes}
-                  placeholder="Р§С‚Рѕ СЃРµРіРѕРґРЅСЏ РїСЂРѕРёР·РѕС€Р»Рѕ, РєР°Рє С‚С‹ СЃРµР±СЏ С‡СѓРІСЃС‚РІРѕРІР°Р» Рё С‡С‚Рѕ Р±С‹Р»Рѕ РІР°Р¶РЅС‹Рј?"
+                  placeholder="Что сегодня произошло, как ты себя чувствовал и что было важным?"
                   minRows={5}
                   className="w-full rounded-[24px] border border-[var(--border)] bg-[rgba(255,255,255,0.96)] px-4 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:text-[15px]"
                 />
               </label>
 
               <label className="mt-4 grid gap-2">
-                <span className="text-sm font-medium text-[var(--foreground)]">Р“Р»Р°РІРЅРѕРµ Р·Р° РґРµРЅСЊ</span>
+                <span className="text-sm font-medium text-[var(--foreground)]">Главное за день</span>
                 <input
                   value={selectedDraft.summary}
                   onChange={(event) => updateSummary(event.target.value)}
-                  placeholder="РљРѕСЂРѕС‚РєРёР№ Р·Р°РіРѕР»РѕРІРѕРє РґРЅСЏ РѕРґРЅРёРј РїСЂРµРґР»РѕР¶РµРЅРёРµРј"
+                  placeholder="Короткий заголовок дня одним предложением"
                   className="min-h-12 rounded-[20px] border border-[var(--border)] bg-white/95 px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
@@ -511,10 +511,10 @@ export function DiarySection() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-                  РњРµС‚СЂРёРєРё
+                  Метрики
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  РР·РјРµРЅРµРЅРёСЏ СЃРѕС…СЂР°РЅСЏСЋС‚СЃСЏ СЃСЂР°Р·Сѓ. РђРЅР°Р»РёР· Рё С‡Р°С‚ РёРґСѓС‚ РЅРёР¶Рµ, РІ РѕРґРЅРѕРј РїРѕС‚РѕРєРµ.
+                  Изменения сохраняются сразу. Анализ и чат идут ниже, в одном потоке.
                 </p>
               </div>
 
@@ -528,7 +528,7 @@ export function DiarySection() {
                 }
                 className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/92 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.24)] hover:text-[var(--accent)]"
               >
-                + Р”РѕР±Р°РІРёС‚СЊ РјРµС‚СЂРёРєСѓ
+                + Добавить метрику
               </button>
             </div>
 
@@ -564,10 +564,10 @@ export function DiarySection() {
 
             <div className="mt-5 flex flex-wrap gap-3 text-sm text-[var(--muted)]">
               <span className="rounded-full border border-[var(--border)] bg-white/80 px-3 py-2">
-                {visibleMetricDefinitions.length} РјРµС‚СЂРёРє РЅР° РґРµРЅСЊ
+                {visibleMetricDefinitions.length} метрик на день
               </span>
               <span className="rounded-full border border-[var(--border)] bg-white/80 px-3 py-2">
-                {taskCompletion}% Р·Р°РґР°С‡ Р·Р°РєСЂС‹С‚Рѕ
+                {taskCompletion}% задач закрыто
               </span>
             </div>
           </div>
@@ -581,7 +581,7 @@ export function DiarySection() {
           <button
             type="button"
             className="absolute inset-0 bg-[rgba(24,33,29,0.2)]"
-            aria-label="Р—Р°РєСЂС‹С‚СЊ Р±РѕРєРѕРІСѓСЋ РїР°РЅРµР»СЊ"
+            aria-label="Закрыть боковую панель"
             onClick={() => setIsMobileSidebarOpen(false)}
           />
           <aside
@@ -611,7 +611,7 @@ export function DiarySection() {
                 type="button"
                 onClick={() => setIsMobileSidebarOpen(false)}
                 className="flex h-10 w-10 items-center justify-center rounded-2xl text-[var(--foreground)]"
-                aria-label="Р—Р°РєСЂС‹С‚СЊ Р±РѕРєРѕРІСѓСЋ РїР°РЅРµР»СЊ"
+                aria-label="Закрыть боковую панель"
               >
                 <CloseIcon />
               </button>
@@ -720,7 +720,7 @@ function SortableMetricCard({
               {...attributes}
               {...listeners}
               className="mt-0.5 flex h-12 w-16 items-center justify-center rounded-[18px] border border-dashed bg-[rgba(247,249,246,0.92)] text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] active:cursor-grabbing"
-              aria-label="РџРµСЂРµС‚Р°С‰РёС‚СЊ РјРµС‚СЂРёРєСѓ"
+              aria-label="Перетащить метрику"
             >
               <DragHandleIcon />
             </div>
@@ -729,7 +729,7 @@ function SortableMetricCard({
               data-no-drag="true"
               onClick={onEdit}
               className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-white/95 text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.24)] hover:text-[var(--accent)]"
-              aria-label="Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ РјРµС‚СЂРёРєСѓ"
+              aria-label="Редактировать метрику"
             >
               <EditIcon />
             </button>
@@ -767,7 +767,7 @@ function MetricInputField({
               : "border-[var(--border)] bg-white text-[var(--foreground)]"
           }`}
         >
-          Р”Р°
+          Да
         </button>
         <button
           type="button"
@@ -778,7 +778,7 @@ function MetricInputField({
               : "border-[var(--border)] bg-white text-[var(--foreground)]"
           }`}
         >
-          РќРµС‚
+          Нет
         </button>
       </div>
     );
@@ -789,7 +789,7 @@ function MetricInputField({
       <AutoGrowTextarea
         value={typeof value === "string" ? value : ""}
         onChange={(nextValue) => onChange(nextValue)}
-        placeholder="РљРѕСЂРѕС‚РєР°СЏ Р·Р°РјРµС‚РєР°"
+        placeholder="Короткая заметка"
         minRows={3}
         className="w-full rounded-[18px] border border-[var(--border)] bg-white px-3 py-3 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
       />
@@ -989,7 +989,7 @@ function MetricBuilderModal({
                   : "border-transparent text-[var(--muted)]"
               }`}
             >
-              РЎРѕР·РґР°С‚СЊ РјРµС‚СЂРёРєСѓ
+              Создать метрику
             </button>
             <button
               type="button"
@@ -999,7 +999,7 @@ function MetricBuilderModal({
                   : "border-transparent text-[var(--muted)]"
               }`}
             >
-              Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ РјРµС‚СЂРёРєСѓ
+              Редактировать метрику
             </button>
           </div>
 
@@ -1007,7 +1007,7 @@ function MetricBuilderModal({
             type="button"
             onClick={onClose}
             className="flex h-10 w-10 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-white/90 hover:text-[var(--foreground)]"
-            aria-label="Р—Р°РєСЂС‹С‚СЊ РєРѕРЅСЃС‚СЂСѓРєС‚РѕСЂ"
+            aria-label="Закрыть конструктор"
           >
             <CloseIcon />
           </button>
@@ -1023,7 +1023,7 @@ function MetricBuilderModal({
                     onClick={() => setIsAppearancePickerOpen((current) => !current)}
                     className="flex h-12 w-12 items-center justify-center rounded-[18px] text-white shadow-[0_16px_30px_rgba(24,33,29,0.12)]"
                     style={{ backgroundColor: metric.accent }}
-                    aria-label="Р’С‹Р±СЂР°С‚СЊ С†РІРµС‚ Рё РёРєРѕРЅРєСѓ"
+                    aria-label="Выбрать цвет и иконку"
                   >
                     <MetricIcon icon={metric.icon} />
                   </button>
@@ -1047,7 +1047,7 @@ function MetricBuilderModal({
                                 : "border-transparent"
                             }`}
                             style={{ backgroundColor: accent }}
-                            aria-label={`Р’С‹Р±СЂР°С‚СЊ С†РІРµС‚ ${accent}`}
+                            aria-label={`Выбрать цвет ${accent}`}
                           >
                             {metric.accent === accent ? <CheckIcon /> : null}
                           </button>
@@ -1072,7 +1072,7 @@ function MetricBuilderModal({
                                 ? "border-[var(--accent)] bg-[rgba(47,111,97,0.08)] text-[var(--accent)]"
                                 : "border-[var(--border)] bg-white text-[var(--foreground)]"
                             }`}
-                            aria-label={`Р’С‹Р±СЂР°С‚СЊ РёРєРѕРЅРєСѓ ${icon}`}
+                            aria-label={`Выбрать иконку ${icon}`}
                           >
                             <MetricIcon icon={icon} />
                           </button>
@@ -1100,13 +1100,13 @@ function MetricBuilderModal({
             <div className="rounded-[24px] border border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-4 sm:rounded-[28px]">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-[var(--foreground)]">РџСЂРµРґРїСЂРѕСЃРјРѕС‚СЂ РІ РґРЅРµРІРЅРёРєРµ</p>
+                  <p className="text-sm font-medium text-[var(--foreground)]">Предпросмотр в дневнике</p>
                   <p className="mt-1 text-sm text-[var(--muted)]">
-                    РљР°СЂС‚РѕС‡РєР° СЃСЂР°Р·Сѓ РїРѕРєР°Р·С‹РІР°РµС‚, РєР°Рє Р±СѓРґСѓС‚ РІС‹РіР»СЏРґРµС‚СЊ С†РІРµС‚, РёРєРѕРЅРєР° Рё Р·РЅР°С‡РµРЅРёРµ.
+                    Карточка сразу показывает, как будут выглядеть цвет, иконка и значение.
                   </p>
                 </div>
                 <div className="rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs text-[var(--muted)]">
-                  {metric.type === "text" ? "РўРµРєСЃС‚" : metric.unit || "Р‘РµР· СЋРЅРёС‚Р°"}
+                  {metric.type === "text" ? "Текст" : metric.unit || "Без юнита"}
                 </div>
               </div>
 
@@ -1131,12 +1131,12 @@ function MetricBuilderModal({
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-base font-semibold tracking-[-0.03em] text-[var(--foreground)]">
-                        {metric.name || "РќРѕРІР°СЏ РјРµС‚СЂРёРєР°"}
+                        {metric.name || "Новая метрика"}
                       </p>
                       <p className="mt-2 flex flex-wrap items-end gap-1 text-[1.9rem] leading-none font-semibold tracking-[-0.05em] text-[var(--foreground)]">
-                        <span>{formatMetricValue(metric, getMetricDefaultValue(metric)) || "РўРµРєСЃС‚"}</span>
+                        <span>{formatMetricValue(metric, getMetricDefaultValue(metric)) || "Текст"}</span>
                         <span className="pb-1 text-sm font-medium text-[var(--muted)]">
-                          {metric.type === "text" ? "Р·Р°РјРµС‚РєР°" : metric.unit}
+                          {metric.type === "text" ? "заметка" : metric.unit}
                         </span>
                       </p>
                     </div>
@@ -1166,7 +1166,7 @@ function MetricBuilderModal({
 
             {mode === "create" ? (
               <div className="grid gap-2">
-                <p className="text-sm font-medium text-[var(--foreground)]">Быстрые заготовки</p>
+                <p className="text-sm font-medium text-[var(--foreground)]">Быстрые шаблоны</p>
                 <div className="flex flex-wrap gap-2">
                   {templates.map((template) => (
                     <button
@@ -1363,7 +1363,7 @@ function MetricBuilderModal({
               <div className="grid gap-3">
                 <ToggleSwitchRow
                   label="Показывать в дневнике"
-                  description="Метрика появится на главном экране дня и будет доступна для быстрого ввода."
+                  description="Метрика появится на карточке дня и будет доступна для ежедневного ввода."
                   active={metric.showInDiary}
                   onToggle={() =>
                     setMetric((current) => ({
@@ -1377,7 +1377,7 @@ function MetricBuilderModal({
                   label="Показывать в аналитике"
                   description={
                     supportsAnalytics
-                      ? "Метрика попадет в расчеты, графики и AI-сводки."
+                      ? "Метрика попадет в аналитику, графики и AI-разбор дня."
                       : "Аналитика доступна только для шкалы и числовых метрик."
                   }
                   active={supportsAnalytics && metric.showInAnalytics}
@@ -1402,7 +1402,7 @@ function MetricBuilderModal({
                 onClick={onDelete}
                 className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/92 px-5 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgba(208,138,149,0.26)] hover:text-[rgb(136,47,63)]"
               >
-                РЈРґР°Р»РёС‚СЊ
+                Удалить
               </button>
             ) : null}
           </div>
@@ -1412,7 +1412,7 @@ function MetricBuilderModal({
             onClick={() => onSave(metric)}
             className="inline-flex min-h-12 w-full items-center justify-center rounded-[20px] bg-[linear-gradient(135deg,#8b79bd,#6c5b99)] px-6 text-sm font-semibold text-white shadow-[0_18px_36px_rgba(108,91,153,0.28)] transition hover:brightness-105 sm:w-auto"
           >
-            РЎРѕС…СЂР°РЅРёС‚СЊ РјРµС‚СЂРёРєСѓ
+            Сохранить метрику
           </button>
         </div>
       </div>
@@ -1432,10 +1432,10 @@ function DiarySettingsModal({
   const [tab, setTab] = useState<SettingsTab>("general");
 
   const tabs: Array<{ id: SettingsTab; label: string }> = [
-    { id: "general", label: "РћР±С‰РµРµ" },
-    { id: "profile", label: "РџСЂРѕС„РёР»СЊ" },
-    { id: "assistant", label: "РђСЃСЃРёСЃС‚РµРЅС‚" },
-    { id: "account", label: "РЈС‡РµС‚РЅР°СЏ Р·Р°РїРёСЃСЊ" },
+    { id: "general", label: "Общее" },
+    { id: "profile", label: "Профиль" },
+    { id: "assistant", label: "Ассистент" },
+    { id: "account", label: "Учетная запись" },
   ];
 
   return (
@@ -1446,7 +1446,7 @@ function DiarySettingsModal({
             type="button"
             onClick={onClose}
             className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl text-[var(--foreground)] transition hover:bg-white"
-            aria-label="Р—Р°РєСЂС‹С‚СЊ РЅР°СЃС‚СЂРѕР№РєРё"
+            aria-label="Закрыть настройки"
           >
             <CloseIcon />
           </button>
@@ -1473,23 +1473,23 @@ function DiarySettingsModal({
           {tab === "general" ? (
             <div className="grid min-h-full content-start gap-6">
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
-                РћР±С‰РµРµ
+                Общее
               </h2>
               <SettingsRow
-                label="РЇР·С‹Рє"
+                label="Язык"
                 control={
                   <select
                     value={profile.locale}
                     onChange={(event) => onChange("locale", event.target.value)}
                     className="min-h-11 rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
                   >
-                    <option value="ru-RU">Р СѓСЃСЃРєРёР№</option>
+                    <option value="ru-RU">Русский</option>
                     <option value="en-US">English</option>
                   </select>
                 }
               />
               <SettingsRow
-                label="Р§Р°СЃРѕРІРѕР№ РїРѕСЏСЃ"
+                label="Часовой пояс"
                 control={
                   <input
                     value={profile.timezone}
@@ -1499,7 +1499,7 @@ function DiarySettingsModal({
                 }
               />
               <SettingsRow
-                label="РљРѕРјРїР°РєС‚РЅС‹Рµ РјРµС‚СЂРёРєРё"
+                label="Компактные метрики"
                 control={
                   <ToggleSwitch
                     active={profile.compactMetrics}
@@ -1513,32 +1513,32 @@ function DiarySettingsModal({
           {tab === "profile" ? (
             <div className="grid min-h-full content-start gap-6">
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
-                РџСЂРѕС„РёР»СЊ
+                Профиль
               </h2>
               <div className="grid gap-4 sm:grid-cols-2">
                 <SettingsField
-                  label="РРјСЏ"
+                  label="Имя"
                   value={profile.firstName}
                   onChange={(value) => onChange("firstName", value)}
                 />
                 <SettingsField
-                  label="Р¤Р°РјРёР»РёСЏ"
+                  label="Фамилия"
                   value={profile.lastName}
                   onChange={(value) => onChange("lastName", value)}
                 />
               </div>
               <SettingsTextarea
-                label="Р¤РѕРєСѓСЃ"
+                label="Фокус"
                 value={profile.focus}
                 onChange={(value) => onChange("focus", value)}
               />
               <SettingsTextarea
-                label="Рћ СЃРµР±Рµ"
+                label="О себе"
                 value={profile.bio}
                 onChange={(value) => onChange("bio", value)}
               />
               <SettingsTextarea
-                label="Р¦РµР»СЊ"
+                label="Цель"
                 value={profile.wellbeingGoal}
                 onChange={(value) => onChange("wellbeingGoal", value)}
               />
@@ -1548,10 +1548,10 @@ function DiarySettingsModal({
           {tab === "assistant" ? (
             <div className="grid min-h-full content-start gap-6">
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
-                РђСЃСЃРёСЃС‚РµРЅС‚
+                Ассистент
               </h2>
               <SettingsRow
-                label="РњРѕРґРµР»СЊ"
+                label="Модель"
                 control={
                   <select
                     value={profile.aiModel}
@@ -1567,15 +1567,15 @@ function DiarySettingsModal({
                 }
               />
               <SettingsRow
-                label="РўРѕРЅ"
+                label="Тон"
                 control={
                   <select
                     value={profile.chatTone}
                     onChange={(event) => onChange("chatTone", event.target.value)}
                     className="min-h-11 rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
                   >
-                    <option value="supportive">РџРѕРґРґРµСЂР¶РёРІР°СЋС‰РёР№</option>
-                    <option value="direct">РџСЂСЏРјРѕР№</option>
+                    <option value="supportive">Поддерживающий</option>
+                    <option value="direct">Прямой</option>
                     <option value="coach">Coach</option>
                   </select>
                 }
@@ -1586,11 +1586,11 @@ function DiarySettingsModal({
           {tab === "account" ? (
             <div className="grid min-h-full content-start gap-6">
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
-                РЈС‡РµС‚РЅР°СЏ Р·Р°РїРёСЃСЊ
+                Учетная запись
               </h2>
               <p className="max-w-2xl text-sm leading-7 text-[var(--muted)]">
-                Р‘Р»РѕРє РїСЂРѕС„РёР»СЏ С‚РµРїРµСЂСЊ РѕС‚РєСЂС‹РІР°РµС‚СЃСЏ РєР°Рє РѕС‚РґРµР»СЊРЅРѕРµ РѕРєРЅРѕ, РєР°Рє РІ ChatGPT. Р—РґРµСЃСЊ РѕСЃС‚Р°РЅРµС‚СЃСЏ
-                СѓРїСЂР°РІР»РµРЅРёРµ СЃРµСЃСЃРёРµР№ Рё Р±Р°Р·РѕРІС‹РјРё РїР°СЂР°РјРµС‚СЂР°РјРё Р°РєРєР°СѓРЅС‚Р°.
+                Блок профиля теперь открывается как отдельное окно, как в ChatGPT. Здесь останется
+                управление сессией и базовыми параметрами аккаунта.
               </p>
               <div>
                 <LogoutButton />
