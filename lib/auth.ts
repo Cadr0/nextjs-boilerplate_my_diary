@@ -5,6 +5,13 @@ import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseConfigError } from "@/lib/supabase/env";
 
+export type AuthAccountInfo = {
+  userId: string;
+  email: string | null;
+  provider: string;
+  emailConfirmed: boolean;
+};
+
 export async function getAuthState() {
   const configError = getSupabaseConfigError();
 
@@ -57,6 +64,23 @@ export function getUserDisplayName(user: Pick<User, "email" | "user_metadata">) 
   }
 
   return "друг";
+}
+
+export function getAuthAccountInfo(user: User): AuthAccountInfo {
+  const provider =
+    typeof user.app_metadata?.provider === "string" && user.app_metadata.provider.length > 0
+      ? user.app_metadata.provider
+      : Array.isArray(user.identities) && user.identities.length > 0
+        ? (user.identities.find((identity) => typeof identity.provider === "string")?.provider ??
+          "unknown")
+        : "unknown";
+
+  return {
+    userId: user.id,
+    email: user.email ?? null,
+    provider,
+    emailConfirmed: Boolean(user.email_confirmed_at),
+  };
 }
 
 export function getSafeNextPath(next: string | null | undefined) {

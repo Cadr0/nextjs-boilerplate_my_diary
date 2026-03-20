@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { WorkspaceProvider } from "@/components/workspace-provider";
 import { WorkspaceShell } from "@/components/workspace-shell";
-import { getAuthState, getUserDisplayName } from "@/lib/auth";
+import { getAuthAccountInfo, getAuthState, getUserDisplayName } from "@/lib/auth";
 import { getSupabaseConfigError, getWorkspaceBootstrap } from "@/lib/diary";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +41,7 @@ export default async function WorkspaceLayout({
 
   const { entries, metricDefinitions, error } = await getWorkspaceBootstrap(90);
   const displayName = getUserDisplayName(user);
+  const accountInfo = getAuthAccountInfo(user);
 
   return (
     <WorkspaceProvider
@@ -49,6 +50,8 @@ export default async function WorkspaceLayout({
       initialIdSeed={user.id}
       initialError={error}
       isConfigured
+      accountEmail={user.email ?? null}
+      accountInfo={accountInfo}
       initialProfile={{
         firstName: displayName,
         lastName: "",

@@ -11,7 +11,13 @@ import {
 } from "@/components/workspace-ui";
 
 export function ProfileSection() {
-  const { profile, updateProfile } = useWorkspace();
+  const { profile, updateProfile, accountEmail, accountInfo } = useWorkspace();
+  const providerLabel =
+    accountInfo?.provider === "google"
+      ? "Google"
+      : accountInfo?.provider === "email"
+        ? "Email"
+        : accountInfo?.provider ?? "unknown";
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -19,13 +25,47 @@ export function ProfileSection() {
         <SectionHeader
           eyebrow="Settings"
           title="Настройки"
-          description="Подготовил основу под полноценный settings-экран: профиль, поведение интерфейса, компактность метрик и рабочие предпочтения для AI-помощника."
+          description="Здесь собраны параметры профиля, интерфейса и данные активной учетной записи, чтобы можно было сразу проверить, под каким пользователем открыт кабинет."
         />
 
         <div className="mt-6 grid gap-6">
           <section className="grid gap-4">
-            <h2 className="text-xl font-semibold text-[var(--foreground)]">Аккаунт</h2>
+            <h2 className="text-xl font-semibold text-[var(--foreground)]">Учетная запись</h2>
             <div className="grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-[var(--foreground)]">Email</span>
+                <input
+                  value={accountInfo?.email ?? accountEmail ?? ""}
+                  readOnly
+                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-[rgba(244,247,244,0.92)] px-4 text-sm text-[var(--muted)] outline-none"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-[var(--foreground)]">User ID</span>
+                <input
+                  value={accountInfo?.userId ?? ""}
+                  readOnly
+                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-[rgba(244,247,244,0.92)] px-4 text-sm text-[var(--muted)] outline-none"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-[var(--foreground)]">Provider</span>
+                <input
+                  value={providerLabel}
+                  readOnly
+                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-[rgba(244,247,244,0.92)] px-4 text-sm text-[var(--muted)] outline-none"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-[var(--foreground)]">
+                  Email confirmed
+                </span>
+                <input
+                  value={accountInfo ? (accountInfo.emailConfirmed ? "Yes" : "No") : ""}
+                  readOnly
+                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-[rgba(244,247,244,0.92)] px-4 text-sm text-[var(--muted)] outline-none"
+                />
+              </label>
               <ProfileField
                 label="Имя"
                 value={profile.firstName}
@@ -69,7 +109,9 @@ export function ProfileSection() {
           </section>
 
           <section className="grid gap-4">
-            <h2 className="text-xl font-semibold text-[var(--foreground)]">Поведение интерфейса</h2>
+            <h2 className="text-xl font-semibold text-[var(--foreground)]">
+              Поведение интерфейса
+            </h2>
             <div className="grid gap-3 rounded-[24px] border border-[var(--border)] bg-[rgba(247,250,247,0.84)] p-4">
               <div className="flex flex-wrap gap-2">
                 <SmallToggle
@@ -123,17 +165,17 @@ export function ProfileSection() {
         <SectionCard className="rounded-[30px] p-4 sm:p-5">
           <h2 className="text-xl font-semibold text-[var(--foreground)]">Что уже готово</h2>
           <ul className="mt-4 grid gap-2 text-sm leading-6 text-[var(--muted)]">
-            <li>Правый AI-rail теперь рассчитан на присутствие во всех разделах.</li>
-            <li>Плотность метрик и поведение интерфейса уже сохранены в модели профиля.</li>
-            <li>Экран настроек можно дальше расширять без миграции UI.</li>
+            <li>В аккаунте теперь видно, какой email и какой provider реально привязаны к текущей сессии.</li>
+            <li>User ID можно сразу сверить с `auth.users` и записями в таблицах Supabase.</li>
+            <li>Статус подтверждения email теперь виден прямо в интерфейсе кабинета.</li>
           </ul>
         </SectionCard>
 
         <SectionCard className="rounded-[30px] p-4 sm:p-5">
           <h2 className="text-xl font-semibold text-[var(--foreground)]">Сессия</h2>
           <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-            Кнопку выхода перенёс сюда, в блок настроек аккаунта, как основу для будущей
-            security-секции.
+            Здесь можно быстро проверить активную учетную запись и при необходимости выйти,
+            чтобы зайти под другим пользователем.
           </p>
           <div className="mt-4">
             <LogoutButton />

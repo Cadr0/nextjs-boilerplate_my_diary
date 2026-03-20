@@ -12,6 +12,7 @@ import {
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import type { AuthAccountInfo } from "@/lib/auth";
 import type {
   DiaryEntry,
   MetricDefinition,
@@ -78,6 +79,8 @@ type MetricDefinitionPatch = Partial<
 
 type WorkspaceContextValue = {
   isConfigured: boolean;
+  accountEmail: string | null;
+  accountInfo: AuthAccountInfo | null;
   initialError: string | null;
   error: string | null;
   saveState: SaveState;
@@ -129,6 +132,8 @@ type WorkspaceProviderProps = {
   initialIdSeed: string;
   initialError: string | null;
   isConfigured: boolean;
+  accountEmail?: string | null;
+  accountInfo?: AuthAccountInfo | null;
   initialProfile?: Partial<WorkspaceProfile>;
 };
 
@@ -201,6 +206,8 @@ export function WorkspaceProvider({
   initialIdSeed,
   initialError,
   isConfigured,
+  accountEmail = null,
+  accountInfo = null,
   initialProfile,
 }: WorkspaceProviderProps) {
   const router = useRouter();
@@ -226,6 +233,7 @@ export function WorkspaceProvider({
   const [analysisState, setAnalysisState] = useState<"idle" | "loading" | "error">("idle");
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
+  const canPersistToServer = isConfigured && !initialError;
 
   const savedFingerprints = useRef<Record<string, string>>(
     Object.fromEntries(
@@ -341,14 +349,16 @@ export function WorkspaceProvider({
     payload: typeof selectedPayload,
   ) => {
     try {
-      setSaveState(isConfigured ? "saving" : "local");
-      setError(null);
+      setSaveState(canPersistToServer ? "saving" : initialError ? "error" : "local");
+      setError(initialError);
 
-      if (!isConfigured) {
+      if (!canPersistToServer) {
         savedFingerprints.current[payload.entry_date] = payloadFingerprint;
-        setSaveState("local");
+        setSaveState(initialError ? "error" : "local");
         return null;
       }
+
+      setError(null);
 
       const response = await fetch("/api/entries", {
         method: "POST",
@@ -400,12 +410,17 @@ export function WorkspaceProvider({
       return;
     }
 
-    if (savedFingerprints.current[selectedDate] === selectedPayloadFingerprint) {
-      setSaveState(isConfigured ? "saved" : "local");
+    if (!canPersistToServer) {
+      setSaveState(initialError ? "error" : "local");
       return;
     }
 
-    setSaveState(isConfigured ? "saving" : "local");
+    if (savedFingerprints.current[selectedDate] === selectedPayloadFingerprint) {
+      setSaveState("saved");
+      return;
+    }
+
+    setSaveState("saving");
 
     const timeoutId = window.setTimeout(() => {
       void syncSelectedPayload(selectedPayloadFingerprint, selectedPayload);
@@ -415,7 +430,8 @@ export function WorkspaceProvider({
       window.clearTimeout(timeoutId);
     };
   }, [
-    isConfigured,
+    canPersistToServer,
+    initialError,
     isHydrated,
     selectedDate,
     selectedPayload,
@@ -842,6 +858,8 @@ export function WorkspaceProvider({
 
   const value = {
     isConfigured,
+    accountEmail,
+    accountInfo,
     initialError,
     error,
     saveState,
