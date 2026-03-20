@@ -28,18 +28,18 @@ const defaultFormState: FormState = {
 };
 
 const errorMessages: Record<string, string> = {
-  auth_callback:
-    "Не удалось завершить вход через Google. Проверьте redirect URL и повторите попытку.",
-  auth_confirm:
-    "Не удалось подтвердить email. Попробуйте ещё раз или запросите письмо повторно.",
-  oauth_start:
-    "Не получилось запустить Google OAuth. Проверьте настройки провайдера в Supabase.",
+  auth_callback: "Не удалось завершить вход через Google. Проверь redirect URL и попробуй снова.",
+  auth_confirm: "Не удалось подтвердить ссылку из письма. Запроси письмо повторно.",
+  oauth_start: "Не удалось запустить Google OAuth. Проверь настройки провайдера в Supabase.",
   supabase_config:
-    "Для работы auth нужны публичный URL проекта и publishable key Supabase.",
+    "Для работы auth нужны NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.",
 };
 
 const successMessages: Record<string, string> = {
-  email_confirmed: "Email подтвержден. Теперь можно войти в аккаунт.",
+  email_confirmed: "Email подтвержден. Теперь можно войти.",
+  recovery_ready: "Ссылка подтверждена. Теперь задай новый пароль.",
+  password_updated: "Пароль обновлен. Теперь можно войти с новым паролем.",
+  account_deleted: "Аккаунт удален.",
 };
 
 function getSafeNext(next: string | null) {
@@ -52,7 +52,7 @@ function getSafeNext(next: string | null) {
 
 function getFriendlyAuthError(error: unknown) {
   if (!(error instanceof Error)) {
-    return "Не получилось выполнить действие с аккаунтом.";
+    return "Не удалось выполнить действие с аккаунтом.";
   }
 
   const message = error.message.toLowerCase();
@@ -62,7 +62,7 @@ function getFriendlyAuthError(error: unknown) {
   }
 
   if (message.includes("email not confirmed")) {
-    return "Подтвердите email и попробуйте снова.";
+    return "Подтверди email и попробуй снова.";
   }
 
   if (message.includes("user already registered")) {
@@ -123,7 +123,6 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
 
   async function navigateAfterAuth(target: string) {
     const supabase = createClient();
-
     await supabase.auth.getSession();
     router.replace(target);
     router.refresh();
@@ -132,34 +131,26 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
   const pageCopy = isLogin
     ? {
         eyebrow: "Вход",
-        title: "Продолжить",
-        subtitle:
-          "Спокойный вход в личный кабинет. Google и email/password доступны на одном экране.",
+        title: "Войти в аккаунт",
+        subtitle: "Войди через Google или email.",
         submitLabel: "Войти",
         switchLabel: "Нет аккаунта?",
         switchHref: "/register",
         switchAction: "Регистрация",
-        helper:
-          "После входа ты сразу попадёшь в дневник, где дальше соберём метрики, запись дня и ритм сервиса.",
       }
     : {
         eyebrow: "Регистрация",
         title: "Создать аккаунт",
-        subtitle:
-          "Простой старт без перегруза. Сначала регистрация, затем личное пространство для наблюдения за собой.",
+        subtitle: "Создай аккаунт через Google или email.",
         submitLabel: "Создать аккаунт",
         switchLabel: "Уже есть аккаунт?",
         switchHref: "/login",
         switchAction: "Войти",
-        helper:
-          "Если в Supabase включено подтверждение email, после регистрации открой письмо и затем вернись ко входу.",
       };
 
   async function handleGoogleSignIn() {
     if (!isConfigured) {
-      setError(
-        "Сначала заполните переменные окружения Supabase и включите нужные auth-провайдеры.",
-      );
+      setError("Сначала заполните переменные окружения Supabase и включите нужные auth-провайдеры.");
       return;
     }
 
@@ -169,22 +160,53 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
 
     try {
       const supabase = createClient();
-      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(
-        next,
-      )}`;
+      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
 
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo,
-        },
+        options: { redirectTo },
       });
 
-      if (error) {
-        throw error;
+      if (authError) {
+        throw authError;
       }
     } catch (authError) {
       setError(getFriendlyAuthError(authError));
+      setIsPending(false);
+    }
+  }
+
+  async function handleForgotPassword() {
+    if (!isConfigured) {
+      setError("Сначала заполните переменные окружения Supabase и включите нужные auth-провайдеры.");
+      return;
+    }
+
+    const email = formState.email.trim();
+
+    if (!email) {
+      setError("Сначала введи email для восстановления пароля.");
+      return;
+    }
+
+    setIsPending(true);
+    setError(null);
+    setStatus(null);
+
+    try {
+      const supabase = createClient();
+      const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}`,
+      });
+
+      if (authError) {
+        throw authError;
+      }
+
+      setStatus("Письмо для восстановления пароля отправлено.");
+    } catch (authError) {
+      setError(getFriendlyAuthError(authError));
+    } finally {
       setIsPending(false);
     }
   }
@@ -193,9 +215,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
     event.preventDefault();
 
     if (!isConfigured) {
-      setError(
-        "Сначала заполните переменные окружения Supabase и включите нужные auth-провайдеры.",
-      );
+      setError("Сначала заполните переменные окружения Supabase и включите нужные auth-провайдеры.");
       return;
     }
 
@@ -212,13 +232,13 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
       const supabase = createClient();
 
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { error: authError } = await supabase.auth.signInWithPassword({
           email: formState.email.trim(),
           password: formState.password,
         });
 
-        if (error) {
-          throw error;
+        if (authError) {
+          throw authError;
         }
 
         await navigateAfterAuth(next);
@@ -226,13 +246,11 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
       }
 
       const fullName = formState.fullName.trim();
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error: authError } = await supabase.auth.signUp({
         email: formState.email.trim(),
         password: formState.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(
-            next,
-          )}`,
+          emailRedirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}`,
           data: fullName
             ? {
                 full_name: fullName,
@@ -242,8 +260,8 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
         },
       });
 
-      if (error) {
-        throw error;
+      if (authError) {
+        throw authError;
       }
 
       if (data.session) {
@@ -251,9 +269,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
         return;
       }
 
-      setStatus(
-        "Аккаунт создан. Если подтверждение email включено, открой письмо и затем войди.",
-      );
+      setStatus("Аккаунт создан. Если включено подтверждение email, открой письмо и затем войди.");
       setFormState({
         ...defaultFormState,
         email: formState.email.trim(),
@@ -275,7 +291,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
             </span>
             <div>
               <p className="text-sm font-semibold text-slate-900">Diary AI</p>
-              <p className="text-xs text-slate-500">спокойный вход</p>
+              <p className="text-xs text-slate-500">вход</p>
             </div>
           </Link>
 
@@ -303,8 +319,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
 
             {!isConfigured ? (
               <div className="mt-5 rounded-[1.35rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-                Auth пока не настроен: заполните публичные переменные Supabase и
-                включите нужные провайдеры.
+                Auth пока не настроен: заполните публичные переменные Supabase и включите нужные провайдеры.
               </div>
             ) : null}
 
@@ -339,16 +354,12 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
               className="mt-6 flex w-full items-center justify-center gap-3 rounded-full border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <GoogleMark />
-              {isLogin
-                ? "Продолжить через Google"
-                : "Зарегистрироваться через Google"}
+              {isLogin ? "Продолжить через Google" : "Зарегистрироваться через Google"}
             </button>
 
             <div className="my-6 flex items-center gap-3">
               <div className="h-px flex-1 bg-slate-200" />
-              <span className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                или
-              </span>
+              <span className="text-xs uppercase tracking-[0.24em] text-slate-400">или</span>
               <div className="h-px flex-1 bg-slate-200" />
             </div>
 
@@ -361,10 +372,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
                     type="text"
                     value={formState.fullName}
                     onChange={(event) =>
-                      setFormState((current) => ({
-                        ...current,
-                        fullName: event.target.value,
-                      }))
+                      setFormState((current) => ({ ...current, fullName: event.target.value }))
                     }
                     placeholder="Например, Марк"
                     className="rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)]"
@@ -378,16 +386,13 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
                   required
                   type="email"
                   value={formState.email}
-                    onChange={(event) =>
-                      setFormState((current) => ({
-                        ...current,
-                        email: event.target.value,
-                      }))
-                    }
-                    placeholder="you@example.com"
-                    className="rounded-[1.35rem] border border-slate-200 bg-[rgba(230,239,251,0.86)] px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)] focus:bg-white"
-                  />
-                </label>
+                  onChange={(event) =>
+                    setFormState((current) => ({ ...current, email: event.target.value }))
+                  }
+                  placeholder="you@example.com"
+                  className="rounded-[1.35rem] border border-slate-200 bg-[rgba(230,239,251,0.86)] px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)] focus:bg-white"
+                />
+              </label>
 
               <label className="grid gap-2 text-sm font-medium text-slate-700">
                 Пароль
@@ -396,16 +401,13 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
                   minLength={6}
                   type="password"
                   value={formState.password}
-                    onChange={(event) =>
-                      setFormState((current) => ({
-                        ...current,
-                        password: event.target.value,
-                      }))
-                    }
-                    placeholder="Минимум 6 символов"
-                    className="rounded-[1.35rem] border border-slate-200 bg-[rgba(230,239,251,0.86)] px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)] focus:bg-white"
-                  />
-                </label>
+                  onChange={(event) =>
+                    setFormState((current) => ({ ...current, password: event.target.value }))
+                  }
+                  placeholder="Минимум 6 символов"
+                  className="rounded-[1.35rem] border border-slate-200 bg-[rgba(230,239,251,0.86)] px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)] focus:bg-white"
+                />
+              </label>
 
               {!isLogin ? (
                 <label className="grid gap-2 text-sm font-medium text-slate-700">
@@ -436,9 +438,16 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
               </button>
             </form>
 
-            <p className="mt-6 text-sm leading-7 text-slate-500">
-              {pageCopy.helper}
-            </p>
+            {isLogin ? (
+              <button
+                type="button"
+                onClick={() => void handleForgotPassword()}
+                disabled={isPending}
+                className="mt-5 text-sm font-medium text-[color:var(--accent-strong)] transition hover:text-[color:var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Забыли пароль?
+              </button>
+            ) : null}
 
             <p className="mt-4 text-sm text-slate-500">
               {pageCopy.switchLabel}{" "}

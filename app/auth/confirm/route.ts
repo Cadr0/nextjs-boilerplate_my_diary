@@ -44,6 +44,15 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/login?error=auth_confirm", requestUrl.origin));
   }
 
+  if (type === "recovery") {
+    return NextResponse.redirect(
+      new URL(
+        `/reset-password?message=recovery_ready&next=${encodeURIComponent(next)}`,
+        requestUrl.origin,
+      ),
+    );
+  }
+
   return NextResponse.redirect(
     new URL(`/login?message=email_confirmed&next=${encodeURIComponent(next)}`, requestUrl.origin),
   );

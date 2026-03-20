@@ -23,7 +23,7 @@ import type {
 import { useEffect, useRef, useState } from "react";
 
 import { DiaryAssistantPanel } from "@/components/diary-assistant-panel";
-import { LogoutButton } from "@/components/logout-button";
+import { AccountSecurityPanel } from "@/components/account-security-panel";
 import { useWorkspace } from "@/components/workspace-provider";
 import type {
   MetricDefinition,
@@ -1653,14 +1653,10 @@ function DiarySettingsModal({
                   </strong>
                 </div>
               </div>
-              <p className="max-w-2xl text-sm leading-7 text-[var(--muted)]">
-                Здесь теперь видно, под каким email и user id открыт кабинет. Если имя или данные
-                не совпадают с ожидаемыми, это уже можно сразу сверить с `/diagnostics` и
-                `auth.users`.
-              </p>
-              <div>
-                <LogoutButton />
-              </div>
+              <AccountSecurityPanel
+                email={accountInfo?.email ?? accountEmail}
+                provider={accountInfo?.provider ?? null}
+              />
             </div>
           ) : null}
         </div>
