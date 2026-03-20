@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { LogoutButton } from "@/components/logout-button";
 import { useWorkspace } from "@/components/workspace-provider";
 import {
@@ -177,8 +179,14 @@ export function ProfileSection() {
             Здесь можно быстро проверить активную учетную запись и при необходимости выйти,
             чтобы зайти под другим пользователем.
           </p>
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap gap-3">
             <LogoutButton />
+            <Link
+              href="/diagnostics"
+              className="rounded-full border border-[var(--border)] bg-white/80 px-4 py-2 text-sm text-[var(--foreground)] transition hover:bg-white"
+            >
+              Открыть диагностику
+            </Link>
           </div>
         </SectionCard>
       </div>
