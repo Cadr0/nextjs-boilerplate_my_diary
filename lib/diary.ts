@@ -163,6 +163,14 @@ function supportsLegacyMetricDefinitions(error: PostgrestError) {
   return isMissingColumn(error, "metric_definitions", "updated_at");
 }
 
+function hasMissingUpsertConstraint(error: PostgrestError) {
+  const errorText = getErrorText(error);
+  return (
+    errorText.includes("no unique or exclusion constraint") ||
+    errorText.includes("there is no unique or exclusion constraint")
+  );
+}
+
 function parseLegacySummary(notes: string) {
   const summaryPattern = new RegExp(
     `^${legacySummaryStart}\\n([\\s\\S]*?)\\n${legacySummaryEnd}\\n?\\n?`,
@@ -191,6 +199,60 @@ function serializeLegacySummary(summary: string, notes: string) {
   }
 
   return `${legacySummaryStart}\n${trimmedSummary}\n${legacySummaryEnd}${trimmedNotes ? `\n\n${trimmedNotes}` : ""}`;
+}
+
+function buildEntryWritePayload(
+  userId: string,
+  input: DiaryEntryInput,
+  options: Pick<EntrySelectOptions, "includeSummary">,
+) {
+  return {
+    user_id: userId,
+    entry_date: input.entry_date,
+    notes: options.includeSummary
+      ? input.notes.trim()
+      : serializeLegacySummary(input.summary, input.notes),
+    ...(options.includeSummary ? { summary: input.summary.trim() } : {}),
+  };
+}
+
+async function saveEntryWithoutUpsert(
+  supabase: SupabaseClient,
+  userId: string,
+  input: DiaryEntryInput,
+  options: EntrySelectOptions,
+) {
+  const existingEntryResult = await supabase
+    .from("daily_entries")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("entry_date", input.entry_date)
+    .maybeSingle();
+
+  if (existingEntryResult.error) {
+    return {
+      data: null,
+      error: existingEntryResult.error,
+    };
+  }
+
+  const payload = buildEntryWritePayload(userId, input, options);
+
+  if (existingEntryResult.data?.id) {
+    return supabase
+      .from("daily_entries")
+      .update(payload)
+      .eq("id", existingEntryResult.data.id)
+      .eq("user_id", userId)
+      .select(buildEntrySelect(options))
+      .single();
+  }
+
+  return supabase
+    .from("daily_entries")
+    .insert(payload)
+    .select(buildEntrySelect(options))
+    .single();
 }
 
 async function listMetricDefinitionsWithFallback(
@@ -309,51 +371,49 @@ async function upsertEntryWithFallback(
   userId: string,
   input: DiaryEntryInput,
 ) {
+  const modernOptions: EntrySelectOptions = {
+    includeSummary: true,
+    includeUpdatedAt: true,
+  };
   const modernResult = await supabase
     .from("daily_entries")
     .upsert(
-      {
-        user_id: userId,
-        entry_date: input.entry_date,
-        summary: input.summary.trim(),
-        notes: input.notes.trim(),
-      },
+      buildEntryWritePayload(userId, input, modernOptions),
       { onConflict: "user_id,entry_date" },
     )
-    .select(
-      buildEntrySelect({
-        includeSummary: true,
-        includeUpdatedAt: true,
-      }),
-    )
+    .select(buildEntrySelect(modernOptions))
     .single();
 
-  if (!modernResult.error || !supportsLegacyEntries(modernResult.error)) {
+  if (!modernResult.error) {
     return modernResult;
   }
 
-  return supabase
+  if (hasMissingUpsertConstraint(modernResult.error)) {
+    return saveEntryWithoutUpsert(supabase, userId, input, modernOptions);
+  }
+
+  if (!supportsLegacyEntries(modernResult.error)) {
+    return modernResult;
+  }
+
+  const legacyOptions: EntrySelectOptions = {
+    includeSummary: !isMissingColumn(modernResult.error, "daily_entries", "summary"),
+    includeUpdatedAt: !isMissingColumn(modernResult.error, "daily_entries", "updated_at"),
+  };
+  const legacyResult = await supabase
     .from("daily_entries")
     .upsert(
-      {
-        user_id: userId,
-        entry_date: input.entry_date,
-        notes: isMissingColumn(modernResult.error, "daily_entries", "summary")
-          ? serializeLegacySummary(input.summary, input.notes)
-          : input.notes.trim(),
-        ...(isMissingColumn(modernResult.error, "daily_entries", "summary")
-          ? {}
-          : { summary: input.summary.trim() }),
-      },
+      buildEntryWritePayload(userId, input, legacyOptions),
       { onConflict: "user_id,entry_date" },
     )
-    .select(
-      buildEntrySelect({
-        includeSummary: !isMissingColumn(modernResult.error, "daily_entries", "summary"),
-        includeUpdatedAt: !isMissingColumn(modernResult.error, "daily_entries", "updated_at"),
-      }),
-    )
+    .select(buildEntrySelect(legacyOptions))
     .single();
+
+  if (!legacyResult.error || !hasMissingUpsertConstraint(legacyResult.error)) {
+    return legacyResult;
+  }
+
+  return saveEntryWithoutUpsert(supabase, userId, input, legacyOptions);
 }
 
 function mapDiaryError(error: PostgrestError) {
@@ -369,6 +429,10 @@ function mapDiaryError(error: PostgrestError) {
 
   if (message.includes("row-level security") || message.includes("permission denied")) {
     return "Нужны RLS-политики для новых таблиц дневника, чтобы пользователь видел только свои данные.";
+  }
+
+  if (hasMissingUpsertConstraint(error)) {
+    return "В daily_entries нет unique-ограничения по (user_id, entry_date), поэтому дневник не может надёжно сохранять день через upsert.";
   }
 
   return error.message;
