@@ -731,12 +731,18 @@ function SortableMetricCard({
               <p className="truncate text-base font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-lg">
                 {metric.name}
               </p>
-              <p className="mt-2 flex flex-wrap items-end gap-1 text-[1.9rem] leading-none font-semibold tracking-[-0.05em] text-[var(--foreground)] sm:text-[2.15rem]">
-                <span>{formatMetricValue(metric, value)}</span>
-                <span className="pb-1 text-sm font-medium text-[var(--muted)] sm:text-lg">
-                  {metric.unit}
-                </span>
-              </p>
+              {metric.type === "boolean" ? (
+                <div className="mt-3">
+                  <ToggleSwitch active={Boolean(value)} onToggle={() => onChange(!Boolean(value))} />
+                </div>
+              ) : (
+                <p className="mt-2 flex flex-wrap items-end gap-1 text-[1.9rem] leading-none font-semibold tracking-[-0.05em] text-[var(--foreground)] sm:text-[2.15rem]">
+                  <span>{formatMetricValue(metric, value)}</span>
+                  <span className="pb-1 text-sm font-medium text-[var(--muted)] sm:text-lg">
+                    {metric.unit}
+                  </span>
+                </p>
+              )}
             </div>
           </div>
 
