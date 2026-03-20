@@ -23,6 +23,13 @@ type ClientSnapshot = {
   error: string | null;
 };
 
+type WriteTestSnapshot = {
+  ok: boolean;
+  payload: unknown;
+  result: unknown;
+  error: string | null;
+} | null;
+
 function pretty(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
@@ -55,7 +62,9 @@ export function AuthDiagnosticsPanel({
 }) {
   const [serverSnapshot, setServerSnapshot] = useState(initialSnapshot);
   const [clientSnapshot, setClientSnapshot] = useState<ClientSnapshot | null>(null);
+  const [writeTestSnapshot, setWriteTestSnapshot] = useState<WriteTestSnapshot>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [isWriteTesting, setIsWriteTesting] = useState(false);
 
   async function runChecks() {
     setIsRunning(true);
@@ -91,6 +100,28 @@ export function AuthDiagnosticsPanel({
     }
   }
 
+  async function runWriteTest() {
+    setIsWriteTesting(true);
+
+    try {
+      const response = await fetch("/api/diagnostics/write-test", {
+        method: "POST",
+      });
+      const data = (await response.json()) as WriteTestSnapshot;
+      setWriteTestSnapshot(data);
+      await runChecks();
+    } catch (error) {
+      setWriteTestSnapshot({
+        ok: false,
+        payload: null,
+        result: null,
+        error: error instanceof Error ? error.message : "Unknown diagnostics write error.",
+      });
+    } finally {
+      setIsWriteTesting(false);
+    }
+  }
+
   return (
     <div className="grid gap-6">
       <section className="rounded-[28px] border border-[var(--border)] bg-white/90 p-5">
@@ -115,6 +146,17 @@ export function AuthDiagnosticsPanel({
           Open this page after login and send me the screenshots or raw values from both blocks
           below. It shows what the browser sees and what the server sees for the same session.
         </p>
+
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={runWriteTest}
+            disabled={isWriteTesting}
+            className="rounded-full border border-[var(--border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isWriteTesting ? "Testing write..." : "Run Write Test"}
+          </button>
+        </div>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
@@ -131,6 +173,13 @@ export function AuthDiagnosticsPanel({
             {pretty(clientSnapshot ?? { status: "Run checks to load client data." })}
           </pre>
         </article>
+      </section>
+
+      <section className="rounded-[28px] border border-[var(--border)] bg-white/90 p-5">
+        <h2 className="text-xl font-semibold text-[var(--foreground)]">Write Test Snapshot</h2>
+        <pre className="mt-4 overflow-x-auto rounded-[20px] bg-[rgba(244,247,244,0.92)] p-4 text-xs leading-6 text-[var(--foreground)]">
+          {pretty(writeTestSnapshot ?? { status: "Run write test to call diagnostics POST flow." })}
+        </pre>
       </section>
     </div>
   );
