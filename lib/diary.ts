@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { PostgrestError } from "@supabase/supabase-js";
+import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -33,15 +33,15 @@ type MetricDefinitionRow = {
   show_in_analytics: boolean;
   is_active: boolean;
   created_at: string;
-  updated_at: string;
+  updated_at?: string | null;
 };
 
 type DailyEntryRow = {
   id: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string | null;
   entry_date: string;
-  summary: string | null;
+  summary?: string | null;
   notes: string | null;
   ai_analysis: string | null;
 };
@@ -80,11 +80,281 @@ type MetricValueInsertRow = {
   show_in_analytics_snapshot: boolean;
 };
 
-const entrySelect = "id, created_at, updated_at, entry_date, summary, notes, ai_analysis";
-const metricDefinitionSelect =
-  "id, slug, name, description, type, unit_preset, unit_label, scale_min, scale_max, step_value, accent, icon, sort_order, show_in_diary, show_in_analytics, is_active, created_at, updated_at";
+type EntrySelectOptions = {
+  includeSummary: boolean;
+  includeUpdatedAt: boolean;
+};
+
+type MetricDefinitionSelectOptions = {
+  includeUpdatedAt: boolean;
+};
+
+const legacySummaryStart = "<<<DIARY_AI_SUMMARY>>>";
+const legacySummaryEnd = "<<<END_DIARY_AI_SUMMARY>>>";
 const entryMetricSelect =
   "entry_id, metric_definition_id, value_number, value_boolean, value_text, metric_name_snapshot, metric_type_snapshot, metric_unit_snapshot, sort_order_snapshot";
+
+function buildEntrySelect(options: EntrySelectOptions) {
+  const columns = ["id", "created_at"];
+
+  if (options.includeUpdatedAt) {
+    columns.push("updated_at");
+  }
+
+  columns.push("entry_date");
+
+  if (options.includeSummary) {
+    columns.push("summary");
+  }
+
+  columns.push("notes", "ai_analysis");
+
+  return columns.join(", ");
+}
+
+function buildMetricDefinitionSelect(options: MetricDefinitionSelectOptions) {
+  const columns = [
+    "id",
+    "slug",
+    "name",
+    "description",
+    "type",
+    "unit_preset",
+    "unit_label",
+    "scale_min",
+    "scale_max",
+    "step_value",
+    "accent",
+    "icon",
+    "sort_order",
+    "show_in_diary",
+    "show_in_analytics",
+    "is_active",
+    "created_at",
+  ];
+
+  if (options.includeUpdatedAt) {
+    columns.push("updated_at");
+  }
+
+  return columns.join(", ");
+}
+
+function getErrorText(error: PostgrestError) {
+  return [error.message, error.details, error.hint]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .toLowerCase();
+}
+
+function isMissingColumn(error: PostgrestError, table: string, column: string) {
+  const errorText = getErrorText(error);
+  return errorText.includes(table.toLowerCase()) && errorText.includes(column.toLowerCase());
+}
+
+function supportsLegacyEntries(error: PostgrestError) {
+  return (
+    isMissingColumn(error, "daily_entries", "summary") ||
+    isMissingColumn(error, "daily_entries", "updated_at")
+  );
+}
+
+function supportsLegacyMetricDefinitions(error: PostgrestError) {
+  return isMissingColumn(error, "metric_definitions", "updated_at");
+}
+
+function parseLegacySummary(notes: string) {
+  const summaryPattern = new RegExp(
+    `^${legacySummaryStart}\\n([\\s\\S]*?)\\n${legacySummaryEnd}\\n?\\n?`,
+  );
+  const match = notes.match(summaryPattern);
+
+  if (!match) {
+    return {
+      summary: "",
+      notes,
+    };
+  }
+
+  return {
+    summary: match[1]?.trim() ?? "",
+    notes: notes.slice(match[0].length),
+  };
+}
+
+function serializeLegacySummary(summary: string, notes: string) {
+  const trimmedSummary = summary.trim();
+  const trimmedNotes = notes.trim();
+
+  if (!trimmedSummary) {
+    return trimmedNotes;
+  }
+
+  return `${legacySummaryStart}\n${trimmedSummary}\n${legacySummaryEnd}${trimmedNotes ? `\n\n${trimmedNotes}` : ""}`;
+}
+
+async function listMetricDefinitionsWithFallback(
+  supabase: SupabaseClient,
+  userId: string,
+) {
+  const modernOptions: MetricDefinitionSelectOptions = {
+    includeUpdatedAt: true,
+  };
+  const modernResult = await supabase
+    .from("metric_definitions")
+    .select(buildMetricDefinitionSelect(modernOptions))
+    .eq("user_id", userId)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (!modernResult.error || !supportsLegacyMetricDefinitions(modernResult.error)) {
+    return modernResult;
+  }
+
+  return supabase
+    .from("metric_definitions")
+    .select(buildMetricDefinitionSelect({ includeUpdatedAt: false }))
+    .eq("user_id", userId)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+}
+
+async function listEntriesWithFallback(
+  supabase: SupabaseClient,
+  userId: string,
+  limit: number,
+) {
+  const modernOptions: EntrySelectOptions = {
+    includeSummary: true,
+    includeUpdatedAt: true,
+  };
+  const modernResult = await supabase
+    .from("daily_entries")
+    .select(buildEntrySelect(modernOptions))
+    .eq("user_id", userId)
+    .order("entry_date", { ascending: false })
+    .limit(limit);
+
+  if (!modernResult.error || !supportsLegacyEntries(modernResult.error)) {
+    return modernResult;
+  }
+
+  return supabase
+    .from("daily_entries")
+    .select(
+      buildEntrySelect({
+        includeSummary: !isMissingColumn(modernResult.error, "daily_entries", "summary"),
+        includeUpdatedAt: !isMissingColumn(modernResult.error, "daily_entries", "updated_at"),
+      }),
+    )
+    .eq("user_id", userId)
+    .order("entry_date", { ascending: false })
+    .limit(limit);
+}
+
+async function getEntryByIdWithFallback(
+  supabase: SupabaseClient,
+  userId: string,
+  id: string,
+) {
+  const modernOptions: EntrySelectOptions = {
+    includeSummary: true,
+    includeUpdatedAt: true,
+  };
+  const modernResult = await supabase
+    .from("daily_entries")
+    .select(buildEntrySelect(modernOptions))
+    .eq("id", id)
+    .eq("user_id", userId)
+    .single();
+
+  if (!modernResult.error || !supportsLegacyEntries(modernResult.error)) {
+    return modernResult;
+  }
+
+  return supabase
+    .from("daily_entries")
+    .select(
+      buildEntrySelect({
+        includeSummary: !isMissingColumn(modernResult.error, "daily_entries", "summary"),
+        includeUpdatedAt: !isMissingColumn(modernResult.error, "daily_entries", "updated_at"),
+      }),
+    )
+    .eq("id", id)
+    .eq("user_id", userId)
+    .single();
+}
+
+async function upsertMetricDefinitionsWithFallback(
+  supabase: SupabaseClient,
+  rows: Record<string, unknown>[],
+) {
+  const modernResult = await supabase
+    .from("metric_definitions")
+    .upsert(rows, { onConflict: "id" })
+    .select(buildMetricDefinitionSelect({ includeUpdatedAt: true }));
+
+  if (!modernResult.error || !supportsLegacyMetricDefinitions(modernResult.error)) {
+    return modernResult;
+  }
+
+  return supabase
+    .from("metric_definitions")
+    .upsert(rows, { onConflict: "id" })
+    .select(buildMetricDefinitionSelect({ includeUpdatedAt: false }));
+}
+
+async function upsertEntryWithFallback(
+  supabase: SupabaseClient,
+  userId: string,
+  input: DiaryEntryInput,
+) {
+  const modernResult = await supabase
+    .from("daily_entries")
+    .upsert(
+      {
+        user_id: userId,
+        entry_date: input.entry_date,
+        summary: input.summary.trim(),
+        notes: input.notes.trim(),
+      },
+      { onConflict: "user_id,entry_date" },
+    )
+    .select(
+      buildEntrySelect({
+        includeSummary: true,
+        includeUpdatedAt: true,
+      }),
+    )
+    .single();
+
+  if (!modernResult.error || !supportsLegacyEntries(modernResult.error)) {
+    return modernResult;
+  }
+
+  return supabase
+    .from("daily_entries")
+    .upsert(
+      {
+        user_id: userId,
+        entry_date: input.entry_date,
+        notes: isMissingColumn(modernResult.error, "daily_entries", "summary")
+          ? serializeLegacySummary(input.summary, input.notes)
+          : input.notes.trim(),
+        ...(isMissingColumn(modernResult.error, "daily_entries", "summary")
+          ? {}
+          : { summary: input.summary.trim() }),
+      },
+      { onConflict: "user_id,entry_date" },
+    )
+    .select(
+      buildEntrySelect({
+        includeSummary: !isMissingColumn(modernResult.error, "daily_entries", "summary"),
+        includeUpdatedAt: !isMissingColumn(modernResult.error, "daily_entries", "updated_at"),
+      }),
+    )
+    .single();
+}
 
 function mapDiaryError(error: PostgrestError) {
   const message = error.message.toLowerCase();
@@ -135,7 +405,7 @@ function mapMetricDefinition(row: MetricDefinitionRow): MetricDefinition {
     showInAnalytics: row.show_in_analytics,
     isActive: row.is_active,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    updatedAt: row.updated_at ?? row.created_at,
   });
 }
 
@@ -143,13 +413,17 @@ function mapEntry(
   row: DailyEntryRow,
   valueRows: EntryMetricValueRow[],
 ): DiaryEntry {
+  const rawNotes = row.notes ?? "";
+  const content =
+    row.summary === undefined ? parseLegacySummary(rawNotes) : { summary: row.summary ?? "", notes: rawNotes };
+
   return {
     id: row.id,
     created_at: row.created_at,
-    updated_at: row.updated_at,
+    updated_at: row.updated_at ?? row.created_at,
     entry_date: row.entry_date,
-    summary: row.summary ?? "",
-    notes: row.notes ?? "",
+    summary: content.summary,
+    notes: content.notes,
     ai_analysis: row.ai_analysis,
     metric_values: valueRows.reduce<Record<string, MetricValue>>((result, valueRow) => {
       result[valueRow.metric_definition_id] = resolveMetricValue(valueRow);
@@ -280,18 +554,8 @@ export async function getWorkspaceBootstrap(limit = 90) {
     const supabase = await createClient();
 
     const [definitionsResult, entriesResult] = await Promise.all([
-      supabase
-        .from("metric_definitions")
-        .select(metricDefinitionSelect)
-        .eq("user_id", user.id)
-        .order("sort_order", { ascending: true })
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("daily_entries")
-        .select(entrySelect)
-        .eq("user_id", user.id)
-        .order("entry_date", { ascending: false })
-        .limit(limit),
+      listMetricDefinitionsWithFallback(supabase, user.id),
+      listEntriesWithFallback(supabase, user.id, limit),
     ]);
 
     if (definitionsResult.error) {
@@ -310,7 +574,7 @@ export async function getWorkspaceBootstrap(limit = 90) {
       };
     }
 
-    const entryRows = (entriesResult.data ?? []) as DailyEntryRow[];
+    const entryRows = (entriesResult.data ?? []) as unknown as DailyEntryRow[];
     const entryIds = entryRows.map((entry) => entry.id);
     const valueResult =
       entryIds.length === 0
@@ -344,7 +608,7 @@ export async function getWorkspaceBootstrap(limit = 90) {
 
     return {
       entries: entryRows.map((entry) => mapEntry(entry, valuesByEntry[entry.id] ?? [])),
-      metricDefinitions: ((definitionsResult.data ?? []) as MetricDefinitionRow[]).map(
+      metricDefinitions: ((definitionsResult.data ?? []) as unknown as MetricDefinitionRow[]).map(
         mapMetricDefinition,
       ),
       error: null,
@@ -384,34 +648,22 @@ export async function saveDiaryEntry(input: DiaryEntryInput) {
     is_active: metric.isActive,
   }));
 
-  const definitionResult = await supabase
-    .from("metric_definitions")
-    .upsert(definitionRows, { onConflict: "id" })
-    .select(metricDefinitionSelect);
+  const definitionResult = await upsertMetricDefinitionsWithFallback(
+    supabase,
+    definitionRows,
+  );
 
   if (definitionResult.error) {
     throw new Error(mapDiaryError(definitionResult.error));
   }
 
-  const entryResult = await supabase
-    .from("daily_entries")
-    .upsert(
-      {
-        user_id: user.id,
-        entry_date: input.entry_date,
-        summary: input.summary.trim(),
-        notes: input.notes.trim(),
-      },
-      { onConflict: "user_id,entry_date" },
-    )
-    .select(entrySelect)
-    .single();
+  const entryResult = await upsertEntryWithFallback(supabase, user.id, input);
 
   if (entryResult.error) {
     throw new Error(mapDiaryError(entryResult.error));
   }
 
-  const entry = entryResult.data as DailyEntryRow;
+  const entry = entryResult.data as unknown as DailyEntryRow;
 
   const deleteValuesResult = await supabase
     .from("daily_entry_metric_values")
@@ -440,7 +692,7 @@ export async function saveDiaryEntry(input: DiaryEntryInput) {
     }
   }
 
-  const savedMetricDefinitions = ((definitionResult.data ?? []) as MetricDefinitionRow[]).map(
+  const savedMetricDefinitions = ((definitionResult.data ?? []) as unknown as MetricDefinitionRow[]).map(
     mapMetricDefinition,
   );
 
@@ -467,12 +719,7 @@ export async function getDiaryEntryById(id: string) {
   const user = await requireUser();
   const supabase = await createClient();
 
-  const entryResult = await supabase
-    .from("daily_entries")
-    .select(entrySelect)
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .single();
+  const entryResult = await getEntryByIdWithFallback(supabase, user.id, id);
 
   if (entryResult.error) {
     throw new Error(mapDiaryError(entryResult.error));
@@ -490,8 +737,8 @@ export async function getDiaryEntryById(id: string) {
   }
 
   return mapEntry(
-    entryResult.data as DailyEntryRow,
-    (valuesResult.data ?? []) as EntryMetricValueRow[],
+    entryResult.data as unknown as DailyEntryRow,
+    (valuesResult.data ?? []) as unknown as EntryMetricValueRow[],
   );
 }
 
@@ -499,12 +746,7 @@ export async function getDiaryEntryAnalysisContext(id: string) {
   const user = await requireUser();
   const supabase = await createClient();
 
-  const entryResult = await supabase
-    .from("daily_entries")
-    .select(entrySelect)
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .single();
+  const entryResult = await getEntryByIdWithFallback(supabase, user.id, id);
 
   if (entryResult.error) {
     throw new Error(mapDiaryError(entryResult.error));
@@ -521,7 +763,7 @@ export async function getDiaryEntryAnalysisContext(id: string) {
     throw new Error(mapDiaryError(valuesResult.error));
   }
 
-  const metrics = ((valuesResult.data ?? []) as EntryMetricValueRow[]).map((row) => ({
+  const metrics = ((valuesResult.data ?? []) as unknown as EntryMetricValueRow[]).map((row) => ({
     name: row.metric_name_snapshot,
     type: row.metric_type_snapshot,
     unit: row.metric_unit_snapshot ?? "",
@@ -530,7 +772,7 @@ export async function getDiaryEntryAnalysisContext(id: string) {
   }));
 
   return {
-    entry: entryResult.data as DailyEntryRow,
+    entry: entryResult.data as unknown as DailyEntryRow,
     metrics,
   };
 }

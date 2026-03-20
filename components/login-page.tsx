@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
@@ -109,6 +109,7 @@ function GoogleMark() {
 }
 
 export function LoginPage({ isConfigured, mode }: LoginPageProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [formState, setFormState] = useState(defaultFormState);
   const [isPending, setIsPending] = useState(false);
@@ -119,6 +120,14 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
   const queryError = searchParams.get("error");
   const queryMessage = searchParams.get("message");
   const isLogin = mode === "login";
+
+  async function navigateAfterAuth(target: string) {
+    const supabase = createClient();
+
+    await supabase.auth.getSession();
+    router.replace(target);
+    router.refresh();
+  }
 
   const pageCopy = isLogin
     ? {
@@ -212,7 +221,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
           throw error;
         }
 
-        window.location.assign(next);
+        await navigateAfterAuth(next);
         return;
       }
 
@@ -221,9 +230,9 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
         email: formState.email.trim(),
         password: formState.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/login?message=${encodeURIComponent(
-            "email_confirmed",
-          )}&next=${encodeURIComponent(next)}`,
+          emailRedirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(
+            next,
+          )}`,
           data: fullName
             ? {
                 full_name: fullName,
@@ -238,7 +247,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
       }
 
       if (data.session) {
-        window.location.assign(next);
+        await navigateAfterAuth(next);
         return;
       }
 
