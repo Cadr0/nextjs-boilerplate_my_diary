@@ -196,7 +196,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
     try {
       const supabase = createClient();
       const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}`,
+        redirectTo: `${window.location.origin}/reset-password?next=${encodeURIComponent(next)}`,
       });
 
       if (authError) {

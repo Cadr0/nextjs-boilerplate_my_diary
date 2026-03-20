@@ -66,7 +66,7 @@ export function AccountSecurityPanel({
 
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent("/diary")}`,
+        redirectTo: `${window.location.origin}/reset-password?next=${encodeURIComponent("/diary")}`,
       });
 
       if (resetError) {

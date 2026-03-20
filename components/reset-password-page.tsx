@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 
@@ -26,7 +26,7 @@ function getFriendlyAuthError(error: unknown) {
   }
 
   if (message.includes("auth session missing")) {
-    return "Ссылка устарела. Запроси восстановление пароля снова.";
+    return "Ссылка устарела или уже использована. Запроси восстановление пароля снова.";
   }
 
   return error.message;
@@ -35,11 +35,43 @@ function getFriendlyAuthError(error: unknown) {
 export function ResetPasswordPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const supabase = useMemo(() => createClient(), []);
   const next = getSafeNext(searchParams.get("next"));
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isPending, setIsPending] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function checkRecoverySession() {
+      const { data, error: sessionError } = await supabase.auth.getSession();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (sessionError) {
+        setError(getFriendlyAuthError(sessionError));
+        setIsCheckingSession(false);
+        return;
+      }
+
+      if (!data.session) {
+        setError("Ссылка восстановления не активна. Запроси новое письмо и открой его снова.");
+      }
+
+      setIsCheckingSession(false);
+    }
+
+    void checkRecoverySession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [supabase]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,7 +90,6 @@ export function ResetPasswordPage() {
     setError(null);
 
     try {
-      const supabase = createClient();
       const { error: authError } = await supabase.auth.updateUser({ password });
 
       if (authError) {
@@ -86,7 +117,7 @@ export function ResetPasswordPage() {
               Новый пароль
             </h1>
             <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">
-              Задай новый пароль для аккаунта и продолжай работу.
+              После перехода из письма задай новый пароль для аккаунта.
             </p>
 
             {error ? (
@@ -104,7 +135,8 @@ export function ResetPasswordPage() {
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  className="rounded-[1.35rem] border border-slate-200 bg-[rgba(230,239,251,0.86)] px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)] focus:bg-white"
+                  disabled={isCheckingSession || Boolean(error)}
+                  className="rounded-[1.35rem] border border-slate-200 bg-[rgba(230,239,251,0.86)] px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)] focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </label>
 
@@ -116,16 +148,21 @@ export function ResetPasswordPage() {
                   type="password"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
-                  className="rounded-[1.35rem] border border-slate-200 bg-[rgba(230,239,251,0.86)] px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)] focus:bg-white"
+                  disabled={isCheckingSession || Boolean(error)}
+                  className="rounded-[1.35rem] border border-slate-200 bg-[rgba(230,239,251,0.86)] px-4 py-3.5 outline-none transition focus:border-[color:var(--accent)] focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </label>
 
               <button
                 type="submit"
-                disabled={isPending}
+                disabled={isPending || isCheckingSession || Boolean(error)}
                 className="mt-2 rounded-full bg-[color:var(--accent-strong)] px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isPending ? "Сохраняем..." : "Обновить пароль"}
+                {isCheckingSession
+                  ? "Проверяем ссылку..."
+                  : isPending
+                    ? "Сохраняем..."
+                    : "Обновить пароль"}
               </button>
             </form>
 
