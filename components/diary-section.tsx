@@ -971,6 +971,7 @@ function MetricBuilderModal({
 
   const unitOptions = getMetricUnitOptions(metric.type);
   const supportsAnalytics = metric.type === "scale" || metric.type === "number";
+  const usesUnit = metric.type === "scale" || metric.type === "number";
 
   const applyTemplate = (template: MetricTemplate) => {
     setMetric((current) =>
@@ -1123,7 +1124,11 @@ function MetricBuilderModal({
                   </p>
                 </div>
                 <div className="rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs text-[var(--muted)]">
-                  {metric.type === "text" ? "Текст" : metric.unit || "Без юнита"}
+                  {metric.type === "text"
+                    ? "Текст"
+                    : metric.type === "boolean"
+                      ? "Да / Нет"
+                      : metric.unit || "Без юнита"}
                 </div>
               </div>
 
@@ -1150,12 +1155,18 @@ function MetricBuilderModal({
                       <p className="truncate text-base font-semibold tracking-[-0.03em] text-[var(--foreground)]">
                         {metric.name || "Новая метрика"}
                       </p>
-                      <p className="mt-2 flex flex-wrap items-end gap-1 text-[1.9rem] leading-none font-semibold tracking-[-0.05em] text-[var(--foreground)]">
-                        <span>{formatMetricValue(metric, getMetricDefaultValue(metric)) || "Текст"}</span>
-                        <span className="pb-1 text-sm font-medium text-[var(--muted)]">
-                          {metric.type === "text" ? "заметка" : metric.unit}
-                        </span>
-                      </p>
+                      {metric.type === "boolean" ? (
+                        <div className="mt-3">
+                          <ToggleSwitch active={Boolean(getMetricDefaultValue(metric))} onToggle={() => undefined} />
+                        </div>
+                      ) : (
+                        <p className="mt-2 flex flex-wrap items-end gap-1 text-[1.9rem] leading-none font-semibold tracking-[-0.05em] text-[var(--foreground)]">
+                          <span>{formatMetricValue(metric, getMetricDefaultValue(metric)) || "Текст"}</span>
+                          <span className="pb-1 text-sm font-medium text-[var(--muted)]">
+                            {metric.type === "text" ? "заметка" : metric.unit}
+                          </span>
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -1238,37 +1249,39 @@ function MetricBuilderModal({
               </div>
             </div>
 
-            <div className="grid gap-3">
-              <p className="text-sm font-medium text-[var(--foreground)]">Юниты</p>
-              <div className="grid gap-2 sm:grid-cols-4">
-                {unitOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() =>
-                      setMetric((current) =>
-                        sanitizeMetricDefinition({
-                          ...current,
-                          unitPreset: option.value,
-                          unit: option.defaultUnit,
-                          min: option.defaultMin,
-                          max: option.defaultMax,
-                          step: option.defaultStep,
-                        }),
-                      )
-                    }
-                    className={`rounded-[18px] border px-4 py-3 text-left transition sm:rounded-[20px] ${
-                      metric.unitPreset === option.value
-                        ? "border-[rgba(109,143,207,0.32)] bg-[rgba(109,143,207,0.12)] text-[var(--foreground)]"
-                        : "border-[var(--border)] bg-white/88 text-[var(--muted)]"
-                    }`}
-                  >
-                    <p className="text-sm font-semibold">{option.label}</p>
-                    <p className="mt-1 text-xs leading-5">{option.description}</p>
-                  </button>
-                ))}
+            {usesUnit ? (
+              <div className="grid gap-3">
+                <p className="text-sm font-medium text-[var(--foreground)]">Юниты</p>
+                <div className="grid gap-2 sm:grid-cols-4">
+                  {unitOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() =>
+                        setMetric((current) =>
+                          sanitizeMetricDefinition({
+                            ...current,
+                            unitPreset: option.value,
+                            unit: option.defaultUnit,
+                            min: option.defaultMin,
+                            max: option.defaultMax,
+                            step: option.defaultStep,
+                          }),
+                        )
+                      }
+                      className={`rounded-[18px] border px-4 py-3 text-left transition sm:rounded-[20px] ${
+                        metric.unitPreset === option.value
+                          ? "border-[rgba(109,143,207,0.32)] bg-[rgba(109,143,207,0.12)] text-[var(--foreground)]"
+                          : "border-[var(--border)] bg-white/88 text-[var(--muted)]"
+                      }`}
+                    >
+                      <p className="text-sm font-semibold">{option.label}</p>
+                      <p className="mt-1 text-xs leading-5">{option.description}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : null}
 
             <div className="rounded-[22px] border border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-4">
               <p className="text-sm font-medium text-[var(--foreground)]">Вид метрики</p>
@@ -1288,14 +1301,16 @@ function MetricBuilderModal({
                 />
               </label>
 
-              <label className="grid gap-2">
-                <span className="text-sm font-medium text-[var(--foreground)]">Подпись единицы</span>
-                <input
-                  value={metric.unit}
-                  onChange={(event) => setMetric((current) => ({ ...current, unit: event.target.value }))}
-                  className="min-h-11 rounded-[18px] border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                />
-              </label>
+              {usesUnit ? (
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-[var(--foreground)]">Подпись единицы</span>
+                  <input
+                    value={metric.unit}
+                    onChange={(event) => setMetric((current) => ({ ...current, unit: event.target.value }))}
+                    className="min-h-11 rounded-[18px] border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  />
+                </label>
+              ) : null}
 
               {metric.type === "scale" || metric.type === "number" ? (
                 <>
