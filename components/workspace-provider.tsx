@@ -167,7 +167,12 @@ function mergeWorkspaceState(
       persistedState.metricDefinitions.length > 0
         ? persistedState.metricDefinitions.map(sanitizeMetricDefinition)
         : baseState.metricDefinitions,
-    profile: persistedState.profile ?? baseState.profile,
+    profile: persistedState.profile
+      ? {
+          ...baseState.profile,
+          ...persistedState.profile,
+        }
+      : baseState.profile,
   } satisfies PersistedWorkspaceState;
 }
 
@@ -657,6 +662,12 @@ export function WorkspaceProvider({
 
       const response = await fetch(`/api/entries/${syncedEntry.id}/analyze`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: workspaceState.profile.aiModel,
+        }),
       });
       const result = (await response.json()) as { entry?: DiaryEntry; error?: string };
 

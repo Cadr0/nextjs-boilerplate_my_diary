@@ -1,5 +1,5 @@
-import { HistorySection } from "@/components/history-section";
+import { redirect } from "next/navigation";
 
 export default function HistoryPage() {
-  return <HistorySection />;
+  redirect("/diary");
 }

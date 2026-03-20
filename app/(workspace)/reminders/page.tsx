@@ -1,5 +1,5 @@
-import { RemindersSection } from "@/components/reminders-section";
+import { redirect } from "next/navigation";
 
 export default function RemindersPage() {
-  return <RemindersSection />;
+  redirect("/diary");
 }

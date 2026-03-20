@@ -1,5 +1,5 @@
-import { ProfileSection } from "@/components/profile-section";
+import { redirect } from "next/navigation";
 
 export default function ProfilePage() {
-  return <ProfileSection />;
+  redirect("/diary");
 }

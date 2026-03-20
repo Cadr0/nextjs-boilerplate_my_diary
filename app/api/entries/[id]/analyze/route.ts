@@ -6,7 +6,7 @@ import {
   getSupabaseConfigError,
   updateDiaryEntryAnalysis,
 } from "@/lib/diary";
-import { analyzeDiaryEntry, getRouterAiConfigError } from "@/lib/routerai";
+import { analyzeDiaryEntry, getOpenRouterConfigError } from "@/lib/openrouter";
 
 type RouteContext = {
   params: Promise<{
@@ -14,17 +14,17 @@ type RouteContext = {
   }>;
 };
 
-export async function POST(_request: Request, context: RouteContext) {
+export async function POST(request: Request, context: RouteContext) {
   const supabaseConfigError = getSupabaseConfigError();
 
   if (supabaseConfigError) {
     return NextResponse.json({ error: supabaseConfigError }, { status: 500 });
   }
 
-  const routerAiConfigError = getRouterAiConfigError();
+  const openRouterConfigError = getOpenRouterConfigError();
 
-  if (routerAiConfigError) {
-    return NextResponse.json({ error: routerAiConfigError }, { status: 500 });
+  if (openRouterConfigError) {
+    return NextResponse.json({ error: openRouterConfigError }, { status: 500 });
   }
 
   const { user } = await getAuthState();
@@ -34,6 +34,7 @@ export async function POST(_request: Request, context: RouteContext) {
   }
 
   try {
+    const body = (await request.json().catch(() => ({}))) as { model?: string };
     const { id } = await context.params;
 
     if (!id) {
@@ -45,6 +46,7 @@ export async function POST(_request: Request, context: RouteContext) {
       entryDate: entry.entry_date,
       summary: entry.summary ?? "",
       notes: entry.notes ?? "",
+      model: body.model,
       metrics: metrics.map((metric) => ({
         name: metric.name,
         type: metric.type,

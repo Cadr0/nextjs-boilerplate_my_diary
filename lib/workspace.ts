@@ -93,6 +93,7 @@ export type WorkspaceProfile = {
   compactMetrics: boolean;
   keepRightRailOpen: boolean;
   chatTone: string;
+  aiModel: string;
 };
 
 export type PersistedWorkspaceState = {
@@ -319,6 +320,24 @@ export const metricAccentOptions = [
 
 export const metricTemplateLibrary = metricTemplates;
 
+export const aiModelOptions = [
+  {
+    id: "openrouter/free",
+    label: "Free Auto",
+    description: "OpenRouter free router.",
+  },
+  {
+    id: "meta-llama/llama-3.2-3b-instruct:free",
+    label: "Llama 3.2",
+    description: "Fast free model for short chat replies.",
+  },
+  {
+    id: "mistralai/mistral-7b-instruct:free",
+    label: "Mistral 7B",
+    description: "Compact free instruct model.",
+  },
+] as const;
+
 export const defaultProfile: WorkspaceProfile = {
   firstName: "Diary",
   lastName: "User",
@@ -331,6 +350,7 @@ export const defaultProfile: WorkspaceProfile = {
   compactMetrics: true,
   keepRightRailOpen: true,
   chatTone: "supportive",
+  aiModel: aiModelOptions[0].id,
 };
 
 function generateId(prefix: string) {

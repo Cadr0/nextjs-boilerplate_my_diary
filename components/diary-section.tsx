@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   closestCenter,
   DndContext,
@@ -15,17 +14,20 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { DiaryAssistantPanel } from "@/components/diary-assistant-panel";
+import { LogoutButton } from "@/components/logout-button";
 import { useWorkspace } from "@/components/workspace-provider";
 import type {
   MetricDefinition,
   MetricTemplate,
   MetricValue,
+  WorkspaceProfile,
 } from "@/lib/workspace";
 import {
+  aiModelOptions,
   createBlankMetric,
   formatCompactDate,
   formatHistoryDate,
@@ -138,6 +140,8 @@ type MetricModalState =
     }
   | null;
 
+type SettingsTab = "general" | "profile" | "assistant" | "account";
+
 export function DiarySection() {
   const {
     analysisError,
@@ -152,15 +156,18 @@ export function DiarySection() {
     saveState,
     selectedDate,
     selectedDraft,
+    selectedEntry,
     selectedTasks,
     setSelectedDate,
     updateMetricValue,
     updateNotes,
+    updateProfile,
     updateSummary,
     visibleMetricDefinitions,
   } = useWorkspace();
 
   const [metricModal, setMetricModal] = useState<MetricModalState>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const sensors = useSensors(
     useSensor(NonInteractivePointerSensor, {
@@ -178,7 +185,7 @@ export function DiarySection() {
       : saveState === "saved"
         ? "Все изменения сохранены"
         : saveState === "local"
-          ? "Изменения пока сохранены только на этом устройстве"
+          ? "Изменения сохранены только локально"
           : saveState === "error"
             ? "Есть ошибка сохранения"
             : "Рабочее пространство готово";
@@ -195,123 +202,150 @@ export function DiarySection() {
 
   return (
     <>
-      <div className="grid gap-4 xl:grid-cols-[230px_minmax(0,1fr)_330px]">
-        <aside className="surface-card rounded-[32px] p-4">
-          <div className="flex h-full flex-col gap-4">
-            <div className="flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/86 px-4 py-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white shadow-[0_12px_28px_rgba(47,111,97,0.22)]">
-                {initials}
-              </div>
-              <div className="min-w-0">
-                <p className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-                  дневник
-                </p>
-              </div>
-            </div>
-
-            <Link
-              href="/profile"
-              className="rounded-[26px] border border-[var(--border)] bg-white/86 p-4 transition hover:border-[rgba(47,111,97,0.24)]"
+      <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="surface-card flex min-h-[calc(100vh-2rem)] flex-col rounded-[32px] p-4">
+          <div className="flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 px-4 py-3">
+            <button
+              type="button"
+              onClick={() =>
+                setMetricModal({
+                  mode: "create",
+                  metric: createBlankMetric(metricDefinitions.length),
+                })
+              }
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              aria-label="Добавить метрику"
             >
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white">
-                  {initials}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-base font-semibold text-[var(--foreground)]">
-                    {profile.firstName}
-                    {profile.lastName ? ` ${profile.lastName}` : ""}
-                  </p>
-                  <p className="mt-1 text-xs text-[var(--muted)]">Открыть настройки</p>
-                </div>
-              </div>
-            </Link>
-
-            <div className="min-h-0 flex-1 rounded-[28px] border border-[var(--border)] bg-white/72 p-3">
-              <div className="grid max-h-[58vh] gap-1.5 overflow-y-auto pr-1">
-                {days.slice(0, 28).map((day) => (
-                  <button
-                    key={day.date}
-                    type="button"
-                    onClick={() => setSelectedDate(day.date)}
-                    className={`flex items-center justify-between rounded-[18px] px-3 py-3 text-left text-sm transition ${
-                      day.date === selectedDate
-                        ? "bg-[var(--accent)] text-white shadow-[0_14px_30px_rgba(47,111,97,0.22)]"
-                        : "text-[var(--foreground)] hover:bg-[rgba(47,111,97,0.08)]"
-                    }`}
-                  >
-                    <span>{getSidebarDateLabel(day.date)}</span>
-                    {day.date === selectedDate ? <ChevronDownIcon /> : null}
-                  </button>
-                ))}
-              </div>
+              <PlusIcon />
+            </button>
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
+                Diary AI
+              </p>
+              <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+                Дневник
+              </p>
             </div>
           </div>
+
+          <div className="mt-4 rounded-[26px] border border-[var(--border)] bg-white/88 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+                  Анализ
+                </p>
+                <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                  {selectedEntry?.ai_analysis ? "Разбор готов" : "Ожидает запуска"}
+                </p>
+              </div>
+              <div className="rounded-full bg-[rgba(47,111,97,0.08)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
+                {profile.aiModel === "openrouter/free" ? "free" : "custom"}
+              </div>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+              {selectedEntry?.ai_analysis
+                ? selectedEntry.ai_analysis.split("\n").filter(Boolean)[0]
+                : "Основной разбор и чат находятся ниже под метриками, как единый поток."}
+            </p>
+          </div>
+
+          <div className="mt-4 min-h-0 flex-1 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
+            <div className="mb-2 flex items-center justify-between px-1">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+                Дни
+              </p>
+              <span className="text-xs text-[var(--muted)]">{days.length}</span>
+            </div>
+            <div className="grid max-h-[52vh] gap-1.5 overflow-y-auto pr-1">
+              {days.slice(0, 40).map((day) => (
+                <button
+                  key={day.date}
+                  type="button"
+                  onClick={() => setSelectedDate(day.date)}
+                  className={`grid gap-1 rounded-[20px] px-3 py-3 text-left transition ${
+                    day.date === selectedDate
+                      ? "bg-[var(--accent)] text-white shadow-[0_14px_30px_rgba(47,111,97,0.22)]"
+                      : "text-[var(--foreground)] hover:bg-[rgba(47,111,97,0.08)]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium">{getSidebarDateLabel(day.date)}</span>
+                    {day.date === selectedDate ? <ChevronDownIcon /> : null}
+                  </div>
+                  <span
+                    className={`truncate text-xs ${
+                      day.date === selectedDate ? "text-white/80" : "text-[var(--muted)]"
+                    }`}
+                  >
+                    {day.summary || day.notesPreview || "Пустой день"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            className="mt-4 flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 p-4 text-left transition hover:border-[rgba(47,111,97,0.24)]"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white">
+              {initials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-base font-semibold text-[var(--foreground)]">
+                {profile.firstName}
+                {profile.lastName ? ` ${profile.lastName}` : ""}
+              </p>
+              <p className="mt-1 text-xs text-[var(--muted)]">Профиль и настройки</p>
+            </div>
+            <DotsIcon />
+          </button>
         </aside>
 
         <div className="grid gap-4">
-          <div className="surface-card rounded-[32px] px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <ToolbarButton label="История" href="/history">
-                  <HistoryIcon />
-                </ToolbarButton>
-                <ToolbarButton
-                  label="Добавить метрику"
-                  onClick={() =>
-                    setMetricModal({
-                      mode: "create",
-                      metric: createBlankMetric(metricDefinitions.length),
-                    })
-                  }
-                >
-                  <PlusIcon />
-                </ToolbarButton>
-                <ToolbarButton label="Аналитика" href="/analytics">
-                  <SearchIcon />
-                </ToolbarButton>
+          <div className="surface-card rounded-[34px] p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">
+                  {formatCompactDate(selectedDate)}
+                </p>
+                <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-4xl">
+                  {getHeadingDateLabel(selectedDate)}
+                </h1>
               </div>
 
-              <div className="flex items-center gap-2">
-                <ToolbarButton label="Напоминания" href="/reminders">
-                  <DotsIcon />
-                </ToolbarButton>
-                <Link
-                  href="/profile"
-                  className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white shadow-[0_12px_28px_rgba(47,111,97,0.22)]"
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="rounded-full bg-[rgba(47,111,97,0.08)] px-4 py-2 text-sm font-medium text-[var(--accent)]">
+                  {saveCopy}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/94 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  aria-label="Открыть настройки"
                 >
-                  {initials}
-                </Link>
+                  <DotsIcon />
+                </button>
               </div>
             </div>
-          </div>
-
-          <div className="surface-card rounded-[34px] p-5 sm:p-6">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">
-              {formatCompactDate(selectedDate)}
-            </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-4xl">
-              {getHeadingDateLabel(selectedDate)}
-            </h1>
 
             <div className="mt-5 rounded-[28px] border border-[var(--border)] bg-white/88 p-5">
               <label className="grid gap-3">
                 <span className="text-[1.05rem] font-medium text-[var(--foreground)]">
-                  Как прошёл день?
+                  Как прошел день?
                 </span>
                 <AutoGrowTextarea
                   value={selectedDraft.notes}
                   onChange={updateNotes}
                   placeholder="Что сегодня произошло, как ты себя чувствовал и что было важным?"
                   minRows={5}
-                  className="w-full rounded-[24px] border border-[var(--border)] bg-[rgba(255,255,255,0.95)] px-4 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  className="w-full rounded-[24px] border border-[var(--border)] bg-[rgba(255,255,255,0.96)] px-4 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
 
               <label className="mt-4 grid gap-2">
-                <span className="text-sm font-medium text-[var(--foreground)]">
-                  Главное за день
-                </span>
+                <span className="text-sm font-medium text-[var(--foreground)]">Главное за день</span>
                 <input
                   value={selectedDraft.summary}
                   onChange={(event) => updateSummary(event.target.value)}
@@ -326,30 +360,25 @@ export function DiarySection() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-                  Вшитые метрики
+                  Метрики
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  Все изменения сохраняются автоматически. Кнопка справа нужна только для запуска анализа.
+                  Изменения сохраняются сразу. Анализ и чат идут ниже, в одном потоке.
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMetricModal({
-                      mode: "create",
-                      metric: createBlankMetric(metricDefinitions.length),
-                    })
-                  }
-                  className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/92 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.24)] hover:text-[var(--accent)]"
-                >
-                  + Добавить метрику
-                </button>
-                <div className="rounded-full bg-[rgba(130,113,178,0.12)] px-4 py-2 text-sm font-medium text-[rgb(108,91,153)]">
-                  {saveCopy}
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setMetricModal({
+                    mode: "create",
+                    metric: createBlankMetric(metricDefinitions.length),
+                  })
+                }
+                className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/92 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.24)] hover:text-[var(--accent)]"
+              >
+                + Добавить метрику
+              </button>
             </div>
 
             {(error || analysisError) ? (
@@ -391,9 +420,9 @@ export function DiarySection() {
               </span>
             </div>
           </div>
-        </div>
 
-        <DiaryAssistantPanel />
+          <DiaryAssistantPanel />
+        </div>
       </div>
 
       {metricModal ? (
@@ -416,36 +445,15 @@ export function DiarySection() {
           }}
         />
       ) : null}
+
+      {isSettingsOpen ? (
+        <DiarySettingsModal
+          profile={profile}
+          onClose={() => setIsSettingsOpen(false)}
+          onChange={updateProfile}
+        />
+      ) : null}
     </>
-  );
-}
-
-function ToolbarButton({
-  children,
-  href,
-  label,
-  onClick,
-}: {
-  children: React.ReactNode;
-  href?: string;
-  label: string;
-  onClick?: () => void;
-}) {
-  const className =
-    "flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.24)] hover:text-[var(--accent)]";
-
-  if (href) {
-    return (
-      <Link href={href} className={className} aria-label={label}>
-        {children}
-      </Link>
-    );
-  }
-
-  return (
-    <button type="button" onClick={onClick} className={className} aria-label={label}>
-      {children}
-    </button>
   );
 }
 
@@ -493,9 +501,7 @@ function SortableMetricCard({
             </p>
             <p className="mt-2 text-[2.15rem] leading-none font-semibold tracking-[-0.05em] text-[var(--foreground)]">
               {formatMetricValue(metric, value)}
-              <span className="ml-2 text-lg font-medium text-[var(--muted)]">
-                {metric.unit}
-              </span>
+              <span className="ml-2 text-lg font-medium text-[var(--muted)]">{metric.unit}</span>
             </p>
           </div>
 
@@ -531,31 +537,29 @@ function MetricInputField({
     const active = Boolean(value);
 
     return (
-      <div className="grid gap-2">
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => onChange(true)}
-            className={`min-h-11 rounded-2xl border text-sm font-medium transition ${
-              active
-                ? "border-transparent bg-[var(--accent)] text-white"
-                : "border-[var(--border)] bg-white text-[var(--foreground)]"
-            }`}
-          >
-            Да
-          </button>
-          <button
-            type="button"
-            onClick={() => onChange(false)}
-            className={`min-h-11 rounded-2xl border text-sm font-medium transition ${
-              !active
-                ? "border-transparent bg-[rgba(24,33,29,0.86)] text-white"
-                : "border-[var(--border)] bg-white text-[var(--foreground)]"
-            }`}
-          >
-            Нет
-          </button>
-        </div>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={`min-h-11 rounded-2xl border text-sm font-medium transition ${
+            active
+              ? "border-transparent bg-[var(--accent)] text-white"
+              : "border-[var(--border)] bg-white text-[var(--foreground)]"
+          }`}
+        >
+          Да
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={`min-h-11 rounded-2xl border text-sm font-medium transition ${
+            !active
+              ? "border-transparent bg-[rgba(24,33,29,0.86)] text-white"
+              : "border-[var(--border)] bg-white text-[var(--foreground)]"
+          }`}
+        >
+          Нет
+        </button>
       </div>
     );
   }
@@ -574,17 +578,15 @@ function MetricInputField({
 
   if (metric.type === "number") {
     return (
-      <div className="grid gap-2">
-        <input
-          type="number"
-          min={metric.min}
-          max={metric.max}
-          step={metric.step}
-          value={typeof value === "number" ? value : Number(value ?? metric.min ?? 0)}
-          onChange={(event) => onChange(Number(event.target.value))}
-          className="min-h-11 rounded-2xl border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-        />
-      </div>
+      <input
+        type="number"
+        min={metric.min}
+        max={metric.max}
+        step={metric.step}
+        value={typeof value === "number" ? value : Number(value ?? metric.min ?? 0)}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="min-h-11 w-full rounded-2xl border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+      />
     );
   }
 
@@ -869,12 +871,7 @@ function MetricBuilderModal({
                 <button
                   key={accent}
                   type="button"
-                  onClick={() =>
-                    setMetric((current) => ({
-                      ...current,
-                      accent,
-                    }))
-                  }
+                  onClick={() => setMetric((current) => ({ ...current, accent }))}
                   className={`flex h-9 w-9 items-center justify-center rounded-full border transition ${
                     metric.accent === accent
                       ? "border-[rgba(24,33,29,0.24)]"
@@ -894,29 +891,17 @@ function MetricBuilderModal({
               <span className="text-sm font-medium text-[var(--foreground)]">Описание</span>
               <AutoGrowTextarea
                 value={metric.description}
-                onChange={(value) =>
-                  setMetric((current) => ({
-                    ...current,
-                    description: value,
-                  }))
-                }
+                onChange={(value) => setMetric((current) => ({ ...current, description: value }))}
                 minRows={2}
                 className="w-full rounded-[18px] border border-[var(--border)] bg-white px-3 py-3 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-sm font-medium text-[var(--foreground)]">
-                Подпись единицы
-              </span>
+              <span className="text-sm font-medium text-[var(--foreground)]">Подпись единицы</span>
               <input
                 value={metric.unit}
-                onChange={(event) =>
-                  setMetric((current) => ({
-                    ...current,
-                    unit: event.target.value,
-                  }))
-                }
+                onChange={(event) => setMetric((current) => ({ ...current, unit: event.target.value }))}
                 className="min-h-11 rounded-[18px] border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
               />
             </label>
@@ -1054,6 +1039,269 @@ function MetricBuilderModal({
   );
 }
 
+function DiarySettingsModal({
+  profile,
+  onClose,
+  onChange,
+}: {
+  profile: WorkspaceProfile;
+  onClose: () => void;
+  onChange: <K extends keyof WorkspaceProfile>(field: K, value: WorkspaceProfile[K]) => void;
+}) {
+  const [tab, setTab] = useState<SettingsTab>("general");
+
+  const tabs: Array<{ id: SettingsTab; label: string }> = [
+    { id: "general", label: "Общее" },
+    { id: "profile", label: "Профиль" },
+    { id: "assistant", label: "Ассистент" },
+    { id: "account", label: "Учетная запись" },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(25,31,30,0.18)] px-4 py-6">
+      <div className="surface-card flex w-full max-w-5xl overflow-hidden rounded-[34px] border border-white/80 bg-[rgba(255,250,246,0.96)] shadow-[0_38px_90px_rgba(24,33,29,0.18)]">
+        <div className="flex w-full max-w-[290px] flex-col border-r border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl text-[var(--foreground)] transition hover:bg-white"
+            aria-label="Закрыть настройки"
+          >
+            <CloseIcon />
+          </button>
+
+          <div className="grid gap-2">
+            {tabs.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTab(item.id)}
+                className={`rounded-[18px] px-4 py-3 text-left text-base transition ${
+                  tab === item.id
+                    ? "bg-white text-[var(--foreground)] shadow-[0_12px_24px_rgba(24,33,29,0.08)]"
+                    : "text-[var(--muted)] hover:bg-white/70"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="min-w-0 flex-1 p-6 sm:p-8">
+          {tab === "general" ? (
+            <div className="grid gap-6">
+              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+                Общее
+              </h2>
+              <SettingsRow
+                label="Язык"
+                control={
+                  <select
+                    value={profile.locale}
+                    onChange={(event) => onChange("locale", event.target.value)}
+                    className="min-h-11 rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
+                  >
+                    <option value="ru-RU">Русский</option>
+                    <option value="en-US">English</option>
+                  </select>
+                }
+              />
+              <SettingsRow
+                label="Часовой пояс"
+                control={
+                  <input
+                    value={profile.timezone}
+                    onChange={(event) => onChange("timezone", event.target.value)}
+                    className="min-h-11 rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
+                  />
+                }
+              />
+              <SettingsRow
+                label="Компактные метрики"
+                control={
+                  <ToggleSwitch
+                    active={profile.compactMetrics}
+                    onToggle={() => onChange("compactMetrics", !profile.compactMetrics)}
+                  />
+                }
+              />
+            </div>
+          ) : null}
+
+          {tab === "profile" ? (
+            <div className="grid gap-6">
+              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+                Профиль
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SettingsField
+                  label="Имя"
+                  value={profile.firstName}
+                  onChange={(value) => onChange("firstName", value)}
+                />
+                <SettingsField
+                  label="Фамилия"
+                  value={profile.lastName}
+                  onChange={(value) => onChange("lastName", value)}
+                />
+              </div>
+              <SettingsTextarea
+                label="Фокус"
+                value={profile.focus}
+                onChange={(value) => onChange("focus", value)}
+              />
+              <SettingsTextarea
+                label="О себе"
+                value={profile.bio}
+                onChange={(value) => onChange("bio", value)}
+              />
+              <SettingsTextarea
+                label="Цель"
+                value={profile.wellbeingGoal}
+                onChange={(value) => onChange("wellbeingGoal", value)}
+              />
+            </div>
+          ) : null}
+
+          {tab === "assistant" ? (
+            <div className="grid gap-6">
+              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+                Ассистент
+              </h2>
+              <SettingsRow
+                label="Модель"
+                control={
+                  <select
+                    value={profile.aiModel}
+                    onChange={(event) => onChange("aiModel", event.target.value)}
+                    className="min-h-11 rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
+                  >
+                    {aiModelOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                }
+              />
+              <SettingsRow
+                label="Тон"
+                control={
+                  <select
+                    value={profile.chatTone}
+                    onChange={(event) => onChange("chatTone", event.target.value)}
+                    className="min-h-11 rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
+                  >
+                    <option value="supportive">Поддерживающий</option>
+                    <option value="direct">Прямой</option>
+                    <option value="coach">Coach</option>
+                  </select>
+                }
+              />
+            </div>
+          ) : null}
+
+          {tab === "account" ? (
+            <div className="grid gap-6">
+              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+                Учетная запись
+              </h2>
+              <p className="max-w-2xl text-sm leading-7 text-[var(--muted)]">
+                Блок профиля теперь открывается как отдельное окно, как в ChatGPT. Здесь останется
+                управление сессией и базовыми параметрами аккаунта.
+              </p>
+              <div>
+                <LogoutButton />
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsRow({
+  label,
+  control,
+}: {
+  label: string;
+  control: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] pb-5">
+      <p className="text-xl text-[var(--foreground)]">{label}</p>
+      {control}
+    </div>
+  );
+}
+
+function SettingsField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="grid gap-2">
+      <span className="text-sm font-medium text-[var(--foreground)]">{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
+      />
+    </label>
+  );
+}
+
+function SettingsTextarea({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="grid gap-2">
+      <span className="text-sm font-medium text-[var(--foreground)]">{label}</span>
+      <AutoGrowTextarea
+        value={value}
+        onChange={onChange}
+        minRows={3}
+        className="w-full rounded-[18px] border border-[var(--border)] bg-white px-4 py-3 text-sm leading-6 text-[var(--foreground)] outline-none"
+      />
+    </label>
+  );
+}
+
+function ToggleSwitch({
+  active,
+  onToggle,
+}: {
+  active: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`flex h-8 w-14 items-center rounded-full p-1 transition ${
+        active ? "bg-[var(--accent)]" : "bg-[rgba(24,33,29,0.12)]"
+      }`}
+    >
+      <span
+        className={`h-6 w-6 rounded-full bg-white transition ${active ? "translate-x-6" : ""}`}
+      />
+    </button>
+  );
+}
+
 function MetricIcon({ icon }: { icon: string }) {
   switch (icon) {
     case "moon":
@@ -1099,15 +1347,6 @@ function PlusIcon() {
   );
 }
 
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
-      <circle cx="11" cy="11" r="6" />
-      <path d="m20 20-4.2-4.2" />
-    </svg>
-  );
-}
-
 function DotsIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
@@ -1131,16 +1370,6 @@ function CheckIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-white" stroke="currentColor" strokeWidth="2">
       <path d="m5 12 4 4 10-10" />
-    </svg>
-  );
-}
-
-function HistoryIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
-      <path d="M3 12a9 9 0 1 0 3-6.7" />
-      <path d="M3 4v5h5" />
-      <path d="M12 7v5l3 2" />
     </svg>
   );
 }
