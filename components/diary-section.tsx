@@ -778,9 +778,11 @@ function SortableMetricCard({
           </div>
         </div>
 
-        <div className="mt-4" data-no-drag="true">
-          <MetricInputField metric={metric} value={value} onChange={onChange} />
-        </div>
+        {metric.type !== "boolean" ? (
+          <div className="mt-4" data-no-drag="true">
+            <MetricInputField metric={metric} value={value} onChange={onChange} />
+          </div>
+        ) : null}
       </article>
     </div>
   );
