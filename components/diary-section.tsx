@@ -196,8 +196,22 @@ const metricIconOptions = [
   "book",
 ];
 
+function getProviderLabel(provider: string | undefined) {
+  if (provider === "google") {
+    return "Google";
+  }
+
+  if (provider === "email") {
+    return "Email";
+  }
+
+  return provider ?? "unknown";
+}
+
 export function DiarySection() {
   const {
+    accountEmail,
+    accountInfo,
     analysisError,
     archiveMetric,
     availableMetricTemplates,
@@ -212,6 +226,7 @@ export function DiarySection() {
     selectedDraft,
     selectedEntry,
     selectedTasks,
+    serverEntries,
     setSelectedDate,
     updateMetricValue,
     updateNotes,
@@ -665,6 +680,10 @@ export function DiarySection() {
 
       {isSettingsOpen ? (
         <DiarySettingsModal
+          accountEmail={accountEmail}
+          accountInfo={accountInfo}
+          entryCount={serverEntries.length}
+          metricCount={metricDefinitions.length}
           profile={profile}
           onClose={() => setIsSettingsOpen(false)}
           onChange={updateProfile}
@@ -1413,15 +1432,25 @@ function MetricBuilderModal({
 }
 
 function DiarySettingsModal({
+  accountEmail,
+  accountInfo,
+  entryCount,
+  metricCount,
   profile,
   onClose,
   onChange,
 }: {
+  accountEmail: string | null;
+  accountInfo: { userId: string; email: string | null; provider: string; emailConfirmed: boolean } | null;
+  entryCount: number;
+  metricCount: number;
   profile: WorkspaceProfile;
   onClose: () => void;
   onChange: <K extends keyof WorkspaceProfile>(field: K, value: WorkspaceProfile[K]) => void;
 }) {
   const [tab, setTab] = useState<SettingsTab>("general");
+  const providerLabel = getProviderLabel(accountInfo?.provider);
+  const profileName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
 
   const tabs: Array<{ id: SettingsTab; label: string }> = [
     { id: "general", label: "Общее" },
@@ -1580,9 +1609,52 @@ function DiarySettingsModal({
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
                 Учетная запись
               </h2>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SettingsReadonlyField
+                  label="Email активной сессии"
+                  value={accountInfo?.email ?? accountEmail ?? "Нет данных"}
+                />
+                <SettingsReadonlyField
+                  label="Provider"
+                  value={providerLabel}
+                />
+                <SettingsReadonlyField
+                  label="User ID"
+                  value={accountInfo?.userId ?? "Нет данных"}
+                />
+                <SettingsReadonlyField
+                  label="Email подтвержден"
+                  value={
+                    accountInfo ? (accountInfo.emailConfirmed ? "Да" : "Нет") : "Нет данных"
+                  }
+                />
+                <SettingsReadonlyField
+                  label="Имя в профиле"
+                  value={profileName || "Не заполнено"}
+                />
+                <SettingsReadonlyField
+                  label="Локаль и часовой пояс"
+                  value={`${profile.locale} · ${profile.timezone}`}
+                />
+              </div>
+              <div className="grid gap-4 rounded-[24px] border border-[var(--border)] bg-white/80 p-4 sm:grid-cols-2">
+                <div className="grid gap-1">
+                  <span className="text-sm text-[var(--muted)]">Записей в аккаунте</span>
+                  <strong className="text-2xl font-semibold text-[var(--foreground)]">
+                    {entryCount}
+                  </strong>
+                </div>
+                <div className="grid gap-1">
+                  <span className="text-sm text-[var(--muted)]">Активных метрик</span>
+                  <strong className="text-2xl font-semibold text-[var(--foreground)]">
+                    {metricCount}
+                  </strong>
+                </div>
+              </div>
               <p className="max-w-2xl text-sm leading-7 text-[var(--muted)]">
-                Блок профиля теперь открывается как отдельное окно, как в ChatGPT. Здесь останется
-                управление сессией и базовыми параметрами аккаунта.
+                Здесь теперь видно, под каким email и user id открыт кабинет. Если имя или данные
+                не совпадают с ожидаемыми, это уже можно сразу сверить с `/diagnostics` и
+                `auth.users`.
               </p>
               <div>
                 <LogoutButton />
@@ -1626,6 +1698,25 @@ function SettingsField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
+      />
+    </label>
+  );
+}
+
+function SettingsReadonlyField({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <label className="grid gap-2">
+      <span className="text-sm font-medium text-[var(--foreground)]">{label}</span>
+      <input
+        value={value}
+        readOnly
+        className="min-h-12 rounded-[18px] border border-[var(--border)] bg-[rgba(244,247,244,0.92)] px-4 text-sm text-[var(--muted)] outline-none"
       />
     </label>
   );

@@ -234,6 +234,9 @@ export function WorkspaceProvider({
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const canPersistToServer = isConfigured && !initialError;
+  const storageKey = accountInfo?.userId
+    ? `${WORKSPACE_STORAGE_KEY}:${accountInfo.userId}`
+    : WORKSPACE_STORAGE_KEY;
 
   const savedFingerprints = useRef<Record<string, string>>(
     Object.fromEntries(
@@ -255,7 +258,7 @@ export function WorkspaceProvider({
   useEffect(() => {
     setIsHydrated(true);
 
-    const rawState = window.localStorage.getItem(WORKSPACE_STORAGE_KEY);
+    const rawState = window.localStorage.getItem(storageKey);
 
     if (!rawState) {
       return;
@@ -270,9 +273,9 @@ export function WorkspaceProvider({
 
       setWorkspaceState((current) => mergeWorkspaceState(current, parsedState));
     } catch {
-      window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+      window.localStorage.removeItem(storageKey);
     }
-  }, []);
+  }, [storageKey]);
 
   useEffect(() => {
     if (!isHydrated) {
@@ -280,13 +283,13 @@ export function WorkspaceProvider({
     }
 
     window.localStorage.setItem(
-      WORKSPACE_STORAGE_KEY,
+      storageKey,
       JSON.stringify({
         ...workspaceState,
         version: WORKSPACE_STORAGE_VERSION,
       } satisfies PersistedWorkspaceState),
     );
-  }, [workspaceState, isHydrated]);
+  }, [workspaceState, isHydrated, storageKey]);
 
   const entriesByDate = useMemo(() => buildEntriesByDate(serverEntries), [serverEntries]);
   const metricDefinitions = workspaceState.metricDefinitions;
