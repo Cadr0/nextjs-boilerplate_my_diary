@@ -34,6 +34,14 @@ function pretty(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
 
+function getBrowserTodayIsoDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = `${now.getMonth() + 1}`.padStart(2, "0");
+  const day = `${now.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function toAccountInfo(user: {
   id: string;
   email?: string | null;
@@ -106,6 +114,12 @@ export function AuthDiagnosticsPanel({
     try {
       const response = await fetch("/api/diagnostics/write-test", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          entryDate: getBrowserTodayIsoDate(),
+        }),
       });
       const data = (await response.json()) as WriteTestSnapshot;
       setWriteTestSnapshot(data);

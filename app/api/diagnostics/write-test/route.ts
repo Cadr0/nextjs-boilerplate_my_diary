@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server";
 
 import { saveDiaryEntry } from "@/lib/diary";
-import {
-  createDefaultWorkspaceState,
-  getTodayIsoDate,
-  type DiaryEntryInput,
-} from "@/lib/workspace";
+import { createDefaultWorkspaceState, type DiaryEntryInput } from "@/lib/workspace";
 
-function buildDiagnosticsPayload(): DiaryEntryInput {
+function getSafeEntryDate(entryDate: unknown) {
+  if (typeof entryDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(entryDate)) {
+    return entryDate;
+  }
+
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = `${now.getUTCMonth() + 1}`.padStart(2, "0");
+  const day = `${now.getUTCDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function buildDiagnosticsPayload(entryDate: string): DiaryEntryInput {
   const state = createDefaultWorkspaceState([], [], {}, "diagnostics");
   const metricDefinitions = state.metricDefinitions;
   const metricValues = Object.fromEntries(
@@ -29,7 +37,7 @@ function buildDiagnosticsPayload(): DiaryEntryInput {
   );
 
   return {
-    entry_date: getTodayIsoDate(),
+    entry_date: entryDate,
     summary: "Diagnostics write test",
     notes: "Created by /api/diagnostics/write-test",
     metric_definitions: metricDefinitions,
@@ -37,9 +45,12 @@ function buildDiagnosticsPayload(): DiaryEntryInput {
   };
 }
 
-export async function POST() {
+export async function POST(request: Request) {
+  let payload = buildDiagnosticsPayload(getSafeEntryDate(undefined));
+
   try {
-    const payload = buildDiagnosticsPayload();
+    const body = (await request.json().catch(() => null)) as { entryDate?: string } | null;
+    payload = buildDiagnosticsPayload(getSafeEntryDate(body?.entryDate));
     const result = await saveDiaryEntry(payload);
 
     return NextResponse.json({
@@ -57,7 +68,7 @@ export async function POST() {
     return NextResponse.json(
       {
         ok: false,
-        payload: buildDiagnosticsPayload(),
+        payload,
         result: null,
         error:
           error instanceof Error ? error.message : "Unknown diagnostics write error.",
