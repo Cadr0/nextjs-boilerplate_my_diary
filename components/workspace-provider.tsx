@@ -207,6 +207,14 @@ function generateTaskId() {
   return `task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function normalizeMetricReference(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function collapseMetricReference(value: string) {
+  return normalizeMetricReference(value).replace(/[^a-z0-9а-яё]+/gi, "");
+}
+
 export function WorkspaceProvider({
   children,
   initialEntries,
@@ -601,13 +609,39 @@ export function WorkspaceProvider({
       const energyMetric = findMetricDefinitionBySemantic(metricDefinitions, "energy");
       const stressMetric = findMetricDefinitionBySemantic(metricDefinitions, "stress");
       const sleepMetric = findMetricDefinitionBySemantic(metricDefinitions, "sleep");
+      const resolveMetric = (reference: string) => {
+        const normalizedReference = normalizeMetricReference(reference);
+        const collapsedReference = collapseMetricReference(reference);
+
+        return (
+          metricDefinitions.find(
+            (item) => normalizeMetricReference(item.id) === normalizedReference,
+          ) ??
+          metricDefinitions.find(
+            (item) => normalizeMetricReference(item.slug) === normalizedReference,
+          ) ??
+          metricDefinitions.find(
+            (item) => normalizeMetricReference(item.name) === normalizedReference,
+          ) ??
+          metricDefinitions.find(
+            (item) => collapseMetricReference(item.id) === collapsedReference,
+          ) ??
+          metricDefinitions.find(
+            (item) => collapseMetricReference(item.slug) === collapsedReference,
+          ) ??
+          metricDefinitions.find(
+            (item) => collapseMetricReference(item.name) === collapsedReference,
+          ) ??
+          null
+        );
+      };
       const transcriptNotes = transcript.trim();
       const extractedNotes = extraction.notes?.trim() ?? "";
       const bestNotesSource =
         extractedNotes.length > transcriptNotes.length ? extractedNotes : transcriptNotes;
 
       for (const update of extraction.metric_updates) {
-        const metric = metricDefinitions.find((item) => item.id === update.metric_id);
+        const metric = resolveMetric(update.metric_id);
 
         if (!metric || update.value === null) {
           continue;

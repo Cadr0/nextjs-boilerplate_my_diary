@@ -34,6 +34,7 @@ export function buildDiaryExtractionPrompt(args: {
     "- sleep_hours should be a number only if mentioned or reasonably explicit. Otherwise return null.",
     "- warnings should contain short notes about ambiguity or missing information.",
     "- Use the provided metric definitions and map extracted values into metric_updates using metric_id.",
+    "- metric_id must match one of the provided metric ids exactly.",
     "- Only include metric_updates for metrics that are clearly mentioned or can be conservatively inferred from the transcript.",
     "- For boolean metrics, return true or false only when clearly stated.",
     "- For text metrics, return a short text value only when the transcript gives a direct answer.",
