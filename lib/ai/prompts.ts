@@ -60,17 +60,18 @@ export function buildPeriodAnalysisPrompt(args: {
   entries: PeriodAnalysisEntryPayload[];
 }) {
   return [
-    "You are analyzing diary entries over a selected period.",
+    "Ты анализируешь дневниковые записи за выбранный период.",
     "",
-    "Rules:",
-    "- Return JSON only.",
-    "- Do not use markdown.",
-    "- Summarize patterns across entries.",
-    "- Do not overclaim causality.",
-    "- Distinguish observations from hypotheses.",
-    "- Keep recommendations short and practical.",
+    "Правила:",
+    "- Верни только JSON.",
+    "- Не используй markdown.",
+    "- Суммируй паттерны по всем записям за период.",
+    "- Не преувеличивай причинно-следственные связи.",
+    "- Отделяй наблюдения от гипотез.",
+    "- Рекомендации должны быть короткими и практичными.",
+    "- Пиши содержимое полей по-русски.",
     "",
-    "Return exactly this JSON shape:",
+    "Верни JSON строго такой формы:",
     "{",
     '  "period_summary": "string",',
     '  "patterns": ["string"],',
@@ -84,8 +85,8 @@ export function buildPeriodAnalysisPrompt(args: {
     '  "recommendations": ["string"]',
     "}",
     "",
-    `Period: ${args.from} to ${args.to}`,
-    "Entries payload:",
+    `Период: с ${args.from} по ${args.to}`,
+    "Данные по записям:",
     JSON.stringify(args.entries),
   ].join("\n");
 }

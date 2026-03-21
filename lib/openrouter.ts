@@ -298,7 +298,7 @@ export async function analyzeDiaryPeriod(
       {
         role: "system",
         content:
-          "You analyze patterns across diary entries and return structured JSON only.",
+          "Ты анализируешь паттерны в дневниковых записях за период. Отвечай по-русски и возвращай только структурированный JSON.",
       },
       {
         role: "user",

@@ -246,6 +246,7 @@ export function WorkspaceProvider({
   const storageKey = accountInfo?.userId
     ? `${WORKSPACE_STORAGE_KEY}:${accountInfo.userId}`
     : WORKSPACE_STORAGE_KEY;
+  const microphoneMigrationKey = `${storageKey}:microphone-enabled-default-v1`;
 
   const savedFingerprints = useRef<Record<string, string>>(
     Object.fromEntries(
@@ -299,6 +300,28 @@ export function WorkspaceProvider({
       } satisfies PersistedWorkspaceState),
     );
   }, [workspaceState, isHydrated, storageKey]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    const migrationState = window.localStorage.getItem(microphoneMigrationKey);
+
+    if (migrationState) {
+      return;
+    }
+
+    setWorkspaceState((current) => ({
+      ...current,
+      profile: {
+        ...current.profile,
+        microphoneEnabled: true,
+      },
+    }));
+
+    window.localStorage.setItem(microphoneMigrationKey, "done");
+  }, [isHydrated, microphoneMigrationKey]);
 
   const entriesByDate = useMemo(() => buildEntriesByDate(serverEntries), [serverEntries]);
   const metricDefinitions = workspaceState.metricDefinitions;

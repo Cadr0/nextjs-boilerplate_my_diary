@@ -356,7 +356,7 @@ export const defaultProfile: WorkspaceProfile = {
   weekStartsOn: "monday",
   compactMetrics: true,
   keepRightRailOpen: true,
-  microphoneEnabled: false,
+  microphoneEnabled: true,
   chatTone: "supportive",
   aiModel: "arcee-ai/trinity-large-preview:free",
 };
