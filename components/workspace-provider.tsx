@@ -171,8 +171,8 @@ function mergeWorkspaceState(
   return {
     version: WORKSPACE_STORAGE_VERSION,
     drafts: {
-      ...baseState.drafts,
       ...persistedState.drafts,
+      ...baseState.drafts,
     },
     tasks: Array.isArray(persistedState.tasks) ? persistedState.tasks : baseState.tasks,
     metricDefinitions:
@@ -241,6 +241,7 @@ export function WorkspaceProvider({
   const [analysisState, setAnalysisState] = useState<"idle" | "loading" | "error">("idle");
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
+  const lastServerRefreshRef = useRef(0);
   const canPersistToServer = isConfigured && !initialError;
   const storageKey = accountInfo?.userId
     ? `${WORKSPACE_STORAGE_KEY}:${accountInfo.userId}`
@@ -357,6 +358,45 @@ export function WorkspaceProvider({
   const hasUnsavedChanges =
     canPersistToServer &&
     savedFingerprints.current[selectedDate] !== selectedPayloadFingerprint;
+
+  useEffect(() => {
+    if (!canPersistToServer) {
+      return;
+    }
+
+    const refreshFromServer = () => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+
+      if (saveState === "saving" || hasUnsavedChanges) {
+        return;
+      }
+
+      const now = Date.now();
+
+      if (now - lastServerRefreshRef.current < 15000) {
+        return;
+      }
+
+      lastServerRefreshRef.current = now;
+      router.refresh();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshFromServer();
+      }
+    };
+
+    window.addEventListener("focus", refreshFromServer);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", refreshFromServer);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [canPersistToServer, hasUnsavedChanges, router, saveState]);
 
   const saveSelectedPayload = async (
     payloadFingerprint: string,
