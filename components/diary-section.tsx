@@ -2089,7 +2089,7 @@ function ToggleSwitch({
       type="button"
       onClick={onToggle}
       disabled={disabled}
-      className={`flex h-8 w-14 items-center rounded-full p-1 transition ${
+      className={`relative flex h-8 w-14 shrink-0 items-center overflow-hidden rounded-full p-1 transition ${
         disabled
           ? "cursor-not-allowed bg-[rgba(24,33,29,0.08)] opacity-60"
           : active
@@ -2098,7 +2098,7 @@ function ToggleSwitch({
       }`}
     >
       <span
-        className={`h-6 w-6 rounded-full bg-white transition ${active ? "translate-x-6" : ""}`}
+        className={`block h-6 w-6 shrink-0 rounded-full bg-white transition ${active ? "translate-x-6" : ""}`}
       />
     </button>
   );
