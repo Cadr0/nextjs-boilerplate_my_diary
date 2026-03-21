@@ -187,20 +187,20 @@ type MetricModalState =
 type SettingsTab = "general" | "profile" | "assistant" | "account";
 
 const metricIconOptions = [
-  "spark",
-  "moon",
-  "smile",
-  "pulse",
-  "leaf",
-  "target",
-  "note",
   "heart",
+  "leaf",
+  "dumbbell",
+  "moon",
+  "food",
+  "apple",
+  "drop",
   "sun",
   "flame",
+  "pulse",
+  "smile",
+  "running",
+  "scale",
   "book",
-  "drop",
-  "apple",
-  "briefcase",
   "users",
   "chat",
 ];
@@ -2108,12 +2108,20 @@ function MetricIcon({ icon }: { icon: string }) {
   switch (icon) {
     case "moon":
       return <MoonIcon />;
+    case "dumbbell":
+      return <DumbbellIcon />;
+    case "food":
+      return <FoodIcon />;
     case "smile":
       return <SmileIcon />;
     case "pulse":
       return <PulseIcon />;
     case "leaf":
       return <LeafIcon />;
+    case "running":
+      return <RunningIcon />;
+    case "scale":
+      return <ScaleIcon />;
     case "target":
       return <TargetIcon />;
     case "note":
@@ -2236,6 +2244,30 @@ function MoonIcon() {
   );
 }
 
+function DumbbellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 10v4" />
+      <path d="M7 9v6" />
+      <path d="M17 9v6" />
+      <path d="M20 10v4" />
+      <path d="M7 12h10" />
+    </svg>
+  );
+}
+
+function FoodIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M7 4v8" />
+      <path d="M5.5 4v3" />
+      <path d="M8.5 4v3" />
+      <path d="M7 12v8" />
+      <path d="M15.5 4c-1.8 0-3 1.5-3 3.5V12h3v8" />
+    </svg>
+  );
+}
+
 function SmileIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
@@ -2320,6 +2352,28 @@ function BookIcon() {
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
       <path d="M6 4h11a2 2 0 0 1 2 2v12H8a2 2 0 0 0-2 2V4Z" />
       <path d="M6 18a2 2 0 0 1 2-2h11" />
+    </svg>
+  );
+}
+
+function RunningIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="15.5" cy="5.5" r="1.8" />
+      <path d="m10 11 3.2-1.8 2.3 1.3" />
+      <path d="m8 18 2.8-4.2 2.7 1.5" />
+      <path d="m12 20 2.1-3.1 3.4.8" />
+      <path d="m9 12-2.5 2.5" />
+    </svg>
+  );
+}
+
+function ScaleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <rect x="4" y="5" width="16" height="14" rx="4" />
+      <path d="M8 10a4 4 0 0 1 8 0" />
+      <path d="m12 10 2-2" />
     </svg>
   );
 }
