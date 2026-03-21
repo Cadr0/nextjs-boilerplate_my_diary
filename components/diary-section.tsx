@@ -25,6 +25,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { DiaryAssistantPanel } from "@/components/diary-assistant-panel";
 import { AccountSecurityPanel } from "@/components/account-security-panel";
+import { InstallAppButton } from "@/components/install-app-button";
+import { LogoutButton } from "@/components/logout-button";
 import { VoiceEntryPanel } from "@/components/voice-entry-panel";
 import { useWorkspace } from "@/components/workspace-provider";
 import type {
@@ -244,6 +246,8 @@ export function DiarySection() {
 
   const [metricModal, setMetricModal] = useState<MetricModalState>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>("general");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [microphonePermission, setMicrophonePermission] = useState<
     "unknown" | "prompt" | "granted" | "denied"
@@ -292,7 +296,7 @@ export function DiarySection() {
   };
 
   useEffect(() => {
-    if (!isSettingsOpen && !metricModal && !isMobileSidebarOpen) {
+    if (!isSettingsOpen && !isUserMenuOpen && !metricModal && !isMobileSidebarOpen) {
       return;
     }
 
@@ -302,7 +306,7 @@ export function DiarySection() {
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [isMobileSidebarOpen, isSettingsOpen, metricModal]);
+  }, [isMobileSidebarOpen, isSettingsOpen, isUserMenuOpen, metricModal]);
 
   useEffect(() => {
     if (
@@ -378,6 +382,13 @@ export function DiarySection() {
     setSelectedDate(shiftIsoDate(selectedDate, offset));
   };
 
+  const openSettings = (tab: SettingsTab = "general") => {
+    setSettingsInitialTab(tab);
+    setIsUserMenuOpen(false);
+    setIsMobileSidebarOpen(false);
+    setIsSettingsOpen(true);
+  };
+
   const sidebarContent = (
     <>
       <div className="flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 px-4 py-3">
@@ -443,7 +454,7 @@ export function DiarySection() {
       <button
         type="button"
         onClick={() => {
-          setIsSettingsOpen(true);
+          setIsUserMenuOpen(true);
           setIsMobileSidebarOpen(false);
         }}
         className="mt-4 flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 p-4 text-left transition hover:border-[rgba(47,111,97,0.24)]"
@@ -456,7 +467,7 @@ export function DiarySection() {
             {profile.firstName}
             {profile.lastName ? ` ${profile.lastName}` : ""}
           </p>
-          <p className="mt-1 text-xs text-[var(--muted)]">Профиль и настройки</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">Профиль, приложение и выход</p>
         </div>
         <DotsIcon />
       </button>
@@ -579,9 +590,9 @@ export function DiarySection() {
                 </Link>
                 <button
                   type="button"
-                  onClick={() => setIsSettingsOpen(true)}
+                  onClick={() => setIsUserMenuOpen(true)}
                   className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/94 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                  aria-label="Открыть настройки"
+                  aria-label="Открыть меню пользователя"
                 >
                   <DotsIcon />
                 </button>
@@ -758,11 +769,21 @@ export function DiarySection() {
           accountInfo={accountInfo}
           entryCount={serverEntries.length}
           metricCount={metricDefinitions.length}
+          initialTab={settingsInitialTab}
           microphonePermission={microphonePermission}
           profile={profile}
           onClose={() => setIsSettingsOpen(false)}
           onChange={updateProfile}
           onMicrophoneToggle={() => void handleMicrophoneToggle()}
+        />
+      ) : null}
+
+      {isUserMenuOpen ? (
+        <DiaryUserMenu
+          accountEmail={accountEmail}
+          profile={profile}
+          onClose={() => setIsUserMenuOpen(false)}
+          onOpenSettings={openSettings}
         />
       ) : null}
     </>
@@ -1502,6 +1523,7 @@ function DiarySettingsModal({
   accountInfo,
   entryCount,
   metricCount,
+  initialTab,
   microphonePermission,
   profile,
   onClose,
@@ -1512,13 +1534,14 @@ function DiarySettingsModal({
   accountInfo: { userId: string; email: string | null; provider: string; emailConfirmed: boolean } | null;
   entryCount: number;
   metricCount: number;
+  initialTab: SettingsTab;
   microphonePermission: "unknown" | "prompt" | "granted" | "denied";
   profile: WorkspaceProfile;
   onClose: () => void;
   onChange: <K extends keyof WorkspaceProfile>(field: K, value: WorkspaceProfile[K]) => void;
   onMicrophoneToggle: () => void;
 }) {
-  const [tab, setTab] = useState<SettingsTab>("general");
+  const [tab, setTab] = useState<SettingsTab>(initialTab);
   const providerLabel = getProviderLabel(accountInfo?.provider);
   const profileName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
   const microphonePermissionLabel =
@@ -1543,6 +1566,10 @@ function DiarySettingsModal({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [onClose]);
+
+  useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab]);
 
   const tabs: Array<{ id: SettingsTab; label: string }> = [
     { id: "general", label: "Общее" },
@@ -1809,6 +1836,117 @@ function SettingsField({
         className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
       />
     </label>
+  );
+}
+
+function DiaryUserMenu({
+  accountEmail,
+  profile,
+  onClose,
+  onOpenSettings,
+}: {
+  accountEmail: string | null;
+  profile: WorkspaceProfile;
+  onClose: () => void;
+  onOpenSettings: (tab: SettingsTab) => void;
+}) {
+  const profileName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
+  const profileHandle = accountEmail ? `@${accountEmail.split("@")[0]}` : "@diary";
+  const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(25,31,30,0.18)] px-3 py-4 sm:items-start sm:justify-end sm:px-6"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="surface-card w-full max-w-[380px] rounded-[30px] border border-white/80 bg-[rgba(255,250,246,0.98)] p-5 shadow-[0_34px_80px_rgba(24,33,29,0.18)] sm:mt-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white">
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-[1.1rem] font-semibold text-[var(--foreground)]">{profileName}</p>
+            <p className="truncate text-sm text-[var(--muted)]">{profileHandle}</p>
+          </div>
+        </div>
+
+        <div className="mt-5 h-px bg-[var(--border)]" />
+
+        <div className="mt-4 grid gap-2">
+          <UserMenuButton
+            icon={<UserIcon />}
+            label="Профиль"
+            onClick={() => onOpenSettings("profile")}
+          />
+          <UserMenuButton
+            icon={<SettingsIcon />}
+            label="Настройки"
+            onClick={() => onOpenSettings("general")}
+          />
+          <UserMenuButton
+            icon={<ShieldIcon />}
+            label="Учетная запись"
+            onClick={() => onOpenSettings("account")}
+          />
+          <UserMenuButton
+            icon={<RobotMenuIcon />}
+            label="Ассистент"
+            onClick={() => onOpenSettings("assistant")}
+          />
+        </div>
+
+        <div className="mt-5 h-px bg-[var(--border)]" />
+
+        <div className="mt-4 grid gap-3">
+          <InstallAppButton className="justify-center rounded-[20px] border border-[var(--border)] bg-white px-4 py-3 text-left text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]" />
+          <LogoutButton
+            className="inline-flex min-h-12 items-center justify-center rounded-[20px] border border-[var(--border)] bg-white px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgb(136,47,63)] hover:text-[rgb(136,47,63)] disabled:cursor-not-allowed disabled:opacity-60"
+            label="Выйти"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UserMenuButton({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-12 items-center gap-3 rounded-[20px] px-3 text-left text-[1.05rem] text-[var(--foreground)] transition hover:bg-white/80"
+    >
+      <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]">
+        {icon}
+      </span>
+      <span>{label}</span>
+    </button>
   );
 }
 
@@ -2098,6 +2236,45 @@ function BookIcon() {
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
       <path d="M6 4h11a2 2 0 0 1 2 2v12H8a2 2 0 0 0-2 2V4Z" />
       <path d="M6 18a2 2 0 0 1 2-2h11" />
+    </svg>
+  );
+}
+
+function UserIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+      <path d="M5 20a7 7 0 0 1 14 0" />
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
+      <path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.4.8a7.6 7.6 0 0 0-1.7-1L14.4 3h-4.8l-.4 2.8a7.6 7.6 0 0 0-1.7 1l-2.4-.8-2 3.4 2 1.6a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.4-.8a7.6 7.6 0 0 0 1.7 1l.4 2.8h4.8l.4-2.8a7.6 7.6 0 0 0 1.7-1l2.4.8 2-3.4-2-1.6c.1-.3.1-.7.1-1Z" />
+    </svg>
+  );
+}
+
+function ShieldIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 3 5 6v5c0 4.4 2.7 7.8 7 10 4.3-2.2 7-5.6 7-10V6l-7-3Z" />
+      <path d="m9.5 12 1.7 1.7 3.3-3.7" />
+    </svg>
+  );
+}
+
+function RobotMenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+      <rect x="5" y="8" width="14" height="9" rx="3" />
+      <path d="M12 4v3" />
+      <path d="M9 12h.01" />
+      <path d="M15 12h.01" />
+      <path d="M8.5 15h7" />
     </svg>
   );
 }

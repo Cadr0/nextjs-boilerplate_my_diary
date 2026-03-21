@@ -1,5 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Lora, Manrope } from "next/font/google";
+
+import { PwaRegister } from "@/components/pwa-register";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -20,12 +22,22 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  applicationName: "Diary AI",
   title: {
     default: "Diary AI",
     template: "%s | Diary AI",
   },
-  description:
-    "Спокойное пространство для дневника, метрик и мягкого AI-анализа без перегруженного интерфейса.",
+  manifest: "/manifest.webmanifest",
+  description: "Личный дневник с метриками, голосовым вводом и AI-разбором.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Diary AI",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#2f6f61",
 };
 
 export default function RootLayout({
@@ -38,7 +50,10 @@ export default function RootLayout({
       lang="ru"
       className={`${manrope.variable} ${lora.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <PwaRegister />
+        {children}
+      </body>
     </html>
   );
 }
