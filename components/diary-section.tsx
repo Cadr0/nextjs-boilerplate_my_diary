@@ -196,6 +196,11 @@ const metricIconOptions = [
   "sun",
   "flame",
   "book",
+  "drop",
+  "apple",
+  "briefcase",
+  "users",
+  "chat",
 ];
 
 function getProviderLabel(provider: string | undefined) {
@@ -1905,6 +1910,16 @@ function MetricIcon({ icon }: { icon: string }) {
       return <FlameIcon />;
     case "book":
       return <BookIcon />;
+    case "drop":
+      return <DropIcon />;
+    case "apple":
+      return <AppleIcon />;
+    case "briefcase":
+      return <BriefcaseIcon />;
+    case "users":
+      return <UsersIcon />;
+    case "chat":
+      return <ChatIcon />;
     default:
       return <SparkIcon />;
   }
@@ -2089,6 +2104,56 @@ function BookIcon() {
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
       <path d="M6 4h11a2 2 0 0 1 2 2v12H8a2 2 0 0 0-2 2V4Z" />
       <path d="M6 18a2 2 0 0 1 2-2h11" />
+    </svg>
+  );
+}
+
+function DropIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 3.5c2.8 4.1 5.5 7 5.5 10.1A5.5 5.5 0 1 1 6.5 13.6C6.5 10.5 9.2 7.6 12 3.5Z" />
+      <path d="M9.7 14.8a2.8 2.8 0 0 0 4.6 0" />
+    </svg>
+  );
+}
+
+function AppleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M14.7 7.3c-.4-1.7.4-3.1 1.6-4.1-1.8-.2-3.2.7-4.1 1.8-1-1.1-2.4-2-4.2-1.8 1.2 1 2 2.4 1.6 4.1" />
+      <path d="M8.3 8.6c-2.2 0-3.8 1.8-3.8 4.5 0 4.2 3 6.9 5.6 6.9 1 0 1.7-.4 2.3-.8.6-.4 1.1-.7 2-.7s1.4.3 2 .7c.6.4 1.3.8 2.3.8 2.6 0 5.3-3 5.3-6.9 0-2.7-1.6-4.5-3.8-4.5-1.3 0-2.2.5-2.9 1-.5.3-.9.6-1.3.6s-.8-.3-1.3-.6c-.7-.5-1.6-1-2.9-1Z" />
+      <path d="M12.2 5.6c.7-1.3 1.9-2.1 3.2-2.1" />
+    </svg>
+  );
+}
+
+function BriefcaseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M8 6.5A2.5 2.5 0 0 1 10.5 4h3A2.5 2.5 0 0 1 16 6.5V8h2.8A2.2 2.2 0 0 1 21 10.2v7.3A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-7.3A2.2 2.2 0 0 1 5.2 8H8V6.5Z" />
+      <path d="M8 8h8" />
+      <path d="M10 12h4" />
+    </svg>
+  );
+}
+
+function UsersIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M8.5 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+      <path d="M16.5 10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
+      <path d="M4.5 18.5a4.8 4.8 0 0 1 8 0" />
+      <path d="M13 18.5a4.1 4.1 0 0 1 6-3.1" />
+    </svg>
+  );
+}
+
+function ChatIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M6.5 6h11A3.5 3.5 0 0 1 21 9.5v4a3.5 3.5 0 0 1-3.5 3.5H11l-4.5 3v-3h0A3.5 3.5 0 0 1 3 13.5v-4A3.5 3.5 0 0 1 6.5 6Z" />
+      <path d="M8 11h8" />
+      <path d="M8 14h5" />
     </svg>
   );
 }

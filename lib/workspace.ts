@@ -311,6 +311,7 @@ export const metricTypeOptions: MetricTypeOption[] = [
 export const metricAccentOptions = [
   "#6d8fcf",
   "#7aa8d8",
+  "#7dbfb5",
   "#93c57e",
   "#b9d481",
   "#efc76f",
