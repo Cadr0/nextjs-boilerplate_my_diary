@@ -227,6 +227,33 @@ export async function analyzeDiaryEntry(entry: AnalyzeDiaryEntryInput) {
             : "- Нет сохраненных метрик.",
         ].join("\n"),
       },
+      {
+        role: "system",
+        content:
+          "Используй для анализа весь дневной payload: поле «Как прошел день», поле «Главное за день» и метрики из БД. Не игнорируй метрики, если они есть. Сформируй связный русский разбор дня на 3-4 абзаца: главное состояние, ключевые факторы, сигналы риска или напряжения, один практичный следующий шаг.",
+      },
+      {
+        role: "user",
+        content: [
+          `Дата: ${entry.entryDate}`,
+          "",
+          "Главное за день:",
+          entry.summary || "Нет данных.",
+          "",
+          "Как прошел день:",
+          entry.notes || "Нет данных.",
+          "",
+          "Метрики из БД:",
+          entry.metrics.length > 0
+            ? entry.metrics
+                .map(
+                  (metric) =>
+                    `- ${metric.name}: ${String(metric.value)}${metric.unit ? ` ${metric.unit}` : ""} [тип: ${metric.type}]`,
+                )
+                .join("\n")
+            : "- Нет сохраненных метрик.",
+        ].join("\n"),
+      },
     ],
     {
       model: entry.model,
