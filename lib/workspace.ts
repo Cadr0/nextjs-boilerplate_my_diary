@@ -325,14 +325,14 @@ export const metricTemplateLibrary = metricTemplates;
 
 export const aiModelOptions = [
   {
-    id: "arcee-ai/trinity-large-preview:free",
-    label: "Trinity Large",
-    description: "Free large preview model for deeper replies.",
+    id: "deepseek/deepseek-v3.2",
+    label: "DeepSeek V3.2",
+    description: "Primary model for diary extraction and analysis.",
   },
   {
-    id: "openrouter/free",
-    label: "Free Auto",
-    description: "OpenRouter free router.",
+    id: "arcee-ai/trinity-large-preview:free",
+    label: "Trinity Large",
+    description: "Free large preview fallback model.",
   },
   {
     id: "nvidia/nemotron-3-super-120b-a12b:free",
@@ -359,7 +359,7 @@ export const defaultProfile: WorkspaceProfile = {
   keepRightRailOpen: true,
   microphoneEnabled: true,
   chatTone: "supportive",
-  aiModel: "arcee-ai/trinity-large-preview:free",
+  aiModel: "deepseek/deepseek-v3.2",
 };
 
 function generateId(prefix: string) {

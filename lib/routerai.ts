@@ -5,7 +5,7 @@ import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace
 const routerAiBaseUrl =
   process.env.ROUTERAI_BASE_URL ?? "https://routerai.ru/api/v1";
 const routerAiApiKey = process.env.ROUTERAI_API_KEY;
-const routerAiModel = process.env.ROUTERAI_MODEL ?? "openai/gpt-5.4-nano";
+const routerAiModel = process.env.ROUTERAI_MODEL ?? "deepseek/deepseek-v3.2";
 
 export function getRouterAiConfigError() {
   if (!routerAiApiKey) {
