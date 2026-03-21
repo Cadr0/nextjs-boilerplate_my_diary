@@ -1590,8 +1590,8 @@ function DiarySettingsModal({
         }
       }}
     >
-      <div className="surface-card flex max-h-[86dvh] w-full max-w-[420px] flex-col overflow-hidden rounded-[30px] border border-white/80 bg-[rgba(255,250,246,0.96)] shadow-[0_38px_90px_rgba(24,33,29,0.18)] sm:h-[min(90vh,760px)] sm:max-w-5xl sm:flex-row sm:rounded-[34px]">
-        <div className="flex w-full shrink-0 flex-col border-b border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-3 sm:max-w-[290px] sm:border-b-0 sm:border-r sm:p-4">
+      <div className="surface-card flex max-h-[86dvh] w-full max-w-[560px] flex-row overflow-hidden rounded-[30px] border border-white/80 bg-[rgba(255,250,246,0.96)] shadow-[0_38px_90px_rgba(24,33,29,0.18)] sm:h-[min(90vh,760px)] sm:max-w-5xl sm:rounded-[34px]">
+        <div className="flex w-[132px] shrink-0 flex-col border-r border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-3 sm:max-w-[290px] sm:p-4">
           <button
             type="button"
             onClick={onClose}
@@ -1601,13 +1601,13 @@ function DiarySettingsModal({
             <CloseIcon />
           </button>
 
-          <div className="grid grid-cols-2 gap-2 pb-1 sm:grid-cols-1 sm:overflow-visible sm:pb-0">
+          <div className="grid grid-cols-1 gap-2 pb-1 sm:overflow-visible sm:pb-0">
             {tabs.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setTab(item.id)}
-                className={`min-w-0 rounded-[16px] px-3.5 py-2.5 text-left text-sm transition sm:rounded-[18px] sm:px-4 sm:py-3 sm:text-base ${
+                className={`min-w-0 rounded-[15px] px-3 py-2.5 text-left text-[0.95rem] transition sm:rounded-[18px] sm:px-4 sm:py-3 sm:text-base ${
                   tab === item.id
                     ? "bg-white text-[var(--foreground)] shadow-[0_12px_24px_rgba(24,33,29,0.08)]"
                     : "text-[var(--muted)] hover:bg-white/70"
@@ -1622,7 +1622,7 @@ function DiarySettingsModal({
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-8">
           {tab === "general" ? (
             <div className="grid min-h-full content-start gap-4 sm:gap-6">
-              <h2 className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+              <h2 className="text-[1.75rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
                 Общее
               </h2>
               <SettingsRow
@@ -1676,7 +1676,7 @@ function DiarySettingsModal({
 
           {tab === "profile" ? (
             <div className="grid min-h-full content-start gap-4 sm:gap-6">
-              <h2 className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+              <h2 className="text-[1.75rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
                 Профиль
               </h2>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -1711,7 +1711,7 @@ function DiarySettingsModal({
 
           {tab === "assistant" ? (
             <div className="grid min-h-full content-start gap-4 sm:gap-6">
-              <h2 className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+              <h2 className="text-[1.75rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
                 Ассистент
               </h2>
               <SettingsRow
@@ -1749,7 +1749,7 @@ function DiarySettingsModal({
 
           {tab === "account" ? (
             <div className="grid min-h-full content-start gap-4 sm:gap-6">
-              <h2 className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+              <h2 className="text-[1.75rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
                 Учетная запись
               </h2>
               <div className="grid gap-4 sm:grid-cols-2">
