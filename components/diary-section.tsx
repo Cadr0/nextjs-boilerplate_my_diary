@@ -385,7 +385,6 @@ export function DiarySection() {
   const openSettings = (tab: SettingsTab = "general") => {
     setSettingsInitialTab(tab);
     setIsUserMenuOpen(false);
-    setIsMobileSidebarOpen(false);
     setIsSettingsOpen(true);
   };
 
@@ -465,7 +464,6 @@ export function DiarySection() {
         type="button"
         onClick={() => {
           setIsUserMenuOpen((current) => !current);
-          setIsMobileSidebarOpen(false);
         }}
         className="mt-4 flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 p-4 text-left transition hover:border-[rgba(47,111,97,0.24)]"
       >
@@ -1585,19 +1583,19 @@ function DiarySettingsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(25,31,30,0.18)] px-0 py-0 sm:items-center sm:px-4 sm:py-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(25,31,30,0.18)] px-3 py-4 sm:px-4 sm:py-6"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="surface-card flex h-[100dvh] w-full flex-col overflow-hidden rounded-none border border-white/80 bg-[rgba(255,250,246,0.96)] shadow-[0_38px_90px_rgba(24,33,29,0.18)] sm:h-[min(90vh,760px)] sm:max-w-5xl sm:flex-row sm:rounded-[34px]">
-        <div className="flex w-full shrink-0 flex-col border-b border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-4 sm:max-w-[290px] sm:border-b-0 sm:border-r">
+      <div className="surface-card flex max-h-[86dvh] w-full max-w-[420px] flex-col overflow-hidden rounded-[30px] border border-white/80 bg-[rgba(255,250,246,0.96)] shadow-[0_38px_90px_rgba(24,33,29,0.18)] sm:h-[min(90vh,760px)] sm:max-w-5xl sm:flex-row sm:rounded-[34px]">
+        <div className="flex w-full shrink-0 flex-col border-b border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-3 sm:max-w-[290px] sm:border-b-0 sm:border-r sm:p-4">
           <button
             type="button"
             onClick={onClose}
-            className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl text-[var(--foreground)] transition hover:bg-white"
+            className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl text-[var(--foreground)] transition hover:bg-white sm:mb-4 sm:h-11 sm:w-11"
             aria-label="Закрыть настройки"
           >
             <CloseIcon />
@@ -1609,7 +1607,7 @@ function DiarySettingsModal({
                 key={item.id}
                 type="button"
                 onClick={() => setTab(item.id)}
-                className={`shrink-0 rounded-[18px] px-4 py-3 text-left text-sm transition sm:text-base ${
+                className={`shrink-0 rounded-[16px] px-3.5 py-2.5 text-left text-sm transition sm:rounded-[18px] sm:px-4 sm:py-3 sm:text-base ${
                   tab === item.id
                     ? "bg-white text-[var(--foreground)] shadow-[0_12px_24px_rgba(24,33,29,0.08)]"
                     : "text-[var(--muted)] hover:bg-white/70"
@@ -1621,10 +1619,10 @@ function DiarySettingsModal({
           </div>
         </div>
 
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-5 sm:p-8">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-8">
           {tab === "general" ? (
-            <div className="grid min-h-full content-start gap-6">
-              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+            <div className="grid min-h-full content-start gap-4 sm:gap-6">
+              <h2 className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
                 Общее
               </h2>
               <SettingsRow
@@ -1677,8 +1675,8 @@ function DiarySettingsModal({
           ) : null}
 
           {tab === "profile" ? (
-            <div className="grid min-h-full content-start gap-6">
-              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+            <div className="grid min-h-full content-start gap-4 sm:gap-6">
+              <h2 className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
                 Профиль
               </h2>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -1712,8 +1710,8 @@ function DiarySettingsModal({
           ) : null}
 
           {tab === "assistant" ? (
-            <div className="grid min-h-full content-start gap-6">
-              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+            <div className="grid min-h-full content-start gap-4 sm:gap-6">
+              <h2 className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
                 Ассистент
               </h2>
               <SettingsRow
@@ -1750,8 +1748,8 @@ function DiarySettingsModal({
           ) : null}
 
           {tab === "account" ? (
-            <div className="grid min-h-full content-start gap-6">
-              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+            <div className="grid min-h-full content-start gap-4 sm:gap-6">
+              <h2 className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
                 Учетная запись
               </h2>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -1816,8 +1814,8 @@ function SettingsRow({
   control: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 border-b border-[var(--border)] pb-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <p className="text-lg text-[var(--foreground)] sm:text-xl">{label}</p>
+    <div className="flex flex-col gap-2.5 border-b border-[var(--border)] pb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:pb-5">
+      <p className="text-base text-[var(--foreground)] sm:text-xl">{label}</p>
       {control}
     </div>
   );
@@ -1838,7 +1836,7 @@ function SettingsField({
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
+        className="min-h-11 rounded-[16px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none sm:min-h-12 sm:rounded-[18px]"
       />
     </label>
   );
@@ -1881,20 +1879,20 @@ function DiaryUserMenu({
 
   if (embedded) {
     return (
-      <div className="mt-3 rounded-[26px] border border-[var(--border)] bg-white/92 p-4 shadow-[0_18px_36px_rgba(24,33,29,0.08)]">
+      <div className="mt-3 rounded-[24px] border border-[var(--border)] bg-white/92 p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] sm:rounded-[26px] sm:p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white sm:h-11 sm:w-11">
             {initials}
           </div>
           <div className="min-w-0">
-            <p className="truncate text-base font-semibold text-[var(--foreground)]">{profileName}</p>
+            <p className="truncate text-[1.05rem] font-semibold text-[var(--foreground)] sm:text-base">{profileName}</p>
             <p className="truncate text-xs text-[var(--muted)]">{profileHandle}</p>
           </div>
         </div>
 
-        <div className="mt-4 h-px bg-[var(--border)]" />
+        <div className="mt-3 h-px bg-[var(--border)] sm:mt-4" />
 
-        <div className="mt-3 grid gap-1">
+        <div className="mt-2.5 grid gap-0.5 sm:mt-3 sm:gap-1">
           <UserMenuButton
             icon={<UserIcon />}
             label="Профиль"
@@ -1917,12 +1915,12 @@ function DiaryUserMenu({
           />
         </div>
 
-        <div className="mt-4 h-px bg-[var(--border)]" />
+        <div className="mt-3 h-px bg-[var(--border)] sm:mt-4" />
 
-        <div className="mt-4 grid gap-3">
-          <InstallAppButton className="justify-center rounded-[20px] border border-[var(--border)] bg-white px-4 py-3 text-left text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]" />
+        <div className="mt-3 grid gap-2 sm:mt-4 sm:gap-3">
+          <InstallAppButton className="justify-center rounded-[18px] border border-[var(--border)] bg-white px-4 py-2.5 text-left text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:rounded-[20px] sm:py-3" />
           <LogoutButton
-            className="inline-flex min-h-12 items-center justify-center rounded-[20px] border border-[var(--border)] bg-white px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgb(136,47,63)] hover:text-[rgb(136,47,63)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgb(136,47,63)] hover:text-[rgb(136,47,63)] disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:rounded-[20px]"
             label="Выйти"
           />
         </div>
@@ -2002,9 +2000,9 @@ function UserMenuButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-12 items-center gap-3 rounded-[20px] px-3 text-left text-[1.05rem] text-[var(--foreground)] transition hover:bg-white/80"
+      className="flex min-h-11 items-center gap-2.5 rounded-[18px] px-2.5 text-left text-[0.98rem] text-[var(--foreground)] transition hover:bg-white/80 sm:min-h-12 sm:gap-3 sm:rounded-[20px] sm:px-3 sm:text-[1.05rem]"
     >
-      <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]">
+      <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)] sm:h-9 sm:w-9">
         {icon}
       </span>
       <span>{label}</span>
@@ -2025,7 +2023,7 @@ function SettingsReadonlyField({
       <input
         value={value}
         readOnly
-        className="min-h-12 rounded-[18px] border border-[var(--border)] bg-[rgba(244,247,244,0.92)] px-4 text-sm text-[var(--muted)] outline-none"
+        className="min-h-11 rounded-[16px] border border-[var(--border)] bg-[rgba(244,247,244,0.92)] px-4 text-sm text-[var(--muted)] outline-none sm:min-h-12 sm:rounded-[18px]"
       />
     </label>
   );
@@ -2047,7 +2045,7 @@ function SettingsTextarea({
         value={value}
         onChange={onChange}
         minRows={3}
-        className="w-full rounded-[18px] border border-[var(--border)] bg-white px-4 py-3 text-sm leading-6 text-[var(--foreground)] outline-none"
+        className="w-full rounded-[16px] border border-[var(--border)] bg-white px-4 py-3 text-sm leading-6 text-[var(--foreground)] outline-none sm:rounded-[18px]"
       />
     </label>
   );

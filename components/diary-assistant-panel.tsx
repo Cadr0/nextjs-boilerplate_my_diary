@@ -254,7 +254,7 @@ export function DiaryAssistantPanel() {
           ))}
         </div>
 
-        <div className="mt-5 grid gap-3 pb-32 sm:pb-28">
+        <div className="mt-5 grid gap-3 pb-24 sm:pb-28">
           {chatMessages.length === 0 ? (
             <div className="rounded-[24px] border border-dashed border-[var(--border)] bg-[rgba(247,249,246,0.84)] px-4 py-5 text-sm leading-7 text-[var(--muted)]">
               Спроси про запись, метрики или причины текущего состояния.
@@ -290,25 +290,25 @@ export function DiaryAssistantPanel() {
         {chatError ? <p className="mt-3 text-sm text-[rgb(136,47,63)]">{chatError}</p> : null}
 
         <form
-          className="sticky bottom-3 z-20 mt-5"
+          className="sticky bottom-3 z-20 mt-4"
           onSubmit={(event) => {
             event.preventDefault();
             void sendChatMessage(chatInput);
           }}
         >
-          <div className="grid gap-3 rounded-[28px] border border-[var(--border)] bg-[rgba(255,255,255,0.98)] p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] backdrop-blur sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:rounded-[30px] sm:px-4 sm:py-3">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[26px] border border-[var(--border)] bg-[rgba(255,255,255,0.98)] p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] backdrop-blur sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-3 sm:rounded-[30px] sm:px-4 sm:py-3">
             <input
               value={chatInput}
               onChange={(event) => setChatInput(event.target.value)}
               placeholder="Спросите Diary AI"
-              className="min-w-0 bg-transparent text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] sm:text-base"
+              className="col-span-2 min-w-0 rounded-full border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.96)] px-4 py-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] sm:col-span-1 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:text-base"
             />
 
             <button
               type="button"
               onClick={() => void requestEntryAnalysis()}
               disabled={analysisState === "loading"}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="col-span-1 inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11"
             >
               <SparkIcon />
               {analysisState === "loading" ? "Идёт анализ" : "Разобрать день"}
