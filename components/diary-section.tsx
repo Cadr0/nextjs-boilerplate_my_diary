@@ -220,7 +220,6 @@ export function DiarySection() {
     accountEmail,
     accountInfo,
     analysisError,
-    analysisState,
     archiveMetric,
     availableMetricTemplates,
     days,
@@ -229,7 +228,6 @@ export function DiarySection() {
     metricDefinitions,
     profile,
     reorderMetric,
-    requestEntryAnalysis,
     saveMetricDefinition,
     saveState,
     selectedDate,
@@ -501,7 +499,7 @@ export function DiarySection() {
         </aside>
 
         <div className="grid gap-4">
-          <div className="surface-card sticky top-3 z-20 flex items-center justify-between gap-3 rounded-[24px] px-4 py-3 xl:hidden">
+          <div className="surface-card sticky top-3 z-20 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 rounded-[24px] px-4 py-3 xl:hidden">
             <button
               type="button"
               onClick={() => setIsMobileSidebarOpen(true)}
@@ -511,29 +509,33 @@ export function DiarySection() {
               <MenuIcon />
             </button>
 
-            <button
-              type="button"
-              onClick={() => goToRelativeDay(-1)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
-              aria-label="Предыдущий день"
-            >
-              <ChevronLeftIcon />
-            </button>
+            <div className="flex min-w-0 items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => goToRelativeDay(-1)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
+                aria-label="Предыдущий день"
+              >
+                <ChevronLeftIcon />
+              </button>
 
-            <div className="min-w-0 flex-1 text-center">
-              <p className="truncate text-sm font-semibold text-[var(--foreground)]">
-                {getSidebarDateLabel(selectedDate)}
-              </p>
+              <div className="min-w-0 text-center">
+                <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                  {getSidebarDateLabel(selectedDate)}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => goToRelativeDay(1)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
+                aria-label="Следующий день"
+              >
+                <ChevronRightIcon />
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => goToRelativeDay(1)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
-              aria-label="Следующий день"
-            >
-              <ChevronRightIcon />
-            </button>
+            <div aria-hidden="true" className="h-11 w-11" />
           </div>
 
           <div className="surface-card rounded-[34px] p-5 sm:p-6">
@@ -575,14 +577,6 @@ export function DiarySection() {
                 >
                   Период и тренды
                 </Link>
-                <button
-                  type="button"
-                  onClick={() => void requestEntryAnalysis()}
-                  disabled={analysisState === "loading" || saveState === "saving"}
-                  className="inline-flex min-h-11 items-center rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white shadow-[0_16px_28px_rgba(47,111,97,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {analysisState === "loading" ? "Анализируем..." : "Анализировать с AI"}
-                </button>
                 <button
                   type="button"
                   onClick={() => setIsSettingsOpen(true)}

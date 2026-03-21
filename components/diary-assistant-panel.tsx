@@ -96,7 +96,7 @@ export function DiaryAssistantPanel() {
   }, [isModelMenuOpen]);
 
   const quickPrompts = useMemo(
-    () => ["Разбери мой день", "Что влияет на настроение?", "Есть ли риск перегруза?"],
+    () => ["Разбери мой день", "Что сильнее всего повлияло?", "Есть ли риск перегруза?"],
     [],
   );
 
@@ -149,7 +149,7 @@ export function DiaryAssistantPanel() {
       const result = (await response.json()) as { reply?: string; error?: string };
 
       if (!response.ok || !result.reply) {
-        throw new Error(result.error ?? "Не удалось получить ответ от AI-провайдера.");
+        throw new Error(result.error ?? "Не удалось получить ответ от AI.");
       }
 
       updateChatForDate(selectedDate, (current) => [
@@ -170,25 +170,56 @@ export function DiaryAssistantPanel() {
       <div className="surface-card rounded-[28px] p-4 sm:rounded-[34px] sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[rgba(47,111,97,0.14)] bg-white/90 text-[var(--accent)] sm:h-11 sm:w-11">
+            <div className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-[rgba(47,111,97,0.16)] bg-[linear-gradient(180deg,rgba(47,111,97,0.12),rgba(47,111,97,0.04))] text-[var(--accent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
               <RobotIcon />
             </div>
             <div>
-              <p className="text-xs font-medium text-[var(--muted)] sm:text-sm">AI-разбор дня</p>
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+                AI
+              </p>
               <h2 className="text-lg font-semibold text-[var(--foreground)] sm:text-xl">
                 Анализ и чат
               </h2>
             </div>
           </div>
 
-          <div className="text-right text-xs text-[var(--muted)] sm:text-sm">
-            Модель можно переключить в поле ввода ниже.
+          <div className="flex flex-wrap items-center gap-2">
+            <div ref={modelMenuRef}>
+              <ModelPicker
+                activeModel={profile.aiModel}
+                isOpen={isModelMenuOpen}
+                onSelect={(model) => {
+                  updateProfile("aiModel", model);
+                  setIsModelMenuOpen(false);
+                }}
+                onToggle={() => setIsModelMenuOpen((current) => !current)}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void requestEntryAnalysis()}
+              disabled={analysisState === "loading"}
+              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white shadow-[0_16px_30px_rgba(47,111,97,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <SparkIcon />
+              {analysisState === "loading" ? "Анализируем..." : "Анализировать с AI"}
+            </button>
           </div>
         </div>
 
-        <div className="mt-4 rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:mt-5 sm:rounded-[28px] sm:p-5">
+        <div className="mt-4 rounded-[24px] border border-[var(--border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,249,246,0.92))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] sm:mt-5 sm:rounded-[28px] sm:p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-[rgba(47,111,97,0.14)] bg-white/92 px-3 py-1.5 text-xs font-medium text-[var(--accent)]">
+              {selectedEntry?.ai_analysis ? "Разбор готов" : "Разбор дня"}
+            </span>
+            <span className="rounded-full border border-[var(--border)] bg-white/92 px-3 py-1.5 text-xs text-[var(--muted)]">
+              По записи, заметкам и метрикам
+            </span>
+          </div>
+
           {selectedEntry?.ai_analysis ? (
-            <div className="grid gap-3 text-sm leading-7 text-[var(--foreground)]">
+            <div className="mt-4 grid gap-3 text-sm leading-7 text-[var(--foreground)]">
               {selectedEntry.ai_analysis
                 .split("\n")
                 .filter(Boolean)
@@ -197,12 +228,10 @@ export function DiaryAssistantPanel() {
                 ))}
             </div>
           ) : (
-            <div className="grid gap-3">
-              <p className="text-lg font-semibold text-[var(--foreground)]">
-                Анализ пока не запущен
-              </p>
-              <p className="text-sm leading-7 text-[var(--muted)]">
-                Запись сохраняется автоматически. Запусти анализ, когда захочешь получить разбор дня.
+            <div className="mt-4 grid gap-2">
+              <p className="text-lg font-semibold text-[var(--foreground)]">Разбор пока не запускался</p>
+              <p className="text-sm leading-6 text-[var(--muted)]">
+                Запусти анализ, когда захочешь получить короткий вывод по дню.
               </p>
             </div>
           )}
@@ -212,7 +241,7 @@ export function DiaryAssistantPanel() {
           ) : null}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           {quickPrompts.map((prompt) => (
             <button
               key={prompt}
@@ -228,7 +257,7 @@ export function DiaryAssistantPanel() {
         <div className="mt-5 grid gap-3 pb-32 sm:pb-28">
           {chatMessages.length === 0 ? (
             <div className="rounded-[24px] border border-dashed border-[var(--border)] bg-[rgba(247,249,246,0.84)] px-4 py-5 text-sm leading-7 text-[var(--muted)]">
-              Спроси AI про запись, метрики и причины текущего состояния.
+              Спроси про запись, метрики или причины текущего состояния.
             </div>
           ) : (
             chatMessages.map((message) => (
@@ -267,43 +296,28 @@ export function DiaryAssistantPanel() {
             void sendChatMessage(chatInput);
           }}
         >
-          <div className="grid grid-cols-[44px_minmax(0,1fr)_48px] gap-3 rounded-[28px] border border-[var(--border)] bg-[rgba(255,255,255,0.98)] p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] backdrop-blur sm:flex sm:flex-wrap sm:items-center sm:gap-3 sm:rounded-[30px] sm:px-4 sm:py-3">
-            <button
-              type="button"
-              onClick={() => void requestEntryAnalysis()}
-              disabled={analysisState === "loading"}
-              className="row-start-1 flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-              aria-label="Запустить анализ"
-            >
-              <PlusIcon />
-            </button>
-
+          <div className="grid gap-3 rounded-[28px] border border-[var(--border)] bg-[rgba(255,255,255,0.98)] p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] backdrop-blur sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:rounded-[30px] sm:px-4 sm:py-3">
             <input
               value={chatInput}
               onChange={(event) => setChatInput(event.target.value)}
               placeholder="Спросите Diary AI"
-              className="col-start-2 row-start-1 min-w-0 bg-transparent text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] sm:min-w-[220px] sm:flex-1 sm:text-base"
+              className="min-w-0 bg-transparent text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] sm:text-base"
             />
 
-            <div
-              ref={modelMenuRef}
-              className="col-span-2 row-start-2 justify-self-start sm:col-auto sm:row-auto"
+            <button
+              type="button"
+              onClick={() => void requestEntryAnalysis()}
+              disabled={analysisState === "loading"}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <ModelPicker
-                activeModel={profile.aiModel}
-                isOpen={isModelMenuOpen}
-                onSelect={(model) => {
-                  updateProfile("aiModel", model);
-                  setIsModelMenuOpen(false);
-                }}
-                onToggle={() => setIsModelMenuOpen((current) => !current)}
-              />
-            </div>
+              <SparkIcon />
+              {analysisState === "loading" ? "Идёт анализ" : "Разобрать день"}
+            </button>
 
             <button
               type="submit"
               disabled={chatState === "sending"}
-              className="col-start-3 row-start-1 flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_16px_28px_rgba(47,111,97,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-11 w-11 items-center justify-center justify-self-end rounded-full bg-[var(--accent)] text-white shadow-[0_16px_28px_rgba(47,111,97,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
               aria-label="Отправить"
             >
               <SendIcon />
@@ -332,7 +346,7 @@ function ModelPicker({
   return (
     <div className="relative">
       {isOpen ? (
-        <div className="absolute bottom-full left-0 z-30 mb-2 w-[min(76vw,220px)] overflow-hidden rounded-[22px] border border-[rgba(24,33,29,0.12)] bg-[rgba(255,255,255,0.98)] p-2 shadow-[0_24px_48px_rgba(24,33,29,0.18)] backdrop-blur sm:left-auto sm:right-0 sm:w-[220px]">
+        <div className="absolute bottom-full right-0 z-30 mb-2 w-[min(76vw,240px)] overflow-hidden rounded-[22px] border border-[rgba(24,33,29,0.12)] bg-[rgba(255,255,255,0.98)] p-2 shadow-[0_24px_48px_rgba(24,33,29,0.18)] backdrop-blur">
           <div className="grid gap-1">
             {aiModelOptions.map((option) => (
               <button
@@ -386,11 +400,10 @@ function RobotIcon() {
   );
 }
 
-function PlusIcon() {
+function SparkIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+      <path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" />
     </svg>
   );
 }
