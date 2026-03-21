@@ -18,6 +18,7 @@ const openRouterBaseUrl =
   process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
 const openRouterApiKey = process.env.OPENROUTER_API_KEY;
 const openRouterModel = process.env.OPENROUTER_MODEL ?? "openrouter/free";
+const structuredExtractionModel = "arcee-ai/trinity-large-preview:free";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 const appTitle = process.env.OPENROUTER_APP_TITLE ?? "Diary AI";
 
@@ -281,7 +282,7 @@ export async function extractDiaryDataFromTranscript(args: {
     ],
     parseDiaryExtractionResult,
     {
-      model: args.model,
+      model: structuredExtractionModel,
       temperature: 0.1,
       maxTokens: 420,
     },
