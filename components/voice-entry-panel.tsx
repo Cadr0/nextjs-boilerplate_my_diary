@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { DiaryExtractionResult } from "@/lib/ai/contracts";
 import { useWorkspace } from "@/components/workspace-provider";
 
+const MAX_RECORDING_SECONDS = 180;
+
 function getSupportedMimeType() {
   if (typeof MediaRecorder === "undefined") {
     return "";
@@ -252,7 +254,17 @@ export function VoiceEntryPanel() {
       recorder.start();
 
       timerRef.current = window.setInterval(() => {
-        setRecordingSeconds((current) => current + 1);
+        setRecordingSeconds((current) => {
+          const nextValue = current + 1;
+
+          if (nextValue >= MAX_RECORDING_SECONDS) {
+            setNotice("Лимит записи достигнут. Останавливаем запись и запускаем расшифровку.");
+            recorder.stop();
+            return MAX_RECORDING_SECONDS;
+          }
+
+          return nextValue;
+        });
       }, 1000);
     } catch (requestError) {
       stopTimer();
@@ -309,6 +321,9 @@ export function VoiceEntryPanel() {
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
             Надиктуй день голосом, получи расшифровку и предложенные поля, затем проверь и
             сохрани запись вручную.
+          </p>
+          <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
+            Одна голосовая запись длится максимум 3 минуты, потом она остановится сама.
           </p>
         </div>
 
