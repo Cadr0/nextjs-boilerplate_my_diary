@@ -2,8 +2,7 @@ import "server-only";
 
 const routerAiApiKey = process.env.ROUTERAI_API_KEY;
 const routerAiBaseUrl = process.env.ROUTERAI_BASE_URL ?? "https://routerai.ru/api/v1";
-const routerAiSpeechModel =
-  process.env.ROUTERAI_SPEECH_MODEL ?? "google/gemini-2.5-flash-lite";
+const routerAiSpeechModel = "google/gemini-2.5-flash-lite";
 
 type RouterAiContentPart =
   | {
