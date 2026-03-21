@@ -489,6 +489,16 @@ export function WorkspaceProvider({
       const stressMetric = findMetricDefinitionBySemantic(metricDefinitions, "stress");
       const sleepMetric = findMetricDefinitionBySemantic(metricDefinitions, "sleep");
 
+      for (const update of extraction.metric_updates) {
+        const metric = metricDefinitions.find((item) => item.id === update.metric_id);
+
+        if (!metric || update.value === null) {
+          continue;
+        }
+
+        nextMetricValues[metric.id] = normalizeMetricValue(metric, update.value);
+      }
+
       if (moodMetric && extraction.mood !== null) {
         nextMetricValues[moodMetric.id] = normalizeMetricValue(moodMetric, extraction.mood);
       }

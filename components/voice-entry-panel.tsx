@@ -26,7 +26,7 @@ function formatDuration(seconds: number) {
 }
 
 export function VoiceEntryPanel() {
-  const { applyVoiceExtraction, profile } = useWorkspace();
+  const { applyVoiceExtraction, metricDefinitions, profile } = useWorkspace();
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -49,6 +49,26 @@ export function VoiceEntryPanel() {
       typeof navigator !== "undefined" &&
       Boolean(navigator.mediaDevices?.getUserMedia),
     [],
+  );
+  const extractionMetricRows = useMemo(
+    () =>
+      extraction?.metric_updates.map((update) => {
+        const metric = metricDefinitions.find((item) => item.id === update.metric_id);
+
+        return {
+          id: update.metric_id,
+          name: metric?.name ?? update.metric_id,
+          value:
+            update.value === null
+              ? "null"
+              : typeof update.value === "boolean"
+                ? update.value
+                  ? "Да"
+                  : "Нет"
+                : String(update.value),
+        };
+      }) ?? [],
+    [extraction, metricDefinitions],
   );
 
   const stopStream = () => {
@@ -85,6 +105,19 @@ export function VoiceEntryPanel() {
         body: JSON.stringify({
           transcript: trimmed,
           model: profile.aiModel,
+          metricDefinitions: metricDefinitions
+            .filter((metric) => metric.isActive)
+            .map((metric) => ({
+              id: metric.id,
+              name: metric.name,
+              slug: metric.slug,
+              description: metric.description,
+              type: metric.type,
+              unit: metric.unit,
+              min: metric.min ?? null,
+              max: metric.max ?? null,
+              step: metric.step ?? null,
+            })),
         }),
       });
       const result = (await response.json()) as {
@@ -365,6 +398,27 @@ export function VoiceEntryPanel() {
                   emptyCopy="Явных предупреждений нет."
                   tone="warning"
                 />
+                <div className="grid gap-2">
+                  <span className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                    Заполнение метрик
+                  </span>
+                  {extractionMetricRows.length > 0 ? (
+                    <div className="grid gap-2">
+                      {extractionMetricRows.map((item) => (
+                        <div
+                          key={item.id}
+                          className="rounded-[18px] bg-[rgba(47,111,97,0.06)] px-3 py-2 text-sm leading-6 text-[var(--foreground)]"
+                        >
+                          <span className="font-medium">{item.name}:</span> {item.value}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[var(--muted)]">
+                      AI не нашел метрики, которые можно уверенно заполнить.
+                    </p>
+                  )}
+                </div>
               </div>
             ) : (
               <p className="mt-3 text-sm leading-6 text-[var(--muted)]">

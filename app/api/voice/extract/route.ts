@@ -22,7 +22,11 @@ export async function POST(request: Request) {
 
   try {
     const payload = parseTranscriptInput(await request.json());
-    const extraction = await extractDiaryDataFromTranscript(payload);
+    const extraction = await extractDiaryDataFromTranscript({
+      transcript: payload.transcript,
+      model: payload.model,
+      metricDefinitions: payload.metricDefinitions,
+    });
 
     return NextResponse.json({ extraction }, { status: 200 });
   } catch (error) {

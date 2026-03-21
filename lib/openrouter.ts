@@ -3,6 +3,7 @@ import "server-only";
 import {
   parseDiaryExtractionResult,
   parsePeriodAnalysisResult,
+  type DiaryExtractionMetricDefinition,
   type DiaryExtractionResult,
   type PeriodAnalysisEntryPayload,
   type PeriodAnalysisResult,
@@ -260,6 +261,7 @@ export async function chatWithOpenRouter(
 
 export async function extractDiaryDataFromTranscript(args: {
   transcript: string;
+  metricDefinitions: DiaryExtractionMetricDefinition[];
   model?: string;
 }): Promise<DiaryExtractionResult> {
   return requestStructuredJson(
@@ -271,7 +273,10 @@ export async function extractDiaryDataFromTranscript(args: {
       },
       {
         role: "user",
-        content: buildDiaryExtractionPrompt(args.transcript),
+        content: buildDiaryExtractionPrompt({
+          transcript: args.transcript,
+          metricDefinitions: args.metricDefinitions,
+        }),
       },
     ],
     parseDiaryExtractionResult,

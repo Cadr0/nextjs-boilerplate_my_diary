@@ -7,6 +7,22 @@ export type DiaryExtractionResult = {
   factors: string[];
   notes: string | null;
   warnings: string[];
+  metric_updates: Array<{
+    metric_id: string;
+    value: string | number | boolean | null;
+  }>;
+};
+
+export type DiaryExtractionMetricDefinition = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  type: "scale" | "number" | "boolean" | "text";
+  unit: string;
+  min: number | null;
+  max: number | null;
+  step: number | null;
 };
 
 export type PeriodAnalysisResult = {
@@ -71,6 +87,32 @@ export function parseDiaryExtractionResult(value: unknown): DiaryExtractionResul
     throw new Error("Invalid extraction payload.");
   }
 
+  const metricUpdates = Array.isArray(value.metric_updates)
+    ? value.metric_updates.flatMap((item) => {
+        if (!isObject(item) || typeof item.metric_id !== "string" || !item.metric_id.trim()) {
+          return [];
+        }
+
+        const rawValue = item.value;
+
+        if (
+          rawValue !== null &&
+          typeof rawValue !== "string" &&
+          typeof rawValue !== "number" &&
+          typeof rawValue !== "boolean"
+        ) {
+          return [];
+        }
+
+        return [
+          {
+            metric_id: item.metric_id.trim(),
+            value: rawValue as string | number | boolean | null,
+          },
+        ];
+      })
+    : [];
+
   return {
     summary: readNullableString(value.summary),
     mood: readNullableScore(value.mood),
@@ -80,6 +122,7 @@ export function parseDiaryExtractionResult(value: unknown): DiaryExtractionResul
     factors: readStringArray(value.factors).slice(0, 12),
     notes: readNullableString(value.notes),
     warnings: readStringArray(value.warnings).slice(0, 12),
+    metric_updates: metricUpdates,
   };
 }
 
@@ -123,9 +166,42 @@ export function parseTranscriptInput(value: unknown) {
     throw new Error("Transcript is too long.");
   }
 
+  const metricDefinitions = Array.isArray(value.metricDefinitions)
+    ? value.metricDefinitions.flatMap((metric) => {
+        if (!isObject(metric)) {
+          return [];
+        }
+
+        if (
+          typeof metric.id !== "string" ||
+          typeof metric.name !== "string" ||
+          typeof metric.slug !== "string" ||
+          typeof metric.description !== "string" ||
+          typeof metric.type !== "string"
+        ) {
+          return [];
+        }
+
+        return [
+          {
+            id: metric.id.trim(),
+            name: metric.name.trim(),
+            slug: metric.slug.trim(),
+            description: metric.description.trim(),
+            type: metric.type as DiaryExtractionMetricDefinition["type"],
+            unit: typeof metric.unit === "string" ? metric.unit : "",
+            min: typeof metric.min === "number" ? metric.min : null,
+            max: typeof metric.max === "number" ? metric.max : null,
+            step: typeof metric.step === "number" ? metric.step : null,
+          },
+        ];
+      })
+    : [];
+
   return {
     transcript,
     model: typeof value.model === "string" && value.model.trim() ? value.model.trim() : undefined,
+    metricDefinitions,
   };
 }
 
