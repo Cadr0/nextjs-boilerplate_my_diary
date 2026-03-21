@@ -93,6 +93,7 @@ export type WorkspaceProfile = {
   weekStartsOn: string;
   compactMetrics: boolean;
   keepRightRailOpen: boolean;
+  microphoneEnabled: boolean;
   chatTone: string;
   aiModel: string;
 };
@@ -355,6 +356,7 @@ export const defaultProfile: WorkspaceProfile = {
   weekStartsOn: "monday",
   compactMetrics: true,
   keepRightRailOpen: true,
+  microphoneEnabled: false,
   chatTone: "supportive",
   aiModel: aiModelOptions[0].id,
 };

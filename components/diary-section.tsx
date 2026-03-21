@@ -562,11 +562,6 @@ export function DiarySection() {
                 />
               </label>
 
-              <div className="mt-4 rounded-[20px] border border-[var(--border)] bg-white/80 px-4 py-3 text-sm leading-6 text-[var(--muted)]">
-                Любое изменение автоматически сохраняется в дневник. AI-разбор по-прежнему
-                запускается только отдельной кнопкой.
-              </div>
-
               <VoiceEntryPanel />
             </div>
           </div>
@@ -1577,6 +1572,15 @@ function DiarySettingsModal({
                   <ToggleSwitch
                     active={profile.compactMetrics}
                     onToggle={() => onChange("compactMetrics", !profile.compactMetrics)}
+                  />
+                }
+              />
+              <SettingsRow
+                label="Доступ к микрофону"
+                control={
+                  <ToggleSwitch
+                    active={profile.microphoneEnabled}
+                    onToggle={() => onChange("microphoneEnabled", !profile.microphoneEnabled)}
                   />
                 }
               />

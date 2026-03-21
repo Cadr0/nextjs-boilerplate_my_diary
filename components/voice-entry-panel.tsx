@@ -31,6 +31,7 @@ export function VoiceEntryPanel() {
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
+  const isStartingRef = useRef(false);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -81,6 +82,16 @@ export function VoiceEntryPanel() {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
+  };
+
+  const ensureStream = async () => {
+    if (streamRef.current) {
+      return streamRef.current;
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    streamRef.current = stream;
+    return stream;
   };
 
   const runExtraction = async (nextTranscript: string, autoApply = true) => {
@@ -184,18 +195,26 @@ export function VoiceEntryPanel() {
   };
 
   const startRecording = async () => {
-    if (!isSupported || isRecording || isTranscribing || isExtracting) {
+    if (
+      !isSupported ||
+      !profile.microphoneEnabled ||
+      isRecording ||
+      isTranscribing ||
+      isExtracting ||
+      isStartingRef.current
+    ) {
       return;
     }
 
+    isStartingRef.current = true;
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await ensureStream();
       const mimeType = getSupportedMimeType();
       const recorder = mimeType
         ? new MediaRecorder(stream, { mimeType })
         : new MediaRecorder(stream);
 
-      streamRef.current = stream;
       recorderRef.current = recorder;
       chunksRef.current = [];
       setIsRecording(true);
@@ -212,7 +231,7 @@ export function VoiceEntryPanel() {
       recorder.addEventListener("stop", () => {
         stopTimer();
         setIsRecording(false);
-        stopStream();
+        recorderRef.current = null;
 
         const blob = new Blob(chunksRef.current, {
           type: recorder.mimeType || "audio/webm",
@@ -237,19 +256,34 @@ export function VoiceEntryPanel() {
       }, 1000);
     } catch (requestError) {
       stopTimer();
-      stopStream();
+      recorderRef.current = null;
       setIsRecording(false);
       setError(
         requestError instanceof Error
           ? requestError.message
           : "Не удалось получить доступ к микрофону.",
       );
+    } finally {
+      isStartingRef.current = false;
     }
   };
 
   const stopRecording = () => {
     recorderRef.current?.stop();
   };
+
+  useEffect(() => {
+    if (profile.microphoneEnabled) {
+      return;
+    }
+
+    if (isRecording) {
+      recorderRef.current?.stop();
+    }
+
+    stopStream();
+    setNotice(null);
+  }, [isRecording, profile.microphoneEnabled]);
 
   useEffect(() => {
     return () => {
@@ -297,7 +331,7 @@ export function VoiceEntryPanel() {
           <button
             type="button"
             onClick={isRecording ? stopRecording : startRecording}
-            disabled={!isSupported || isTranscribing || isExtracting}
+            disabled={!isSupported || !profile.microphoneEnabled || isTranscribing || isExtracting}
             className={`inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-medium transition ${
               isRecording
                 ? "bg-[rgb(145,41,58)] text-white"
@@ -313,6 +347,13 @@ export function VoiceEntryPanel() {
       {!isSupported ? (
         <div className="mt-4 rounded-[18px] border border-[rgba(208,138,149,0.22)] bg-white px-4 py-3 text-sm text-[rgb(136,47,63)]">
           В этом браузере нет поддержки записи через MediaRecorder.
+        </div>
+      ) : null}
+
+      {isSupported && !profile.microphoneEnabled ? (
+        <div className="mt-4 rounded-[18px] border border-[var(--border)] bg-white px-4 py-3 text-sm text-[var(--muted)]">
+          Доступ к микрофону выключен в настройках. Включи его в разделе «Общее», чтобы
+          записывать голосом.
         </div>
       ) : null}
 
