@@ -107,6 +107,17 @@ type RouterAiChatMessage = {
   content: string;
 };
 
+export type VoiceExtractionDebug = {
+  model: string;
+  messages: RouterAiChatMessage[];
+  rawResponse: string | null;
+  jsonCandidate: string | null;
+  repairedResponse: string | null;
+  repairedJsonCandidate: string | null;
+  parseError: string | null;
+  fallbackReason: string | null;
+};
+
 type RouterAiDiaryContext = {
   date: string;
   draft: WorkspaceDraft;
@@ -334,17 +345,37 @@ async function requestStructuredJson<T>(
   parser: (value: unknown) => T,
   model?: string,
 ) {
+  const requestedModel = model ?? routerAiStructuredModel;
+  const debug: VoiceExtractionDebug = {
+    model: requestedModel,
+    messages,
+    rawResponse: null,
+    jsonCandidate: null,
+    repairedResponse: null,
+    repairedJsonCandidate: null,
+    parseError: null,
+    fallbackReason: null,
+  };
+
   const content = await requestRouterAi(messages, {
-    model: model ?? routerAiStructuredModel,
+    model: requestedModel,
     temperature: 0.1,
     maxTokens: 420,
   });
+  debug.rawResponse = content;
   const jsonCandidate = extractJsonObject(content);
+  debug.jsonCandidate = jsonCandidate;
 
   try {
     const parsed = JSON.parse(jsonCandidate) as unknown;
-    return parser(parsed);
+    return {
+      parsed: parser(parsed),
+      debug,
+    };
   } catch (parseError) {
+    debug.parseError =
+      parseError instanceof Error ? parseError.message : String(parseError);
+
     console.error("[routerai] structured parse failed", {
       message: parseError instanceof Error ? parseError.message : String(parseError),
       preview: jsonCandidate.slice(0, 600),
@@ -368,15 +399,20 @@ async function requestStructuredJson<T>(
         },
       ],
       {
-        model: model ?? routerAiStructuredModel,
+        model: requestedModel,
         temperature: 0,
         maxTokens: 420,
       },
     );
+    debug.repairedResponse = repairedContent;
 
     const repairedCandidate = extractJsonObject(repairedContent);
+    debug.repairedJsonCandidate = repairedCandidate;
     const repairedParsed = JSON.parse(repairedCandidate) as unknown;
-    return parser(repairedParsed);
+    return {
+      parsed: parser(repairedParsed),
+      debug,
+    };
   }
 }
 
@@ -439,25 +475,42 @@ export async function extractDiaryDataFromTranscript(args: {
   metricDefinitions: DiaryExtractionMetricDefinition[];
   model?: string;
 }): Promise<DiaryExtractionResult> {
+  const result = await extractDiaryDataFromTranscriptWithDebug(args);
+  return result.extraction;
+}
+
+export async function extractDiaryDataFromTranscriptWithDebug(args: {
+  transcript: string;
+  metricDefinitions: DiaryExtractionMetricDefinition[];
+  model?: string;
+}): Promise<{ extraction: DiaryExtractionResult; debug: VoiceExtractionDebug }> {
+  const requestedModel = routerAiStructuredModel;
+  const messages: RouterAiChatMessage[] = [
+    {
+      role: "system",
+      content:
+        "You convert free-form diary transcripts into strict structured JSON. Return JSON only.",
+    },
+    {
+      role: "user",
+      content: buildDiaryExtractionPrompt({
+        transcript: args.transcript,
+        metricDefinitions: args.metricDefinitions,
+      }),
+    },
+  ];
+
   try {
-    return await requestStructuredJson(
-      [
-        {
-          role: "system",
-          content:
-            "You convert free-form diary transcripts into strict structured JSON. Return JSON only.",
-        },
-        {
-          role: "user",
-          content: buildDiaryExtractionPrompt({
-            transcript: args.transcript,
-            metricDefinitions: args.metricDefinitions,
-          }),
-        },
-      ],
+    const structured = await requestStructuredJson(
+      messages,
       parseDiaryExtractionResult,
-      routerAiStructuredModel,
+      requestedModel,
     );
+
+    return {
+      extraction: structured.parsed,
+      debug: structured.debug,
+    };
   } catch (error) {
     const reason = error instanceof Error ? error.message : "Unknown parse error";
 
@@ -467,10 +520,22 @@ export async function extractDiaryDataFromTranscript(args: {
       metricCount: args.metricDefinitions.length,
     });
 
-    return buildFallbackExtractionResult({
-      transcript: args.transcript,
-      metricDefinitions: args.metricDefinitions,
-      reason,
-    });
+    return {
+      extraction: buildFallbackExtractionResult({
+        transcript: args.transcript,
+        metricDefinitions: args.metricDefinitions,
+        reason,
+      }),
+      debug: {
+        model: requestedModel,
+        messages,
+        rawResponse: null,
+        jsonCandidate: null,
+        repairedResponse: null,
+        repairedJsonCandidate: null,
+        parseError: reason,
+        fallbackReason: reason,
+      },
+    };
   }
 }

@@ -7,6 +7,21 @@ import type { DiaryExtractionResult } from "@/lib/ai/contracts";
 
 const MAX_RECORDING_SECONDS = 180;
 
+type VoiceExtractionDebugPayload = {
+  model: string;
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  rawResponse: string | null;
+  jsonCandidate: string | null;
+  repairedResponse: string | null;
+  repairedJsonCandidate: string | null;
+  parseError: string | null;
+  fallbackReason: string | null;
+  normalized_metric_updates?: Array<{
+    metric_id: string;
+    value: string | number | boolean | null;
+  }>;
+};
+
 function getSupportedMimeType() {
   if (typeof MediaRecorder === "undefined") {
     return "";
@@ -57,6 +72,7 @@ export function VoiceEntryPanel() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [extraction, setExtraction] = useState<DiaryExtractionResult | null>(null);
+  const [extractionDebug, setExtractionDebug] = useState<VoiceExtractionDebugPayload | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -131,6 +147,7 @@ export function VoiceEntryPanel() {
   const clearVoiceState = () => {
     setTranscript("");
     setExtraction(null);
+    setExtractionDebug(null);
     setAudioUrl((current) => {
       if (current) {
         URL.revokeObjectURL(current);
@@ -182,6 +199,7 @@ export function VoiceEntryPanel() {
 
       const result = (await response.json()) as {
         extraction?: DiaryExtractionResult;
+        debug?: VoiceExtractionDebugPayload;
         error?: string;
       };
 
@@ -190,6 +208,7 @@ export function VoiceEntryPanel() {
       }
 
       setExtraction(result.extraction);
+      setExtractionDebug(result.debug ?? null);
 
       if (autoApply) {
         applyVoiceExtraction(trimmed, result.extraction);
@@ -517,6 +536,80 @@ export function VoiceEntryPanel() {
               </p>
             )}
           </div>
+        </div>
+      ) : null}
+
+      {extractionDebug ? (
+        <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
+          <div className="flex items-center gap-2">
+            <GridIcon />
+            <p className="text-sm font-semibold text-[var(--foreground)]">
+              Debug: запрос и ответ AI
+            </p>
+          </div>
+
+          <div className="mt-3 grid gap-2 text-xs text-[var(--muted)]">
+            <p>
+              Модель: <span className="text-[var(--foreground)]">{extractionDebug.model}</span>
+            </p>
+            {extractionDebug.parseError ? (
+              <p>
+                Ошибка парсинга:{" "}
+                <span className="text-[rgb(136,47,63)]">{extractionDebug.parseError}</span>
+              </p>
+            ) : null}
+            {extractionDebug.fallbackReason ? (
+              <p>
+                Причина fallback:{" "}
+                <span className="text-[rgb(136,47,63)]">{extractionDebug.fallbackReason}</span>
+              </p>
+            ) : null}
+          </div>
+
+          <details className="mt-3">
+            <summary className="cursor-pointer text-sm font-medium text-[var(--foreground)]">
+              Полный запрос (messages)
+            </summary>
+            <pre className="mt-2 max-h-[320px] overflow-auto rounded-[16px] border border-[var(--border)] bg-[rgba(247,249,246,0.9)] p-3 text-[11px] leading-5 text-[var(--foreground)]">
+{JSON.stringify(extractionDebug.messages, null, 2)}
+            </pre>
+          </details>
+
+          <details className="mt-2">
+            <summary className="cursor-pointer text-sm font-medium text-[var(--foreground)]">
+              Сырой ответ модели
+            </summary>
+            <pre className="mt-2 max-h-[320px] overflow-auto rounded-[16px] border border-[var(--border)] bg-[rgba(247,249,246,0.9)] p-3 text-[11px] leading-5 text-[var(--foreground)]">
+{extractionDebug.rawResponse ?? "нет"}
+            </pre>
+          </details>
+
+          <details className="mt-2">
+            <summary className="cursor-pointer text-sm font-medium text-[var(--foreground)]">
+              JSON candidate до парсинга
+            </summary>
+            <pre className="mt-2 max-h-[320px] overflow-auto rounded-[16px] border border-[var(--border)] bg-[rgba(247,249,246,0.9)] p-3 text-[11px] leading-5 text-[var(--foreground)]">
+{extractionDebug.jsonCandidate ?? "нет"}
+            </pre>
+          </details>
+
+          <details className="mt-2">
+            <summary className="cursor-pointer text-sm font-medium text-[var(--foreground)]">
+              Ответ после JSON repair
+            </summary>
+            <pre className="mt-2 max-h-[320px] overflow-auto rounded-[16px] border border-[var(--border)] bg-[rgba(247,249,246,0.9)] p-3 text-[11px] leading-5 text-[var(--foreground)]">
+{extractionDebug.repairedResponse ?? "нет"}
+            </pre>
+          </details>
+
+          <details className="mt-2">
+            <summary className="cursor-pointer text-sm font-medium text-[var(--foreground)]">
+              Нормализованные metric_updates
+            </summary>
+            <pre className="mt-2 max-h-[320px] overflow-auto rounded-[16px] border border-[var(--border)] bg-[rgba(247,249,246,0.9)] p-3 text-[11px] leading-5 text-[var(--foreground)]">
+{JSON.stringify(extractionDebug.normalized_metric_updates ?? [], null, 2)}
+            </pre>
+          </details>
         </div>
       ) : null}
     </section>

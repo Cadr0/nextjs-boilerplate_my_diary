@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getAuthState } from "@/lib/auth";
 import { parseTranscriptInput } from "@/lib/ai/contracts";
 import {
-  extractDiaryDataFromTranscript,
+  extractDiaryDataFromTranscriptWithDebug,
   getRouterAiConfigError,
 } from "@/lib/routerai";
 
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
   try {
     const payload = parseTranscriptInput(await request.json());
-    const extraction = await extractDiaryDataFromTranscript({
+    const { extraction, debug } = await extractDiaryDataFromTranscriptWithDebug({
       transcript: payload.transcript,
       model: payload.model,
       metricDefinitions: payload.metricDefinitions,
@@ -119,6 +119,10 @@ export async function POST(request: Request) {
         extraction: {
           ...extraction,
           metric_updates: normalizedMetricUpdates,
+        },
+        debug: {
+          ...debug,
+          normalized_metric_updates: normalizedMetricUpdates,
         },
       },
       { status: 200 },
