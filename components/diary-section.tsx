@@ -451,6 +451,16 @@ export function DiarySection() {
         </div>
       </div>
 
+      {isUserMenuOpen ? (
+        <DiaryUserMenu
+          accountEmail={accountEmail}
+          profile={profile}
+          embedded
+          onClose={() => setIsUserMenuOpen(false)}
+          onOpenSettings={openSettings}
+        />
+      ) : null}
+
       <button
         type="button"
         onClick={() => {
@@ -471,16 +481,6 @@ export function DiarySection() {
         </div>
         <DotsIcon />
       </button>
-
-      {isUserMenuOpen ? (
-        <DiaryUserMenu
-          accountEmail={accountEmail}
-          profile={profile}
-          embedded
-          onClose={() => setIsUserMenuOpen(false)}
-          onOpenSettings={openSettings}
-        />
-      ) : null}
     </>
   );
 
