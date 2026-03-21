@@ -5,6 +5,7 @@ import {
   startTransition,
   useContext,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -412,6 +413,12 @@ export function WorkspaceProvider({
     }
   };
 
+  const syncSelectedPayload = useEffectEvent(
+    (payloadFingerprint: string, payload: typeof selectedPayload) => {
+      void saveSelectedPayload(payloadFingerprint, payload);
+    },
+  );
+
   useEffect(() => {
     if (!isHydrated) {
       return;
@@ -422,8 +429,28 @@ export function WorkspaceProvider({
       return;
     }
 
-    setSaveState(hasUnsavedChanges ? "idle" : "saved");
-  }, [canPersistToServer, hasUnsavedChanges, initialError, isHydrated]);
+    if (!hasUnsavedChanges) {
+      setSaveState("saved");
+      return;
+    }
+
+    setSaveState("saving");
+
+    const timeoutId = window.setTimeout(() => {
+      void syncSelectedPayload(selectedPayloadFingerprint, selectedPayload);
+    }, 700);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    canPersistToServer,
+    hasUnsavedChanges,
+    initialError,
+    isHydrated,
+    selectedPayload,
+    selectedPayloadFingerprint,
+  ]);
 
   const updateDraft = (updater: (draft: WorkspaceDraft) => WorkspaceDraft) => {
     setWorkspaceState((current) => {

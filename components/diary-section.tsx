@@ -225,7 +225,6 @@ export function DiarySection() {
     profile,
     reorderMetric,
     requestEntryAnalysis,
-    saveEntry,
     saveMetricDefinition,
     saveState,
     selectedDate,
@@ -275,7 +274,7 @@ export function DiarySection() {
             ? "Не удалось сохранить"
             : hasUnsavedChanges
               ? "Есть несохраненные изменения"
-              : "Можно сохранять отдельно";
+              : "Автосохранение активно";
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -345,7 +344,7 @@ export function DiarySection() {
         <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
           {selectedEntry?.ai_analysis
             ? selectedEntry.ai_analysis.split("\n").filter(Boolean)[0]
-            : "AI-разбор запускается отдельно после сохранения записи."}
+            : "Запись сохраняется автоматически, а AI-разбор запускается отдельно."}
         </p>
       </div>
 
@@ -522,14 +521,6 @@ export function DiarySection() {
                 </Link>
                 <button
                   type="button"
-                  onClick={() => void saveEntry()}
-                  disabled={saveState === "saving" || !hasUnsavedChanges}
-                  className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/94 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Сохранить запись
-                </button>
-                <button
-                  type="button"
                   onClick={() => void requestEntryAnalysis()}
                   disabled={analysisState === "loading" || saveState === "saving"}
                   className="inline-flex min-h-11 items-center rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white shadow-[0_16px_28px_rgba(47,111,97,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
@@ -572,8 +563,8 @@ export function DiarySection() {
               </label>
 
               <div className="mt-4 rounded-[20px] border border-[var(--border)] bg-white/80 px-4 py-3 text-sm leading-6 text-[var(--muted)]">
-                Сохранение и AI-разбор теперь разделены: сначала проверь запись и нажми
-                «Сохранить запись», затем запускай анализ только по необходимости.
+                Любое изменение автоматически сохраняется в дневник. AI-разбор по-прежнему
+                запускается только отдельной кнопкой.
               </div>
 
               <VoiceEntryPanel />
@@ -587,8 +578,8 @@ export function DiarySection() {
                   Метрики
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  Значения можно править свободно. Сохранение записи и AI-анализ запускаются
-                  отдельными кнопками выше.
+                  Значения сохраняются автоматически. AI-анализ запускается отдельно и не
+                  вызывается сам по себе.
                 </p>
               </div>
 
