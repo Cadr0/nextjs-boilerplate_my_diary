@@ -120,6 +120,152 @@ type RouterAiRequestOptions = {
   model?: string;
 };
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function toNumber(value: string) {
+  const parsed = Number.parseFloat(value.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function findNumericValueInTranscript(
+  transcript: string,
+  references: string[],
+) {
+  for (const reference of references) {
+    const normalizedReference = reference.trim().toLowerCase();
+
+    if (!normalizedReference) {
+      continue;
+    }
+
+    const pattern = new RegExp(
+      `${escapeRegExp(normalizedReference)}\\s*(?:[:=\\-]|это|—|–)?\\s*(-?\\d+(?:[\\.,]\\d+)?)`,
+      "i",
+    );
+    const match = transcript.match(pattern);
+
+    if (!match?.[1]) {
+      continue;
+    }
+
+    const numeric = toNumber(match[1]);
+
+    if (numeric !== null) {
+      return numeric;
+    }
+  }
+
+  return null;
+}
+
+function findBooleanValueInTranscript(
+  transcript: string,
+  references: string[],
+) {
+  for (const reference of references) {
+    const normalizedReference = reference.trim().toLowerCase();
+
+    if (!normalizedReference || !transcript.includes(normalizedReference)) {
+      continue;
+    }
+
+    const positivePattern = new RegExp(
+      `${escapeRegExp(normalizedReference)}\\s*(?:[:=\\-]|это|—|–)?\\s*(да|true|был[ао]?|есть|сделал[а]?|выполнил[а]?)`,
+      "i",
+    );
+    const negativePattern = new RegExp(
+      `${escapeRegExp(normalizedReference)}\\s*(?:[:=\\-]|это|—|–)?\\s*(нет|false|не\\s*был[ао]?|не\\s*делал[а]?|не\\s*выполнил[а]?)`,
+      "i",
+    );
+
+    if (negativePattern.test(transcript)) {
+      return false;
+    }
+
+    if (positivePattern.test(transcript)) {
+      return true;
+    }
+  }
+
+  return null;
+}
+
+function clampScore(value: number | null) {
+  if (value === null) {
+    return null;
+  }
+
+  const clamped = Math.max(0, Math.min(10, value));
+  return Number.isFinite(clamped) ? clamped : null;
+}
+
+function buildFallbackExtractionResult(args: {
+  transcript: string;
+  metricDefinitions: DiaryExtractionMetricDefinition[];
+  reason: string;
+}): DiaryExtractionResult {
+  const normalizedTranscript = args.transcript.trim();
+  const loweredTranscript = normalizedTranscript.toLowerCase();
+  const metricUpdates: DiaryExtractionResult["metric_updates"] =
+    args.metricDefinitions.map((metric) => {
+      const references = [metric.id, metric.slug, metric.name]
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean);
+
+      if (metric.type === "boolean") {
+        const value = findBooleanValueInTranscript(loweredTranscript, references);
+        return { metric_id: metric.id, value };
+      }
+
+      if (metric.type === "number" || metric.type === "scale") {
+        let value = findNumericValueInTranscript(loweredTranscript, references);
+
+        if (value !== null && typeof metric.min === "number") {
+          value = Math.max(metric.min, value);
+        }
+
+        if (value !== null && typeof metric.max === "number") {
+          value = Math.min(metric.max, value);
+        }
+
+        return { metric_id: metric.id, value };
+      }
+
+      return { metric_id: metric.id, value: null };
+    });
+
+  const mood = clampScore(
+    findNumericValueInTranscript(loweredTranscript, ["настроение", "mood"]),
+  );
+  const energy = clampScore(
+    findNumericValueInTranscript(loweredTranscript, ["энергия", "energy"]),
+  );
+  const stress = clampScore(
+    findNumericValueInTranscript(loweredTranscript, ["стресс", "stress"]),
+  );
+  const sleepHours = findNumericValueInTranscript(loweredTranscript, [
+    "сон",
+    "sleep",
+    "часы сна",
+  ]);
+
+  return {
+    summary: null,
+    mood,
+    energy,
+    stress,
+    sleep_hours: sleepHours,
+    factors: [],
+    notes: normalizedTranscript || null,
+    warnings: [
+      `Fallback extraction used: ${args.reason}`,
+    ],
+    metric_updates: metricUpdates,
+  };
+}
+
 async function requestRouterAi(
   messages: RouterAiChatMessage[],
   options?: RouterAiRequestOptions,
@@ -198,7 +344,12 @@ async function requestStructuredJson<T>(
   try {
     const parsed = JSON.parse(jsonCandidate) as unknown;
     return parser(parsed);
-  } catch {
+  } catch (parseError) {
+    console.error("[routerai] structured parse failed", {
+      message: parseError instanceof Error ? parseError.message : String(parseError),
+      preview: jsonCandidate.slice(0, 600),
+    });
+
     const repairedContent = await requestRouterAi(
       [
         {
@@ -223,7 +374,8 @@ async function requestStructuredJson<T>(
       },
     );
 
-    const repairedParsed = JSON.parse(extractJsonObject(repairedContent)) as unknown;
+    const repairedCandidate = extractJsonObject(repairedContent);
+    const repairedParsed = JSON.parse(repairedCandidate) as unknown;
     return parser(repairedParsed);
   }
 }
@@ -287,22 +439,38 @@ export async function extractDiaryDataFromTranscript(args: {
   metricDefinitions: DiaryExtractionMetricDefinition[];
   model?: string;
 }): Promise<DiaryExtractionResult> {
-  return requestStructuredJson(
-    [
-      {
-        role: "system",
-        content:
-          "You convert free-form diary transcripts into strict structured JSON. Return JSON only.",
-      },
-      {
-        role: "user",
-        content: buildDiaryExtractionPrompt({
-          transcript: args.transcript,
-          metricDefinitions: args.metricDefinitions,
-        }),
-      },
-    ],
-    parseDiaryExtractionResult,
-    routerAiStructuredModel,
-  );
+  try {
+    return await requestStructuredJson(
+      [
+        {
+          role: "system",
+          content:
+            "You convert free-form diary transcripts into strict structured JSON. Return JSON only.",
+        },
+        {
+          role: "user",
+          content: buildDiaryExtractionPrompt({
+            transcript: args.transcript,
+            metricDefinitions: args.metricDefinitions,
+          }),
+        },
+      ],
+      parseDiaryExtractionResult,
+      routerAiStructuredModel,
+    );
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "Unknown parse error";
+
+    console.error("[routerai] extraction fallback engaged", {
+      reason,
+      transcriptLength: args.transcript.length,
+      metricCount: args.metricDefinitions.length,
+    });
+
+    return buildFallbackExtractionResult({
+      transcript: args.transcript,
+      metricDefinitions: args.metricDefinitions,
+      reason,
+    });
+  }
 }
