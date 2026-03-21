@@ -454,7 +454,7 @@ export function DiarySection() {
       <button
         type="button"
         onClick={() => {
-          setIsUserMenuOpen(true);
+          setIsUserMenuOpen((current) => !current);
           setIsMobileSidebarOpen(false);
         }}
         className="mt-4 flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 p-4 text-left transition hover:border-[rgba(47,111,97,0.24)]"
@@ -471,6 +471,16 @@ export function DiarySection() {
         </div>
         <DotsIcon />
       </button>
+
+      {isUserMenuOpen ? (
+        <DiaryUserMenu
+          accountEmail={accountEmail}
+          profile={profile}
+          embedded
+          onClose={() => setIsUserMenuOpen(false)}
+          onOpenSettings={openSettings}
+        />
+      ) : null}
     </>
   );
 
@@ -590,7 +600,10 @@ export function DiarySection() {
                 </Link>
                 <button
                   type="button"
-                  onClick={() => setIsUserMenuOpen(true)}
+                  onClick={() => {
+                    setIsMobileSidebarOpen(true);
+                    setIsUserMenuOpen(true);
+                  }}
                   className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/94 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
                   aria-label="Открыть меню пользователя"
                 >
@@ -778,14 +791,6 @@ export function DiarySection() {
         />
       ) : null}
 
-      {isUserMenuOpen ? (
-        <DiaryUserMenu
-          accountEmail={accountEmail}
-          profile={profile}
-          onClose={() => setIsUserMenuOpen(false)}
-          onOpenSettings={openSettings}
-        />
-      ) : null}
     </>
   );
 }
@@ -1841,11 +1846,13 @@ function SettingsField({
 
 function DiaryUserMenu({
   accountEmail,
+  embedded = false,
   profile,
   onClose,
   onOpenSettings,
 }: {
   accountEmail: string | null;
+  embedded?: boolean;
   profile: WorkspaceProfile;
   onClose: () => void;
   onOpenSettings: (tab: SettingsTab) => void;
@@ -1855,6 +1862,10 @@ function DiaryUserMenu({
   const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
 
   useEffect(() => {
+    if (embedded) {
+      return;
+    }
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
@@ -1866,7 +1877,58 @@ function DiaryUserMenu({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose]);
+  }, [embedded, onClose]);
+
+  if (embedded) {
+    return (
+      <div className="mt-3 rounded-[26px] border border-[var(--border)] bg-white/92 p-4 shadow-[0_18px_36px_rgba(24,33,29,0.08)]">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white">
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold text-[var(--foreground)]">{profileName}</p>
+            <p className="truncate text-xs text-[var(--muted)]">{profileHandle}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 h-px bg-[var(--border)]" />
+
+        <div className="mt-3 grid gap-1">
+          <UserMenuButton
+            icon={<UserIcon />}
+            label="Профиль"
+            onClick={() => onOpenSettings("profile")}
+          />
+          <UserMenuButton
+            icon={<SettingsIcon />}
+            label="Настройки"
+            onClick={() => onOpenSettings("general")}
+          />
+          <UserMenuButton
+            icon={<ShieldIcon />}
+            label="Учетная запись"
+            onClick={() => onOpenSettings("account")}
+          />
+          <UserMenuButton
+            icon={<RobotMenuIcon />}
+            label="Ассистент"
+            onClick={() => onOpenSettings("assistant")}
+          />
+        </div>
+
+        <div className="mt-4 h-px bg-[var(--border)]" />
+
+        <div className="mt-4 grid gap-3">
+          <InstallAppButton className="justify-center rounded-[20px] border border-[var(--border)] bg-white px-4 py-3 text-left text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]" />
+          <LogoutButton
+            className="inline-flex min-h-12 items-center justify-center rounded-[20px] border border-[var(--border)] bg-white px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgb(136,47,63)] hover:text-[rgb(136,47,63)] disabled:cursor-not-allowed disabled:opacity-60"
+            label="Выйти"
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
