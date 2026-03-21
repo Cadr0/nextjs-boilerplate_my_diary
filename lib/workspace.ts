@@ -324,6 +324,11 @@ export const metricTemplateLibrary = metricTemplates;
 
 export const aiModelOptions = [
   {
+    id: "arcee-ai/trinity-large-preview:free",
+    label: "Trinity Large",
+    description: "Free large preview model for deeper replies.",
+  },
+  {
     id: "openrouter/free",
     label: "Free Auto",
     description: "OpenRouter free router.",
@@ -337,11 +342,6 @@ export const aiModelOptions = [
     id: "stepfun/step-3.5-flash:free",
     label: "Step 3.5 Flash",
     description: "Fast free chat model for quick responses.",
-  },
-  {
-    id: "arcee-ai/trinity-large-preview:free",
-    label: "Trinity Large",
-    description: "Free large preview model for deeper replies.",
   },
 ] as const;
 
@@ -358,7 +358,7 @@ export const defaultProfile: WorkspaceProfile = {
   keepRightRailOpen: true,
   microphoneEnabled: false,
   chatTone: "supportive",
-  aiModel: aiModelOptions[0].id,
+  aiModel: "arcee-ai/trinity-large-preview:free",
 };
 
 function generateId(prefix: string) {

@@ -229,7 +229,6 @@ export function DiarySection() {
     saveState,
     selectedDate,
     selectedDraft,
-    selectedEntry,
     selectedTasks,
     serverEntries,
     setSelectedDate,
@@ -325,27 +324,6 @@ export function DiarySection() {
             Дневник
           </p>
         </div>
-      </div>
-
-      <div className="mt-4 rounded-[26px] border border-[var(--border)] bg-white/88 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-              Анализ
-            </p>
-            <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-              {selectedEntry?.ai_analysis ? "Разбор готов" : "Ожидает запуска"}
-            </p>
-          </div>
-          <div className="rounded-full bg-[rgba(47,111,97,0.08)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
-            {profile.aiModel === "openrouter/free" ? "free" : "custom"}
-          </div>
-        </div>
-        <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-          {selectedEntry?.ai_analysis
-            ? selectedEntry.ai_analysis.split("\n").filter(Boolean)[0]
-            : "Запись сохраняется автоматически, а AI-разбор запускается отдельно."}
-        </p>
       </div>
 
       <div className="mt-4 min-h-0 flex-1 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
