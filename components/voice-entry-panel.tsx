@@ -455,41 +455,43 @@ export function VoiceEntryPanel() {
         <InlineMessage tone="success">{notice}</InlineMessage>
       ) : null}
 
-      <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <TranscriptIcon />
-            <p className="text-sm font-semibold text-[var(--foreground)]">Транскрипт</p>
+      {audioUrl ? (
+        <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <TranscriptIcon />
+              <p className="text-sm font-semibold text-[var(--foreground)]">Транскрипт</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void runExtraction(transcript, true)}
+                disabled={isExtracting || transcript.trim().length === 0}
+                className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RefreshIcon />
+                Обновить
+              </button>
+              <button
+                type="button"
+                onClick={clearVoiceState}
+                className="inline-flex min-h-9 items-center rounded-full border border-[var(--border)] bg-white px-3 text-xs font-medium text-[var(--muted)] transition hover:text-[var(--foreground)]"
+              >
+                Очистить
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void runExtraction(transcript, true)}
-              disabled={isExtracting || transcript.trim().length === 0}
-              className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <RefreshIcon />
-              Обновить
-            </button>
-            <button
-              type="button"
-              onClick={clearVoiceState}
-              className="inline-flex min-h-9 items-center rounded-full border border-[var(--border)] bg-white px-3 text-xs font-medium text-[var(--muted)] transition hover:text-[var(--foreground)]"
-            >
-              Очистить
-            </button>
-          </div>
+          <textarea
+            value={transcript}
+            onChange={(event) => setTranscript(event.target.value)}
+            rows={5}
+            placeholder="Текст расшифровки появится здесь после записи или вставь его вручную."
+            className="mt-3 w-full rounded-[18px] border border-[var(--border)] bg-[rgba(247,249,246,0.72)] px-4 py-3 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+          />
         </div>
-
-        <textarea
-          value={transcript}
-          onChange={(event) => setTranscript(event.target.value)}
-          rows={5}
-          placeholder="Текст расшифровки появится здесь после записи или вставь его вручную."
-          className="mt-3 w-full rounded-[18px] border border-[var(--border)] bg-[rgba(247,249,246,0.72)] px-4 py-3 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-        />
-      </div>
+      ) : null}
 
       {extraction ? (
         <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
