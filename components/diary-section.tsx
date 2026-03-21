@@ -1068,7 +1068,7 @@ function MetricBuilderModal({
         step: template.step,
         accent: template.accent,
         icon: template.icon,
-        showInDiary: template.showInDiary,
+        showInDiary: true,
         showInAnalytics: template.showInAnalytics,
         isActive: true,
       }),
@@ -1451,18 +1451,6 @@ function MetricBuilderModal({
               ) : null}
 
               <div className="grid gap-3">
-                <ToggleSwitchRow
-                  label="Показывать в дневнике"
-                  description="Метрика появится на карточке дня и будет доступна для ежедневного ввода."
-                  active={metric.showInDiary}
-                  onToggle={() =>
-                    setMetric((current) => ({
-                      ...current,
-                      showInDiary: !current.showInDiary,
-                      isActive: true,
-                    }))
-                  }
-                />
                 <ToggleSwitchRow
                   label="Показывать в аналитике"
                   description={

@@ -593,7 +593,7 @@ export function createMetricFromTemplate(
     accent: template.accent,
     icon: template.icon,
     sortOrder,
-    showInDiary: template.showInDiary,
+    showInDiary: true,
     showInAnalytics: template.showInAnalytics,
     isActive: true,
   });
@@ -796,9 +796,7 @@ export function buildEntryFingerprint(
 }
 
 export function getVisibleMetricDefinitions(definitions: MetricDefinition[]) {
-  return sortMetricDefinitions(definitions).filter(
-    (definition) => definition.isActive && definition.showInDiary,
-  );
+  return sortMetricDefinitions(definitions).filter((definition) => definition.isActive);
 }
 
 export function getAnalyticsMetricDefinitions(definitions: MetricDefinition[]) {
