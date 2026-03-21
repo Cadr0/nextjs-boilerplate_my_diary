@@ -571,6 +571,29 @@ export function WorkspaceProvider({
     }));
   };
 
+  const mergeVoiceNotes = (existingNotes: string, nextNotes: string) => {
+    const current = existingNotes.trim();
+    const incoming = nextNotes.trim();
+
+    if (!incoming) {
+      return existingNotes;
+    }
+
+    if (!current) {
+      return incoming;
+    }
+
+    if (current === incoming || current.includes(incoming)) {
+      return current;
+    }
+
+    if (incoming.includes(current)) {
+      return incoming;
+    }
+
+    return `${current}\n\n${incoming}`;
+  };
+
   const applyVoiceExtraction = (transcript: string, extraction: DiaryExtractionResult) => {
     updateDraft((draft) => {
       const nextMetricValues = { ...draft.metricValues };
@@ -617,7 +640,10 @@ export function WorkspaceProvider({
       return {
         ...draft,
         summary: extraction.summary ?? draft.summary,
-        notes: (extraction.notes ?? transcript.trim()) || draft.notes,
+        notes: mergeVoiceNotes(
+          draft.notes,
+          extraction.notes ?? transcript.trim(),
+        ),
         metricValues: nextMetricValues,
       };
     });
