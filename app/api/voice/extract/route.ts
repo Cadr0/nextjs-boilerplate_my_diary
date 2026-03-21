@@ -28,7 +28,24 @@ export async function POST(request: Request) {
       metricDefinitions: payload.metricDefinitions,
     });
 
-    return NextResponse.json({ extraction }, { status: 200 });
+    const metricUpdateMap = new Map(
+      extraction.metric_updates.map((update) => [update.metric_id, update.value]),
+    );
+
+    const normalizedMetricUpdates = payload.metricDefinitions.map((metric) => ({
+      metric_id: metric.id,
+      value: metricUpdateMap.has(metric.id) ? metricUpdateMap.get(metric.id) ?? null : null,
+    }));
+
+    return NextResponse.json(
+      {
+        extraction: {
+          ...extraction,
+          metric_updates: normalizedMetricUpdates,
+        },
+      },
+      { status: 200 },
+    );
   } catch (error) {
     console.error("[api/voice/extract] extraction failed", {
       message: error instanceof Error ? error.message : String(error),
