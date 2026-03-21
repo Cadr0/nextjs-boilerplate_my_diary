@@ -1,5 +1,16 @@
 import "server-only";
 
+import {
+  parseDiaryExtractionResult,
+  parsePeriodAnalysisResult,
+  type DiaryExtractionResult,
+  type PeriodAnalysisEntryPayload,
+  type PeriodAnalysisResult,
+} from "@/lib/ai/contracts";
+import {
+  buildDiaryExtractionPrompt,
+  buildPeriodAnalysisPrompt,
+} from "@/lib/ai/prompts";
 import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
 
 const openRouterBaseUrl =
@@ -30,6 +41,13 @@ type AnalyzeDiaryEntryInput = {
   }>;
 };
 
+type AnalyzeDiaryPeriodInput = {
+  from: string;
+  to: string;
+  entries: PeriodAnalysisEntryPayload[];
+  model?: string;
+};
+
 type OpenRouterMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -43,20 +61,28 @@ type OpenRouterDiaryContext = {
   model?: string;
 };
 
-async function requestOpenRouter(
+type OpenRouterPayload = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+  error?: {
+    message?: string;
+  };
+};
+
+type OpenRouterRequestOptions = {
+  model?: string;
+  maxTokens?: number;
+  temperature?: number;
+};
+
+async function fetchOpenRouter(
   messages: OpenRouterMessage[],
-  options?: {
-    model?: string;
-    maxTokens?: number;
-    temperature?: number;
-  },
+  model: string,
+  options?: OpenRouterRequestOptions,
 ) {
-  const configError = getOpenRouterConfigError();
-
-  if (configError) {
-    throw new Error(configError);
-  }
-
   const response = await fetch(`${openRouterBaseUrl}/chat/completions`, {
     method: "POST",
     headers: {
@@ -66,7 +92,7 @@ async function requestOpenRouter(
       "X-Title": appTitle,
     },
     body: JSON.stringify({
-      model: options?.model ?? openRouterModel,
+      model,
       temperature: options?.temperature ?? 0.35,
       max_tokens: options?.maxTokens ?? 320,
       messages,
@@ -74,28 +100,63 @@ async function requestOpenRouter(
     cache: "no-store",
   });
 
-  const payload = (await response.json()) as {
-    choices?: Array<{
-      message?: {
-        content?: string;
-      };
-    }>;
-    error?: {
-      message?: string;
-    };
-  };
+  const payload = (await response.json().catch(() => ({}))) as OpenRouterPayload;
 
   if (!response.ok) {
     throw new Error(payload.error?.message ?? "OpenRouter request failed.");
   }
 
-  const content = payload.choices?.[0]?.message?.content?.trim();
+  return payload;
+}
+
+async function requestOpenRouter(
+  messages: OpenRouterMessage[],
+  options?: OpenRouterRequestOptions,
+) {
+  const configError = getOpenRouterConfigError();
+
+  if (configError) {
+    throw new Error(configError);
+  }
+
+  const requestedModel = options?.model ?? openRouterModel;
+  const payload = await fetchOpenRouter(messages, requestedModel, options);
+  let content = payload.choices?.[0]?.message?.content?.trim() ?? "";
+
+  if (!content && requestedModel !== openRouterModel) {
+    const fallbackPayload = await fetchOpenRouter(messages, openRouterModel, options);
+    content = fallbackPayload.choices?.[0]?.message?.content?.trim() ?? "";
+  }
 
   if (!content) {
     throw new Error("OpenRouter returned an empty response.");
   }
 
   return content;
+}
+
+function extractJsonObject(content: string) {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  const candidate = fenced?.[1]?.trim() ?? trimmed;
+  const firstBrace = candidate.indexOf("{");
+  const lastBrace = candidate.lastIndexOf("}");
+
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    throw new Error("AI response did not contain a JSON object.");
+  }
+
+  return candidate.slice(firstBrace, lastBrace + 1);
+}
+
+async function requestStructuredJson<T>(
+  messages: OpenRouterMessage[],
+  parser: (value: unknown) => T,
+  options?: OpenRouterRequestOptions,
+) {
+  const content = await requestOpenRouter(messages, options);
+  const parsed = JSON.parse(extractJsonObject(content)) as unknown;
+  return parser(parsed);
 }
 
 function buildDiaryContextPrompt(context: OpenRouterDiaryContext) {
@@ -193,6 +254,59 @@ export async function chatWithOpenRouter(
       model: context.model,
       temperature: 0.35,
       maxTokens: 420,
+    },
+  );
+}
+
+export async function extractDiaryDataFromTranscript(args: {
+  transcript: string;
+  model?: string;
+}): Promise<DiaryExtractionResult> {
+  return requestStructuredJson(
+    [
+      {
+        role: "system",
+        content:
+          "You convert free-form diary transcripts into strict structured JSON. Return JSON only.",
+      },
+      {
+        role: "user",
+        content: buildDiaryExtractionPrompt(args.transcript),
+      },
+    ],
+    parseDiaryExtractionResult,
+    {
+      model: args.model,
+      temperature: 0.1,
+      maxTokens: 420,
+    },
+  );
+}
+
+export async function analyzeDiaryPeriod(
+  input: AnalyzeDiaryPeriodInput,
+): Promise<PeriodAnalysisResult> {
+  return requestStructuredJson(
+    [
+      {
+        role: "system",
+        content:
+          "You analyze patterns across diary entries and return structured JSON only.",
+      },
+      {
+        role: "user",
+        content: buildPeriodAnalysisPrompt({
+          from: input.from,
+          to: input.to,
+          entries: input.entries,
+        }),
+      },
+    ],
+    parsePeriodAnalysisResult,
+    {
+      model: input.model,
+      temperature: 0.15,
+      maxTokens: 640,
     },
   );
 }

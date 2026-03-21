@@ -5,7 +5,6 @@ import {
   startTransition,
   useContext,
   useEffect,
-  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -13,6 +12,7 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import type { AuthAccountInfo } from "@/lib/auth";
+import type { DiaryExtractionResult } from "@/lib/ai/contracts";
 import type {
   DiaryEntry,
   MetricDefinition,
@@ -34,6 +34,7 @@ import {
   createDraftFromEntry,
   createMetricFromTemplate,
   formatCompactDate,
+  findMetricDefinitionBySemantic,
   getAnalyticsMetricDefinitions,
   getMetricDefaultValue,
   getTaskCompletionRatio,
@@ -84,6 +85,7 @@ type WorkspaceContextValue = {
   initialError: string | null;
   error: string | null;
   saveState: SaveState;
+  hasUnsavedChanges: boolean;
   analysisState: "idle" | "loading" | "error";
   analysisError: string | null;
   selectedDate: string;
@@ -105,7 +107,12 @@ type WorkspaceContextValue = {
   toggleMetricVisibility: (metricId: string) => void;
   toggleMetricAnalytics: (metricId: string) => void;
   availableMetricTemplates: MetricTemplate[];
+  saveEntry: () => Promise<DiaryEntry | null>;
   requestEntryAnalysis: () => Promise<void>;
+  applyVoiceExtraction: (
+    transcript: string,
+    extraction: DiaryExtractionResult,
+  ) => void;
   tasks: TaskItem[];
   selectedTasks: TaskItem[];
   overdueTasks: TaskItem[];
@@ -346,6 +353,9 @@ export function WorkspaceProvider({
     () => serializeServerPayload(selectedPayload),
     [selectedPayload],
   );
+  const hasUnsavedChanges =
+    canPersistToServer &&
+    savedFingerprints.current[selectedDate] !== selectedPayloadFingerprint;
 
   const saveSelectedPayload = async (
     payloadFingerprint: string,
@@ -402,12 +412,6 @@ export function WorkspaceProvider({
     }
   };
 
-  const syncSelectedPayload = useEffectEvent(
-    (payloadFingerprint: string, payload: typeof selectedPayload) => {
-      void saveSelectedPayload(payloadFingerprint, payload);
-    },
-  );
-
   useEffect(() => {
     if (!isHydrated) {
       return;
@@ -418,28 +422,8 @@ export function WorkspaceProvider({
       return;
     }
 
-    if (savedFingerprints.current[selectedDate] === selectedPayloadFingerprint) {
-      setSaveState("saved");
-      return;
-    }
-
-    setSaveState("saving");
-
-    const timeoutId = window.setTimeout(() => {
-      void syncSelectedPayload(selectedPayloadFingerprint, selectedPayload);
-    }, 750);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [
-    canPersistToServer,
-    initialError,
-    isHydrated,
-    selectedDate,
-    selectedPayload,
-    selectedPayloadFingerprint,
-  ]);
+    setSaveState(hasUnsavedChanges ? "idle" : "saved");
+  }, [canPersistToServer, hasUnsavedChanges, initialError, isHydrated]);
 
   const updateDraft = (updater: (draft: WorkspaceDraft) => WorkspaceDraft) => {
     setWorkspaceState((current) => {
@@ -456,6 +440,8 @@ export function WorkspaceProvider({
       };
     });
   };
+
+  const saveEntry = async () => saveSelectedPayload(selectedPayloadFingerprint, selectedPayload);
 
   const setSelectedDate = (date: string) => {
     setSelectedDateState(date);
@@ -493,6 +479,48 @@ export function WorkspaceProvider({
         [metricId]: normalizeMetricValue(definition, value),
       },
     }));
+  };
+
+  const applyVoiceExtraction = (transcript: string, extraction: DiaryExtractionResult) => {
+    updateDraft((draft) => {
+      const nextMetricValues = { ...draft.metricValues };
+      const moodMetric = findMetricDefinitionBySemantic(metricDefinitions, "mood");
+      const energyMetric = findMetricDefinitionBySemantic(metricDefinitions, "energy");
+      const stressMetric = findMetricDefinitionBySemantic(metricDefinitions, "stress");
+      const sleepMetric = findMetricDefinitionBySemantic(metricDefinitions, "sleep");
+
+      if (moodMetric && extraction.mood !== null) {
+        nextMetricValues[moodMetric.id] = normalizeMetricValue(moodMetric, extraction.mood);
+      }
+
+      if (energyMetric && extraction.energy !== null) {
+        nextMetricValues[energyMetric.id] = normalizeMetricValue(
+          energyMetric,
+          extraction.energy,
+        );
+      }
+
+      if (stressMetric && extraction.stress !== null) {
+        nextMetricValues[stressMetric.id] = normalizeMetricValue(
+          stressMetric,
+          extraction.stress,
+        );
+      }
+
+      if (sleepMetric && extraction.sleep_hours !== null) {
+        nextMetricValues[sleepMetric.id] = normalizeMetricValue(
+          sleepMetric,
+          extraction.sleep_hours,
+        );
+      }
+
+      return {
+        ...draft,
+        summary: extraction.summary ?? draft.summary,
+        notes: (extraction.notes ?? transcript.trim()) || draft.notes,
+        metricValues: nextMetricValues,
+      };
+    });
   };
 
   const createMetric = (templateId?: string) => {
@@ -668,12 +696,10 @@ export function WorkspaceProvider({
     setAnalysisError(null);
 
     try {
-      const payload = buildServerPayload(selectedDate, selectedDraft, metricDefinitions);
-      const payloadFingerprint = serializeServerPayload(payload);
       const syncedEntry =
-        savedFingerprints.current[selectedDate] === payloadFingerprint && selectedEntry
+        !hasUnsavedChanges && selectedEntry
           ? selectedEntry
-          : await saveSelectedPayload(payloadFingerprint, payload);
+          : await saveEntry();
 
       if (!syncedEntry) {
         throw new Error("Сначала нужно сохранить день перед анализом.");
@@ -866,6 +892,7 @@ export function WorkspaceProvider({
     initialError,
     error,
     saveState,
+    hasUnsavedChanges,
     analysisState,
     analysisError,
     selectedDate,
@@ -887,7 +914,9 @@ export function WorkspaceProvider({
     toggleMetricVisibility,
     toggleMetricAnalytics,
     availableMetricTemplates,
+    saveEntry,
     requestEntryAnalysis,
+    applyVoiceExtraction,
     tasks: workspaceState.tasks,
     selectedTasks,
     overdueTasks,

@@ -15,6 +15,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import Link from "next/link";
 import type {
   MouseEvent as ReactMouseEvent,
   ReactNode,
@@ -24,6 +25,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { DiaryAssistantPanel } from "@/components/diary-assistant-panel";
 import { AccountSecurityPanel } from "@/components/account-security-panel";
+import { VoiceEntryPanel } from "@/components/voice-entry-panel";
 import { useWorkspace } from "@/components/workspace-provider";
 import type {
   MetricDefinition,
@@ -213,13 +215,17 @@ export function DiarySection() {
     accountEmail,
     accountInfo,
     analysisError,
+    analysisState,
     archiveMetric,
     availableMetricTemplates,
     days,
     error,
+    hasUnsavedChanges,
     metricDefinitions,
     profile,
     reorderMetric,
+    requestEntryAnalysis,
+    saveEntry,
     saveMetricDefinition,
     saveState,
     selectedDate,
@@ -260,14 +266,16 @@ export function DiarySection() {
   const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
   const saveCopy =
     saveState === "saving"
-      ? "Сохраняем изменения..."
+      ? "Сохраняем запись..."
       : saveState === "saved"
-        ? "Все изменения сохранены"
+        ? "Запись сохранена"
         : saveState === "local"
-          ? "Изменения сохранены только локально"
+          ? "Работаем только локально"
           : saveState === "error"
-            ? "Есть ошибка сохранения"
-            : "Рабочее пространство готово";
+            ? "Не удалось сохранить"
+            : hasUnsavedChanges
+              ? "Есть несохраненные изменения"
+              : "Можно сохранять отдельно";
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -337,7 +345,7 @@ export function DiarySection() {
         <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
           {selectedEntry?.ai_analysis
             ? selectedEntry.ai_analysis.split("\n").filter(Boolean)[0]
-            : "Основной разбор и чат находятся ниже под метриками, как единый поток."}
+            : "AI-разбор запускается отдельно после сохранения записи."}
         </p>
       </div>
 
@@ -506,6 +514,28 @@ export function DiarySection() {
                 <div className="rounded-full bg-[rgba(47,111,97,0.08)] px-4 py-2 text-sm font-medium text-[var(--accent)]">
                   {saveCopy}
                 </div>
+                <Link
+                  href="/analytics"
+                  className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/94 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  Период и тренды
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => void saveEntry()}
+                  disabled={saveState === "saving" || !hasUnsavedChanges}
+                  className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/94 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Сохранить запись
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void requestEntryAnalysis()}
+                  disabled={analysisState === "loading" || saveState === "saving"}
+                  className="inline-flex min-h-11 items-center rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white shadow-[0_16px_28px_rgba(47,111,97,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {analysisState === "loading" ? "Анализируем..." : "Анализировать с AI"}
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsSettingsOpen(true)}
@@ -540,6 +570,13 @@ export function DiarySection() {
                   className="min-h-12 rounded-[20px] border border-[var(--border)] bg-white/95 px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
+
+              <div className="mt-4 rounded-[20px] border border-[var(--border)] bg-white/80 px-4 py-3 text-sm leading-6 text-[var(--muted)]">
+                Сохранение и AI-разбор теперь разделены: сначала проверь запись и нажми
+                «Сохранить запись», затем запускай анализ только по необходимости.
+              </div>
+
+              <VoiceEntryPanel />
             </div>
           </div>
 
@@ -550,7 +587,8 @@ export function DiarySection() {
                   Метрики
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  Изменения сохраняются сразу. Анализ и чат идут ниже, в одном потоке.
+                  Значения можно править свободно. Сохранение записи и AI-анализ запускаются
+                  отдельными кнопками выше.
                 </p>
               </div>
 

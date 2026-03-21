@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { AnalyticsSection } from "@/components/analytics-section";
 
 export default function AnalyticsPage() {
-  redirect("/diary");
+  return <AnalyticsSection />;
 }

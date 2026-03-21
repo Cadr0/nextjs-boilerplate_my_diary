@@ -1,4 +1,5 @@
 export type MetricInputType = "scale" | "number" | "boolean" | "text";
+export type MetricSemanticKey = "mood" | "energy" | "stress" | "sleep";
 export type MetricUnitPreset =
   | "score"
   | "percent"
@@ -687,6 +688,34 @@ function sortMetricDefinitions(definitions: MetricDefinition[]) {
   return [...definitions]
     .map(sanitizeMetricDefinition)
     .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name));
+}
+
+const metricSemanticKeywords: Record<MetricSemanticKey, string[]> = {
+  mood: ["mood", "настроение"],
+  energy: ["energy", "энергия"],
+  stress: ["stress", "стресс"],
+  sleep: ["sleep", "сон"],
+};
+
+function getSearchableMetricText(metric: Pick<MetricDefinition, "id" | "slug" | "name">) {
+  return [metric.id, metric.slug, metric.name]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+export function findMetricDefinitionBySemantic(
+  definitions: MetricDefinition[],
+  semantic: MetricSemanticKey,
+) {
+  const keywords = metricSemanticKeywords[semantic];
+
+  return (
+    sortMetricDefinitions(definitions).find((metric) => {
+      const haystack = getSearchableMetricText(metric);
+      return keywords.some((keyword) => haystack.includes(keyword));
+    }) ?? null
+  );
 }
 
 export function serializeServerPayload(payload: DiaryEntryInput) {
