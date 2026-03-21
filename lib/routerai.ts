@@ -360,7 +360,7 @@ async function requestStructuredJson<T>(
   const content = await requestRouterAi(messages, {
     model: requestedModel,
     temperature: 0.1,
-    maxTokens: 420,
+    maxTokens: 900,
   });
   debug.rawResponse = content;
   const jsonCandidate = extractJsonObject(content);
@@ -401,7 +401,7 @@ async function requestStructuredJson<T>(
       {
         model: requestedModel,
         temperature: 0,
-        maxTokens: 420,
+        maxTokens: 900,
       },
     );
     debug.repairedResponse = repairedContent;
@@ -484,7 +484,7 @@ export async function extractDiaryDataFromTranscriptWithDebug(args: {
   metricDefinitions: DiaryExtractionMetricDefinition[];
   model?: string;
 }): Promise<{ extraction: DiaryExtractionResult; debug: VoiceExtractionDebug }> {
-  const requestedModel = routerAiStructuredModel;
+  const requestedModel = args.model ?? routerAiStructuredModel;
   const messages: RouterAiChatMessage[] = [
     {
       role: "system",
