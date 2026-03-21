@@ -21,6 +21,8 @@ export function buildDiaryExtractionPrompt(args: {
     "- Return JSON only.",
     "- Do not include markdown.",
     "- Do not explain anything.",
+    "- Output must be valid JSON.parse-compatible JSON.",
+    '- Escape all inner double quotes inside string values (use \\\").',
     "- Do not guess missing facts.",
     "- If a value is unclear or not mentioned, use null.",
     '- "notes" maps to the field "Как прошел день" and should keep as much source detail as possible.',

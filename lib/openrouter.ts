@@ -152,14 +152,97 @@ function extractJsonObject(content: string) {
   return candidate.slice(firstBrace, lastBrace + 1);
 }
 
+function buildJsonParseDiagnostics(jsonText: string, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const positionMatch = message.match(/position\s+(\d+)/i);
+  const position = positionMatch ? Number(positionMatch[1]) : null;
+
+  if (position === null || !Number.isFinite(position)) {
+    return {
+      message,
+      position: null,
+      context: jsonText.slice(0, 280),
+    };
+  }
+
+  const start = Math.max(0, position - 120);
+  const end = Math.min(jsonText.length, position + 120);
+
+  return {
+    message,
+    position,
+    context: jsonText.slice(start, end),
+  };
+}
+
 async function requestStructuredJson<T>(
   messages: OpenRouterMessage[],
   parser: (value: unknown) => T,
   options?: OpenRouterRequestOptions,
 ) {
   const content = await requestOpenRouter(messages, options);
-  const parsed = JSON.parse(extractJsonObject(content)) as unknown;
-  return parser(parsed);
+  const jsonCandidate = extractJsonObject(content);
+
+  try {
+    const parsed = JSON.parse(jsonCandidate) as unknown;
+    return parser(parsed);
+  } catch (parseError) {
+    const diagnostics = buildJsonParseDiagnostics(jsonCandidate, parseError);
+
+    console.error("[openrouter] Failed to parse structured JSON response", {
+      model: options?.model ?? openRouterModel,
+      message: diagnostics.message,
+      position: diagnostics.position,
+      context: diagnostics.context,
+    });
+
+    const repairedContent = await requestOpenRouter(
+      [
+        {
+          role: "system",
+          content:
+            "You repair malformed JSON. Return valid JSON only. Keep keys and values exactly where possible.",
+        },
+        {
+          role: "user",
+          content: [
+            "Fix JSON for strict JSON.parse compatibility.",
+            "Return JSON only.",
+            "",
+            jsonCandidate,
+          ].join("\n"),
+        },
+      ],
+      {
+        model: options?.model,
+        temperature: 0,
+        maxTokens: options?.maxTokens ?? 420,
+      },
+    );
+
+    const repairedCandidate = extractJsonObject(repairedContent);
+
+    try {
+      const repairedParsed = JSON.parse(repairedCandidate) as unknown;
+      return parser(repairedParsed);
+    } catch (repairParseError) {
+      const repairDiagnostics = buildJsonParseDiagnostics(
+        repairedCandidate,
+        repairParseError,
+      );
+
+      console.error("[openrouter] Failed to parse repaired structured JSON response", {
+        model: options?.model ?? openRouterModel,
+        message: repairDiagnostics.message,
+        position: repairDiagnostics.position,
+        context: repairDiagnostics.context,
+      });
+
+      throw new Error(
+        `Failed to parse AI JSON. ${repairDiagnostics.message}`,
+      );
+    }
+  }
 }
 
 function buildDiaryContextPrompt(context: OpenRouterDiaryContext) {

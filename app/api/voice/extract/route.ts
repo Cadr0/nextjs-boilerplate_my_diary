@@ -30,6 +30,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ extraction }, { status: 200 });
   } catch (error) {
+    console.error("[api/voice/extract] extraction failed", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
     return NextResponse.json(
       {
         error:
