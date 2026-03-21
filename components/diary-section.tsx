@@ -1094,6 +1094,7 @@ function MetricBuilderModal({
         showInDiary: true,
         showInAnalytics: template.showInAnalytics,
         isActive: true,
+        carryForward: false,
       }),
     );
   };
@@ -1484,6 +1485,17 @@ function MetricBuilderModal({
               ) : null}
 
               <div className="grid gap-3">
+                <ToggleSwitchRow
+                  label="Переносить на следующий день"
+                  description="Если за новый день нет значения, подставим последнее сохранённое значение этой метрики."
+                  active={metric.carryForward}
+                  onToggle={() =>
+                    setMetric((current) => ({
+                      ...current,
+                      carryForward: !current.carryForward,
+                    }))
+                  }
+                />
                 <ToggleSwitchRow
                   label="Показывать в аналитике"
                   description={

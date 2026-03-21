@@ -32,6 +32,7 @@ type MetricDefinitionRow = {
   show_in_diary: boolean;
   show_in_analytics: boolean;
   is_active: boolean;
+  carry_forward?: boolean | null;
   created_at: string;
   updated_at?: string | null;
 };
@@ -87,6 +88,7 @@ type EntrySelectOptions = {
 
 type MetricDefinitionSelectOptions = {
   includeUpdatedAt: boolean;
+  includeCarryForward: boolean;
 };
 
 const legacySummaryStart = "<<<DIARY_AI_SUMMARY>>>";
@@ -130,6 +132,7 @@ function buildMetricDefinitionSelect(options: MetricDefinitionSelectOptions) {
     "show_in_diary",
     "show_in_analytics",
     "is_active",
+    ...(options.includeCarryForward ? ["carry_forward"] : []),
     "created_at",
   ];
 
@@ -160,7 +163,18 @@ function supportsLegacyEntries(error: PostgrestError) {
 }
 
 function supportsLegacyMetricDefinitions(error: PostgrestError) {
-  return isMissingColumn(error, "metric_definitions", "updated_at");
+  return (
+    isMissingColumn(error, "metric_definitions", "updated_at") ||
+    isMissingColumn(error, "metric_definitions", "carry_forward")
+  );
+}
+
+function stripCarryForwardColumn(rows: Record<string, unknown>[]) {
+  return rows.map((row) => {
+    const nextRow = { ...row };
+    delete nextRow.carry_forward;
+    return nextRow;
+  });
 }
 
 function hasMissingUpsertConstraint(error: PostgrestError) {
@@ -261,6 +275,7 @@ async function listMetricDefinitionsWithFallback(
 ) {
   const modernOptions: MetricDefinitionSelectOptions = {
     includeUpdatedAt: true,
+    includeCarryForward: true,
   };
   const modernResult = await supabase
     .from("metric_definitions")
@@ -273,9 +288,18 @@ async function listMetricDefinitionsWithFallback(
     return modernResult;
   }
 
+  const fallbackOptions: MetricDefinitionSelectOptions = {
+    includeUpdatedAt: !isMissingColumn(modernResult.error, "metric_definitions", "updated_at"),
+    includeCarryForward: !isMissingColumn(
+      modernResult.error,
+      "metric_definitions",
+      "carry_forward",
+    ),
+  };
+
   return supabase
     .from("metric_definitions")
-    .select(buildMetricDefinitionSelect({ includeUpdatedAt: false }))
+    .select(buildMetricDefinitionSelect(fallbackOptions))
     .eq("user_id", userId)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
@@ -351,19 +375,38 @@ async function upsertMetricDefinitionsWithFallback(
   supabase: SupabaseClient,
   rows: Record<string, unknown>[],
 ) {
+  const modernOptions: MetricDefinitionSelectOptions = {
+    includeUpdatedAt: true,
+    includeCarryForward: true,
+  };
   const modernResult = await supabase
     .from("metric_definitions")
     .upsert(rows, { onConflict: "id" })
-    .select(buildMetricDefinitionSelect({ includeUpdatedAt: true }));
+    .select(buildMetricDefinitionSelect(modernOptions));
 
-  if (!modernResult.error || !supportsLegacyMetricDefinitions(modernResult.error)) {
+  if (!modernResult.error) {
     return modernResult;
   }
 
+  if (!supportsLegacyMetricDefinitions(modernResult.error)) {
+    return modernResult;
+  }
+
+  const missingCarryForward = isMissingColumn(
+    modernResult.error,
+    "metric_definitions",
+    "carry_forward",
+  );
+  const fallbackRows = missingCarryForward ? stripCarryForwardColumn(rows) : rows;
+  const fallbackOptions: MetricDefinitionSelectOptions = {
+    includeUpdatedAt: !isMissingColumn(modernResult.error, "metric_definitions", "updated_at"),
+    includeCarryForward: !missingCarryForward,
+  };
+
   return supabase
     .from("metric_definitions")
-    .upsert(rows, { onConflict: "id" })
-    .select(buildMetricDefinitionSelect({ includeUpdatedAt: false }));
+    .upsert(fallbackRows, { onConflict: "id" })
+    .select(buildMetricDefinitionSelect(fallbackOptions));
 }
 
 async function upsertEntryWithFallback(
@@ -435,6 +478,10 @@ function mapDiaryError(error: PostgrestError) {
     return "В daily_entries нет unique-ограничения по (user_id, entry_date), поэтому дневник не может надёжно сохранять день через upsert.";
   }
 
+  if (isMissingColumn(error, "metric_definitions", "carry_forward")) {
+    return "В базе нет поля metric_definitions.carry_forward. Примените SQL-миграцию phase4 для переноса метрик на следующий день.";
+  }
+
   return error.message;
 }
 
@@ -468,6 +515,7 @@ function mapMetricDefinition(row: MetricDefinitionRow): MetricDefinition {
     showInDiary: row.show_in_diary,
     showInAnalytics: row.show_in_analytics,
     isActive: row.is_active,
+    carryForward: Boolean(row.carry_forward),
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? row.created_at,
   });
@@ -710,6 +758,7 @@ export async function saveDiaryEntry(input: DiaryEntryInput) {
     show_in_diary: metric.showInDiary,
     show_in_analytics: metric.showInAnalytics,
     is_active: metric.isActive,
+    carry_forward: metric.carryForward,
   }));
 
   const definitionResult = await upsertMetricDefinitionsWithFallback(

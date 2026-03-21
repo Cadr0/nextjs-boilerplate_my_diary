@@ -46,6 +46,7 @@ export type MetricDefinition = {
   showInDiary: boolean;
   showInAnalytics: boolean;
   isActive: boolean;
+  carryForward: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -488,6 +489,7 @@ export function sanitizeMetricDefinition(metric: MetricDefinition): MetricDefini
   const unitOption = getMetricUnitPresetOption(safePreset);
   const safeUnit = metric.unit.trim() || unitOption.defaultUnit;
   const sortOrder = Number.isFinite(metric.sortOrder) ? Number(metric.sortOrder) : 0;
+  const carryForward = Boolean(metric.carryForward);
 
   if (safeType === "text") {
     return {
@@ -501,6 +503,7 @@ export function sanitizeMetricDefinition(metric: MetricDefinition): MetricDefini
       step: undefined,
       sortOrder,
       showInAnalytics: false,
+      carryForward,
     };
   }
 
@@ -516,6 +519,7 @@ export function sanitizeMetricDefinition(metric: MetricDefinition): MetricDefini
       step: undefined,
       sortOrder,
       showInAnalytics: false,
+      carryForward,
     };
   }
 
@@ -531,6 +535,7 @@ export function sanitizeMetricDefinition(metric: MetricDefinition): MetricDefini
     max: numericDefaults.max,
     step: numericDefaults.step,
     sortOrder,
+    carryForward,
   };
 }
 
@@ -597,6 +602,7 @@ export function createMetricFromTemplate(
     showInDiary: true,
     showInAnalytics: template.showInAnalytics,
     isActive: true,
+    carryForward: false,
   });
 }
 
@@ -618,6 +624,7 @@ export function createBlankMetric(sortOrder: number) {
     showInDiary: true,
     showInAnalytics: true,
     isActive: true,
+    carryForward: false,
   });
 }
 
@@ -739,6 +746,7 @@ export function serializeServerPayload(payload: DiaryEntryInput) {
     showInDiary: metric.showInDiary,
     showInAnalytics: metric.showInAnalytics,
     isActive: metric.isActive,
+    carryForward: metric.carryForward,
   }));
   const sortedValues = sortedDefinitions.reduce<Record<string, MetricValue>>((result, metric) => {
     result[metric.id] = payload.metric_values[metric.id];

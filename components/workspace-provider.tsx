@@ -76,6 +76,7 @@ type MetricDefinitionPatch = Partial<
     | "showInDiary"
     | "showInAnalytics"
     | "isActive"
+    | "carryForward"
   >
 >;
 
@@ -215,6 +216,51 @@ function collapseMetricReference(value: string) {
   return normalizeMetricReference(value).replace(/[^a-z0-9а-яё]+/gi, "");
 }
 
+function buildDraftForDate(
+  date: string,
+  entry: DiaryEntry | undefined,
+  metricDefinitions: MetricDefinition[],
+  drafts: Record<string, WorkspaceDraft>,
+) {
+  const baseDraft = createDraftFromEntry(entry, metricDefinitions, date);
+
+  if (entry) {
+    return baseDraft;
+  }
+
+  const previousDates = Object.keys(drafts)
+    .filter((candidateDate) => candidateDate < date)
+    .sort((left, right) => right.localeCompare(left));
+
+  if (previousDates.length === 0) {
+    return baseDraft;
+  }
+
+  const nextMetricValues = { ...baseDraft.metricValues };
+
+  for (const metric of metricDefinitions) {
+    if (!metric.isActive || !metric.carryForward) {
+      continue;
+    }
+
+    for (const previousDate of previousDates) {
+      const previousValue = drafts[previousDate]?.metricValues[metric.id];
+
+      if (previousValue === undefined) {
+        continue;
+      }
+
+      nextMetricValues[metric.id] = normalizeMetricValue(metric, previousValue);
+      break;
+    }
+  }
+
+  return {
+    ...baseDraft,
+    metricValues: nextMetricValues,
+  };
+}
+
 export function WorkspaceProvider({
   children,
   initialEntries,
@@ -346,7 +392,12 @@ export function WorkspaceProvider({
   const selectedDraft = useMemo(
     () =>
       workspaceState.drafts[selectedDate] ??
-      createDraftFromEntry(selectedEntry, metricDefinitions, selectedDate),
+      buildDraftForDate(
+        selectedDate,
+        selectedEntry,
+        metricDefinitions,
+        workspaceState.drafts,
+      ),
     [metricDefinitions, selectedDate, selectedEntry, workspaceState.drafts],
   );
 
@@ -527,7 +578,12 @@ export function WorkspaceProvider({
     setWorkspaceState((current) => {
       const existingDraft =
         current.drafts[selectedDate] ??
-        createDraftFromEntry(entriesByDate[selectedDate], current.metricDefinitions, selectedDate);
+        buildDraftForDate(
+          selectedDate,
+          entriesByDate[selectedDate],
+          current.metricDefinitions,
+          current.drafts,
+        );
 
       return {
         ...current,
@@ -1019,7 +1075,7 @@ export function WorkspaceProvider({
       .map((date) => {
         const draft =
           workspaceState.drafts[date] ??
-          createDraftFromEntry(entriesByDate[date], metricDefinitions, date);
+          buildDraftForDate(date, entriesByDate[date], metricDefinitions, workspaceState.drafts);
         const tasks = workspaceState.tasks.filter((task) => task.scheduledDate === date);
         const visibleMetrics = getVisibleMetricDefinitions(metricDefinitions).filter((metric) => {
           const value = draft.metricValues[metric.id];

@@ -47,6 +47,7 @@ create table public.metric_definitions (
   show_in_diary boolean not null default true,
   show_in_analytics boolean not null default true,
   is_active boolean not null default true,
+  carry_forward boolean not null default false,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   constraint metric_definitions_numeric_shape check (
