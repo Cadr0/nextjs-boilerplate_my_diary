@@ -601,6 +601,10 @@ export function WorkspaceProvider({
       const energyMetric = findMetricDefinitionBySemantic(metricDefinitions, "energy");
       const stressMetric = findMetricDefinitionBySemantic(metricDefinitions, "stress");
       const sleepMetric = findMetricDefinitionBySemantic(metricDefinitions, "sleep");
+      const transcriptNotes = transcript.trim();
+      const extractedNotes = extraction.notes?.trim() ?? "";
+      const bestNotesSource =
+        extractedNotes.length > transcriptNotes.length ? extractedNotes : transcriptNotes;
 
       for (const update of extraction.metric_updates) {
         const metric = metricDefinitions.find((item) => item.id === update.metric_id);
@@ -640,10 +644,7 @@ export function WorkspaceProvider({
       return {
         ...draft,
         summary: extraction.summary ?? draft.summary,
-        notes: mergeVoiceNotes(
-          draft.notes,
-          extraction.notes ?? transcript.trim(),
-        ),
+        notes: mergeVoiceNotes(draft.notes, bestNotesSource),
         metricValues: nextMetricValues,
       };
     });
