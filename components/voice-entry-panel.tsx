@@ -7,21 +7,6 @@ import type { DiaryExtractionResult } from "@/lib/ai/contracts";
 
 const MAX_RECORDING_SECONDS = 180;
 
-type VoiceExtractionDebugPayload = {
-  model: string;
-  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
-  rawResponse: string | null;
-  jsonCandidate: string | null;
-  repairedResponse: string | null;
-  repairedJsonCandidate: string | null;
-  parseError: string | null;
-  fallbackReason: string | null;
-  normalized_metric_updates?: Array<{
-    metric_id: string;
-    value: string | number | boolean | null;
-  }>;
-};
-
 function getSupportedMimeType() {
   if (typeof MediaRecorder === "undefined") {
     return "";
@@ -59,12 +44,19 @@ function getStatusCopy(args: {
 }
 
 export function VoiceEntryPanel() {
-  const { applyVoiceExtraction, metricDefinitions, profile, updateProfile } = useWorkspace();
+  const {
+    applyVoiceExtraction,
+    metricDefinitions,
+    profile,
+    selectedDate,
+    updateProfile,
+  } = useWorkspace();
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
   const isStartingRef = useRef(false);
+  const contextVersionRef = useRef(0);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -72,7 +64,6 @@ export function VoiceEntryPanel() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [extraction, setExtraction] = useState<DiaryExtractionResult | null>(null);
-  const [extractionDebug, setExtractionDebug] = useState<VoiceExtractionDebugPayload | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -107,14 +98,6 @@ export function VoiceEntryPanel() {
     [extraction, metricDefinitions],
   );
 
-  const summaryCards = [
-    { label: "Главное", value: extraction?.summary ?? "Не выделено" },
-    { label: "Настроение", value: extraction?.mood == null ? "—" : String(extraction.mood) },
-    { label: "Энергия", value: extraction?.energy == null ? "—" : String(extraction.energy) },
-    { label: "Стресс", value: extraction?.stress == null ? "—" : String(extraction.stress) },
-    { label: "Сон", value: extraction?.sleep_hours == null ? "—" : String(extraction.sleep_hours) },
-  ];
-
   const statusCopy = getStatusCopy({
     isRecording,
     isTranscribing,
@@ -147,7 +130,6 @@ export function VoiceEntryPanel() {
   const clearVoiceState = () => {
     setTranscript("");
     setExtraction(null);
-    setExtractionDebug(null);
     setAudioUrl((current) => {
       if (current) {
         URL.revokeObjectURL(current);
@@ -167,6 +149,8 @@ export function VoiceEntryPanel() {
       setError("Сначала нужен текст расшифровки.");
       return;
     }
+
+    const contextVersion = contextVersionRef.current;
 
     try {
       setIsExtracting(true);
@@ -199,7 +183,6 @@ export function VoiceEntryPanel() {
 
       const result = (await response.json()) as {
         extraction?: DiaryExtractionResult;
-        debug?: VoiceExtractionDebugPayload;
         error?: string;
       };
 
@@ -207,25 +190,36 @@ export function VoiceEntryPanel() {
         throw new Error(result.error ?? "Не удалось разобрать голосовую запись.");
       }
 
+      if (contextVersion !== contextVersionRef.current) {
+        return;
+      }
+
       setExtraction(result.extraction);
-      setExtractionDebug(result.debug ?? null);
 
       if (autoApply) {
         applyVoiceExtraction(trimmed, result.extraction);
         setNotice("Поля обновлены.");
       }
     } catch (requestError) {
+      if (contextVersion !== contextVersionRef.current) {
+        return;
+      }
+
       setError(
         requestError instanceof Error
           ? requestError.message
           : "Не удалось разобрать голосовую запись.",
       );
     } finally {
-      setIsExtracting(false);
+      if (contextVersion === contextVersionRef.current) {
+        setIsExtracting(false);
+      }
     }
   };
 
   const transcribeBlob = async (blob: Blob) => {
+    const contextVersion = contextVersionRef.current;
+
     try {
       setIsTranscribing(true);
       setError(null);
@@ -251,14 +245,24 @@ export function VoiceEntryPanel() {
         throw new Error(result.error ?? "Не удалось распознать речь.");
       }
 
+      if (contextVersion !== contextVersionRef.current) {
+        return;
+      }
+
       setTranscript(result.transcript);
       await runExtraction(result.transcript, true);
     } catch (requestError) {
+      if (contextVersion !== contextVersionRef.current) {
+        return;
+      }
+
       setError(
         requestError instanceof Error ? requestError.message : "Не удалось распознать речь.",
       );
     } finally {
-      setIsTranscribing(false);
+      if (contextVersion === contextVersionRef.current) {
+        setIsTranscribing(false);
+      }
     }
   };
 
@@ -278,7 +282,9 @@ export function VoiceEntryPanel() {
     try {
       const stream = await ensureStream();
       const mimeType = getSupportedMimeType();
-      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
 
       recorderRef.current = recorder;
       chunksRef.current = [];
@@ -348,6 +354,15 @@ export function VoiceEntryPanel() {
   };
 
   useEffect(() => {
+    contextVersionRef.current += 1;
+
+    recorderRef.current?.stop();
+    stopTimer();
+    clearVoiceState();
+    setRecordingSeconds(0);
+  }, [selectedDate]);
+
+  useEffect(() => {
     if (profile.microphoneEnabled) {
       return;
     }
@@ -413,13 +428,13 @@ export function VoiceEntryPanel() {
           ) : null}
         </div>
 
-        {(isRecording || isTranscribing || isExtracting) ? (
-          <WaveformRow active />
-        ) : null}
+        {(isRecording || isTranscribing || isExtracting) ? <WaveformRow active /> : null}
       </div>
 
       {!isSupported ? (
-        <InlineMessage tone="danger">В этом браузере нет поддержки записи через MediaRecorder.</InlineMessage>
+        <InlineMessage tone="danger">
+          В этом браузере нет поддержки записи через MediaRecorder.
+        </InlineMessage>
       ) : null}
 
       {!profile.microphoneEnabled && notice === "Включить микрофон для голосового ввода?" ? (
@@ -440,176 +455,70 @@ export function VoiceEntryPanel() {
         <InlineMessage tone="success">{notice}</InlineMessage>
       ) : null}
 
-      {transcript ? (
-        <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <TranscriptIcon />
-              <p className="text-sm font-semibold text-[var(--foreground)]">Транскрипт</p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void runExtraction(transcript, true)}
-                disabled={isExtracting}
-                className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <RefreshIcon />
-                Обновить
-              </button>
-              <button
-                type="button"
-                onClick={clearVoiceState}
-                className="inline-flex min-h-9 items-center rounded-full border border-[var(--border)] bg-white px-3 text-xs font-medium text-[var(--muted)] transition hover:text-[var(--foreground)]"
-              >
-                Очистить
-              </button>
-            </div>
+      <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <TranscriptIcon />
+            <p className="text-sm font-semibold text-[var(--foreground)]">Транскрипт</p>
           </div>
 
-          <textarea
-            value={transcript}
-            onChange={(event) => setTranscript(event.target.value)}
-            rows={5}
-            className="mt-3 w-full rounded-[18px] border border-[var(--border)] bg-[rgba(247,249,246,0.72)] px-4 py-3 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void runExtraction(transcript, true)}
+              disabled={isExtracting || transcript.trim().length === 0}
+              className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshIcon />
+              Обновить
+            </button>
+            <button
+              type="button"
+              onClick={clearVoiceState}
+              className="inline-flex min-h-9 items-center rounded-full border border-[var(--border)] bg-white px-3 text-xs font-medium text-[var(--muted)] transition hover:text-[var(--foreground)]"
+            >
+              Очистить
+            </button>
+          </div>
         </div>
-      ) : null}
+
+        <textarea
+          value={transcript}
+          onChange={(event) => setTranscript(event.target.value)}
+          rows={5}
+          placeholder="Текст расшифровки появится здесь после записи или вставь его вручную."
+          className="mt-3 w-full rounded-[18px] border border-[var(--border)] bg-[rgba(247,249,246,0.72)] px-4 py-3 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+        />
+      </div>
 
       {extraction ? (
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.9fr)]">
-          <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
-            <div className="flex items-center gap-2">
-              <SparkPanelIcon />
-              <p className="text-sm font-semibold text-[var(--foreground)]">Что заполнится</p>
-            </div>
-
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {summaryCards.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-[16px] border border-[rgba(47,111,97,0.1)] bg-[rgba(247,249,246,0.84)] px-3 py-2.5"
-                >
-                  <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
-                    {item.label}
-                  </span>
-                  <p className="mt-1.5 text-sm leading-5 text-[var(--foreground)]">{item.value}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-3 grid gap-3">
-              <ChipGroup label="Факторы" items={extraction.factors} emptyCopy="Нет факторов." />
-              <ChipGroup
-                label="Предупреждения"
-                items={extraction.warnings}
-                emptyCopy="Нет предупреждений."
-                tone="warning"
-              />
-            </div>
-          </div>
-
-          <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
-            <div className="flex items-center gap-2">
-              <GridIcon />
-              <p className="text-sm font-semibold text-[var(--foreground)]">Метрики</p>
-            </div>
-
-            {extractionMetricRows.length > 0 ? (
-              <div className="mt-3 grid gap-2">
-                {extractionMetricRows.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between gap-3 rounded-[16px] border border-[rgba(47,111,97,0.08)] bg-[rgba(247,249,246,0.84)] px-3 py-2.5 text-sm text-[var(--foreground)]"
-                  >
-                    <span className="truncate font-medium">{item.name}</span>
-                    <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[var(--muted)]">
-                      {item.value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-                AI не нашёл метрики, которые можно уверенно заполнить.
-              </p>
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      {extractionDebug ? (
         <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
           <div className="flex items-center gap-2">
             <GridIcon />
             <p className="text-sm font-semibold text-[var(--foreground)]">
-              Debug: запрос и ответ AI
+              Измененные метрики
             </p>
           </div>
 
-          <div className="mt-3 grid gap-2 text-xs text-[var(--muted)]">
-            <p>
-              Модель: <span className="text-[var(--foreground)]">{extractionDebug.model}</span>
+          {extractionMetricRows.length > 0 ? (
+            <div className="mt-3 grid gap-2">
+              {extractionMetricRows.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-3 rounded-[16px] border border-[rgba(47,111,97,0.08)] bg-[rgba(247,249,246,0.84)] px-3 py-2.5 text-sm text-[var(--foreground)]"
+                >
+                  <span className="truncate font-medium">{item.name}</span>
+                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[var(--muted)]">
+                    {item.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+              AI не нашёл метрики, которые можно уверенно заполнить.
             </p>
-            {extractionDebug.parseError ? (
-              <p>
-                Ошибка парсинга:{" "}
-                <span className="text-[rgb(136,47,63)]">{extractionDebug.parseError}</span>
-              </p>
-            ) : null}
-            {extractionDebug.fallbackReason ? (
-              <p>
-                Причина fallback:{" "}
-                <span className="text-[rgb(136,47,63)]">{extractionDebug.fallbackReason}</span>
-              </p>
-            ) : null}
-          </div>
-
-          <details className="mt-3">
-            <summary className="cursor-pointer text-sm font-medium text-[var(--foreground)]">
-              Полный запрос (messages)
-            </summary>
-            <pre className="mt-2 max-h-[320px] overflow-auto rounded-[16px] border border-[var(--border)] bg-[rgba(247,249,246,0.9)] p-3 text-[11px] leading-5 text-[var(--foreground)]">
-{JSON.stringify(extractionDebug.messages, null, 2)}
-            </pre>
-          </details>
-
-          <details className="mt-2">
-            <summary className="cursor-pointer text-sm font-medium text-[var(--foreground)]">
-              Сырой ответ модели
-            </summary>
-            <pre className="mt-2 max-h-[320px] overflow-auto rounded-[16px] border border-[var(--border)] bg-[rgba(247,249,246,0.9)] p-3 text-[11px] leading-5 text-[var(--foreground)]">
-{extractionDebug.rawResponse ?? "нет"}
-            </pre>
-          </details>
-
-          <details className="mt-2">
-            <summary className="cursor-pointer text-sm font-medium text-[var(--foreground)]">
-              JSON candidate до парсинга
-            </summary>
-            <pre className="mt-2 max-h-[320px] overflow-auto rounded-[16px] border border-[var(--border)] bg-[rgba(247,249,246,0.9)] p-3 text-[11px] leading-5 text-[var(--foreground)]">
-{extractionDebug.jsonCandidate ?? "нет"}
-            </pre>
-          </details>
-
-          <details className="mt-2">
-            <summary className="cursor-pointer text-sm font-medium text-[var(--foreground)]">
-              Ответ после JSON repair
-            </summary>
-            <pre className="mt-2 max-h-[320px] overflow-auto rounded-[16px] border border-[var(--border)] bg-[rgba(247,249,246,0.9)] p-3 text-[11px] leading-5 text-[var(--foreground)]">
-{extractionDebug.repairedResponse ?? "нет"}
-            </pre>
-          </details>
-
-          <details className="mt-2">
-            <summary className="cursor-pointer text-sm font-medium text-[var(--foreground)]">
-              Нормализованные metric_updates
-            </summary>
-            <pre className="mt-2 max-h-[320px] overflow-auto rounded-[16px] border border-[var(--border)] bg-[rgba(247,249,246,0.9)] p-3 text-[11px] leading-5 text-[var(--foreground)]">
-{JSON.stringify(extractionDebug.normalized_metric_updates ?? [], null, 2)}
-            </pre>
-          </details>
+          )}
         </div>
       ) : null}
     </section>
@@ -654,7 +563,9 @@ function ActionMessage({
       : "border-[var(--border)] text-[var(--muted)]";
 
   return (
-    <div className={`flex flex-wrap items-center justify-between gap-3 rounded-[18px] border bg-white/92 px-4 py-3 text-sm ${toneClass}`}>
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 rounded-[18px] border bg-white/92 px-4 py-3 text-sm ${toneClass}`}
+    >
       <span>{children}</span>
       <button
         type="button"
@@ -663,42 +574,6 @@ function ActionMessage({
       >
         {actionLabel}
       </button>
-    </div>
-  );
-}
-
-function ChipGroup({
-  label,
-  items,
-  emptyCopy,
-  tone = "neutral",
-}: {
-  label: string;
-  items: string[];
-  emptyCopy: string;
-  tone?: "neutral" | "warning";
-}) {
-  return (
-    <div className="grid gap-2">
-      <span className="text-[10px] uppercase tracking-[0.16em] text-[var(--muted)]">{label}</span>
-      {items.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {items.map((item) => (
-            <span
-              key={item}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                tone === "warning"
-                  ? "bg-[rgba(239,199,111,0.16)] text-[rgb(128,92,14)]"
-                  : "bg-[rgba(47,111,97,0.08)] text-[var(--accent)]"
-              }`}
-            >
-              {item}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <p className="text-sm text-[var(--muted)]">{emptyCopy}</p>
-      )}
     </div>
   );
 }
@@ -731,7 +606,13 @@ function MicIcon() {
 
 function StopCircleIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className="h-4 w-4"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <circle cx="12" cy="12" r="8" />
       <rect x="9" y="9" width="6" height="6" rx="1.2" fill="currentColor" stroke="none" />
     </svg>
@@ -740,7 +621,13 @@ function StopCircleIcon() {
 
 function TranscriptIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-[var(--accent)]" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className="h-4 w-4 text-[var(--accent)]"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v11A2.5 2.5 0 0 1 16.5 20h-9A2.5 2.5 0 0 1 5 17.5v-11Z" />
       <path d="M8 9h8" />
       <path d="M8 12h8" />
@@ -749,17 +636,15 @@ function TranscriptIcon() {
   );
 }
 
-function SparkPanelIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-[var(--accent)]" stroke="currentColor" strokeWidth="1.8">
-      <path d="m12 3 1.7 4.8L18.5 9.5l-4.8 1.7L12 16l-1.7-4.8L5.5 9.5l4.8-1.7L12 3Z" />
-    </svg>
-  );
-}
-
 function GridIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-[var(--accent)]" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className="h-4 w-4 text-[var(--accent)]"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <rect x="4" y="4" width="6" height="6" rx="1.5" />
       <rect x="14" y="4" width="6" height="6" rx="1.5" />
       <rect x="4" y="14" width="6" height="6" rx="1.5" />
@@ -770,7 +655,13 @@ function GridIcon() {
 
 function RefreshIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className="h-4 w-4"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <path d="M20 11a8 8 0 1 0-2.3 5.7" />
       <path d="M20 4v7h-7" />
     </svg>
