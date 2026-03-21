@@ -440,7 +440,7 @@ export async function POST(request: Request) {
           metricValues: normalizedMetricUpdates,
           aliases: ["сон", "sleep"],
         }) ?? extraction.sleep_hours,
-      notes: extraction.notes ?? payload.transcript.trim() || null,
+      notes: extraction.notes ?? payload.transcript.trim() ?? null,
       metric_updates: normalizedMetricUpdates,
     };
 
