@@ -187,22 +187,24 @@ type MetricModalState =
 type SettingsTab = "general" | "profile" | "assistant" | "account";
 
 const metricIconOptions = [
-  "heart",
-  "leaf",
-  "dumbbell",
-  "moon",
-  "food",
-  "apple",
-  "drop",
-  "sun",
-  "flame",
-  "pulse",
-  "smile",
-  "running",
-  "scale",
-  "book",
-  "users",
-  "chat",
+  "❤️",
+  "🍃",
+  "🏋️",
+  "🌙",
+  "🍽️",
+  "🍎",
+  "💧",
+  "☀️",
+  "🔥",
+  "💓",
+  "😊",
+  "🏃",
+  "⚖️",
+  "📚",
+  "👥",
+  "💬",
+  "🎯",
+  "💼",
 ];
 
 function getProviderLabel(provider: string | undefined) {
@@ -1201,6 +1203,23 @@ function MetricBuilderModal({
                           </button>
                         ))}
                       </div>
+
+                      <label className="mt-4 grid gap-2">
+                        <span className="text-xs font-medium text-[var(--muted)]">
+                          Свой эмодзи
+                        </span>
+                        <input
+                          value={metric.icon}
+                          onChange={(event) =>
+                            setMetric((current) => ({
+                              ...current,
+                              icon: event.target.value.trim() || "❤️",
+                            }))
+                          }
+                          placeholder="Например: 🧘"
+                          className="min-h-10 rounded-[14px] border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                        />
+                      </label>
                     </div>
                   ) : null}
                 </div>
@@ -2145,6 +2164,10 @@ function MetricIcon({ icon }: { icon: string }) {
     case "chat":
       return <ChatIcon />;
     default:
+      if (icon.trim().length > 0) {
+        return <span className="text-[1.15rem] leading-none">{icon}</span>;
+      }
+
       return <SparkIcon />;
   }
 }
