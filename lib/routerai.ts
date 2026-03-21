@@ -1,11 +1,15 @@
 import "server-only";
 
+import { parseDiaryExtractionResult, type DiaryExtractionMetricDefinition, type DiaryExtractionResult } from "@/lib/ai/contracts";
+import { buildDiaryExtractionPrompt } from "@/lib/ai/prompts";
 import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
 
 const routerAiBaseUrl =
   process.env.ROUTERAI_BASE_URL ?? "https://routerai.ru/api/v1";
 const routerAiApiKey = process.env.ROUTERAI_API_KEY;
-const routerAiModel = process.env.ROUTERAI_MODEL ?? "deepseek/deepseek-v3.2";
+const routerAiModel = process.env.ROUTERAI_MODEL ?? "google/gemini-2.5-flash-lite";
+const routerAiStructuredModel =
+  process.env.ROUTERAI_STRUCTURED_MODEL ?? "google/gemini-2.5-flash-lite";
 
 export function getRouterAiConfigError() {
   if (!routerAiApiKey) {
@@ -110,7 +114,16 @@ type RouterAiDiaryContext = {
   tasks: TaskItem[];
 };
 
-async function requestRouterAi(messages: RouterAiChatMessage[], maxTokens = 280) {
+type RouterAiRequestOptions = {
+  maxTokens?: number;
+  temperature?: number;
+  model?: string;
+};
+
+async function requestRouterAi(
+  messages: RouterAiChatMessage[],
+  options?: RouterAiRequestOptions,
+) {
   const configError = getRouterAiConfigError();
 
   if (configError) {
@@ -124,9 +137,9 @@ async function requestRouterAi(messages: RouterAiChatMessage[], maxTokens = 280)
       Authorization: `Bearer ${routerAiApiKey}`,
     },
     body: JSON.stringify({
-      model: routerAiModel,
-      temperature: 0.35,
-      max_tokens: maxTokens,
+      model: options?.model ?? routerAiModel,
+      temperature: options?.temperature ?? 0.35,
+      max_tokens: options?.maxTokens ?? 280,
       messages,
     }),
     cache: "no-store",
@@ -154,6 +167,65 @@ async function requestRouterAi(messages: RouterAiChatMessage[], maxTokens = 280)
   }
 
   return content;
+}
+
+function extractJsonObject(content: string) {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  const candidate = fenced?.[1]?.trim() ?? trimmed;
+  const firstBrace = candidate.indexOf("{");
+  const lastBrace = candidate.lastIndexOf("}");
+
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    throw new Error("AI response did not contain a JSON object.");
+  }
+
+  return candidate.slice(firstBrace, lastBrace + 1);
+}
+
+async function requestStructuredJson<T>(
+  messages: RouterAiChatMessage[],
+  parser: (value: unknown) => T,
+  model?: string,
+) {
+  const content = await requestRouterAi(messages, {
+    model: model ?? routerAiStructuredModel,
+    temperature: 0.1,
+    maxTokens: 420,
+  });
+  const jsonCandidate = extractJsonObject(content);
+
+  try {
+    const parsed = JSON.parse(jsonCandidate) as unknown;
+    return parser(parsed);
+  } catch {
+    const repairedContent = await requestRouterAi(
+      [
+        {
+          role: "system",
+          content:
+            "You repair malformed JSON. Return valid JSON only. Keep keys and values as close as possible.",
+        },
+        {
+          role: "user",
+          content: [
+            "Fix JSON for strict JSON.parse compatibility.",
+            "Return JSON only.",
+            "",
+            jsonCandidate,
+          ].join("\n"),
+        },
+      ],
+      {
+        model: model ?? routerAiStructuredModel,
+        temperature: 0,
+        maxTokens: 420,
+      },
+    );
+
+    const repairedParsed = JSON.parse(extractJsonObject(repairedContent)) as unknown;
+    return parser(repairedParsed);
+  }
 }
 
 function buildDiaryContextPrompt(context: RouterAiDiaryContext) {
@@ -206,6 +278,31 @@ export async function chatWithRouterAi(
       },
       ...messages,
     ],
-    420,
+    { maxTokens: 420 },
+  );
+}
+
+export async function extractDiaryDataFromTranscript(args: {
+  transcript: string;
+  metricDefinitions: DiaryExtractionMetricDefinition[];
+  model?: string;
+}): Promise<DiaryExtractionResult> {
+  return requestStructuredJson(
+    [
+      {
+        role: "system",
+        content:
+          "You convert free-form diary transcripts into strict structured JSON. Return JSON only.",
+      },
+      {
+        role: "user",
+        content: buildDiaryExtractionPrompt({
+          transcript: args.transcript,
+          metricDefinitions: args.metricDefinitions,
+        }),
+      },
+    ],
+    parseDiaryExtractionResult,
+    routerAiStructuredModel,
   );
 }

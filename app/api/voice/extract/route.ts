@@ -4,14 +4,14 @@ import { getAuthState } from "@/lib/auth";
 import { parseTranscriptInput } from "@/lib/ai/contracts";
 import {
   extractDiaryDataFromTranscript,
-  getOpenRouterConfigError,
-} from "@/lib/openrouter";
+  getRouterAiConfigError,
+} from "@/lib/routerai";
 
 export async function POST(request: Request) {
-  const openRouterConfigError = getOpenRouterConfigError();
+  const routerAiConfigError = getRouterAiConfigError();
 
-  if (openRouterConfigError) {
-    return NextResponse.json({ error: openRouterConfigError }, { status: 500 });
+  if (routerAiConfigError) {
+    return NextResponse.json({ error: routerAiConfigError }, { status: 500 });
   }
 
   const { user } = await getAuthState();
