@@ -1601,13 +1601,13 @@ function DiarySettingsModal({
             <CloseIcon />
           </button>
 
-          <div className="flex gap-2 overflow-x-auto pb-1 sm:grid sm:overflow-visible sm:pb-0">
+          <div className="grid grid-cols-2 gap-2 pb-1 sm:grid-cols-1 sm:overflow-visible sm:pb-0">
             {tabs.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setTab(item.id)}
-                className={`shrink-0 rounded-[16px] px-3.5 py-2.5 text-left text-sm transition sm:rounded-[18px] sm:px-4 sm:py-3 sm:text-base ${
+                className={`min-w-0 rounded-[16px] px-3.5 py-2.5 text-left text-sm transition sm:rounded-[18px] sm:px-4 sm:py-3 sm:text-base ${
                   tab === item.id
                     ? "bg-white text-[var(--foreground)] shadow-[0_12px_24px_rgba(24,33,29,0.08)]"
                     : "text-[var(--muted)] hover:bg-white/70"
@@ -1631,7 +1631,7 @@ function DiarySettingsModal({
                   <select
                     value={profile.locale}
                     onChange={(event) => onChange("locale", event.target.value)}
-                    className="min-h-11 rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
+                    className="min-h-11 w-[min(44vw,190px)] rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none sm:w-auto"
                   >
                     <option value="ru-RU">Русский</option>
                     <option value="en-US">English</option>
@@ -1644,7 +1644,7 @@ function DiarySettingsModal({
                   <input
                     value={profile.timezone}
                     onChange={(event) => onChange("timezone", event.target.value)}
-                    className="min-h-11 rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
+                    className="min-h-11 w-[min(44vw,190px)] rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none sm:w-auto"
                   />
                 }
               />
@@ -1660,7 +1660,7 @@ function DiarySettingsModal({
               <SettingsRow
                 label="Доступ к микрофону"
                 control={
-                  <div className="grid justify-items-end gap-2">
+                  <div className="grid justify-items-end gap-2 text-right">
                     <ToggleSwitch
                       active={profile.microphoneEnabled}
                       onToggle={onMicrophoneToggle}
@@ -1720,7 +1720,7 @@ function DiarySettingsModal({
                   <select
                     value={profile.aiModel}
                     onChange={(event) => onChange("aiModel", event.target.value)}
-                    className="min-h-11 rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
+                    className="min-h-11 w-[min(44vw,220px)] rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none sm:w-auto"
                   >
                     {aiModelOptions.map((option) => (
                       <option key={option.id} value={option.id}>
@@ -1736,7 +1736,7 @@ function DiarySettingsModal({
                   <select
                     value={profile.chatTone}
                     onChange={(event) => onChange("chatTone", event.target.value)}
-                    className="min-h-11 rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
+                    className="min-h-11 w-[min(44vw,190px)] rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none sm:w-auto"
                   >
                     <option value="supportive">Поддерживающий</option>
                     <option value="direct">Прямой</option>
@@ -1814,9 +1814,9 @@ function SettingsRow({
   control: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-2.5 border-b border-[var(--border)] pb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:pb-5">
-      <p className="text-base text-[var(--foreground)] sm:text-xl">{label}</p>
-      {control}
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-[var(--border)] pb-4 sm:items-center sm:gap-4 sm:pb-5">
+      <p className="pt-1 text-base text-[var(--foreground)] sm:text-xl">{label}</p>
+      <div className="min-w-0 justify-self-end">{control}</div>
     </div>
   );
 }
