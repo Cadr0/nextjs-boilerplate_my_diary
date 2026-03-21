@@ -242,6 +242,9 @@ export function DiarySection() {
   const [metricModal, setMetricModal] = useState<MetricModalState>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [microphonePermission, setMicrophonePermission] = useState<
+    "unknown" | "prompt" | "granted" | "denied"
+  >("unknown");
   const edgeTouchStart = useRef<number | null>(null);
   const drawerTouchStart = useRef<number | null>(null);
   const drawerTouchCurrent = useRef<number | null>(null);
@@ -297,6 +300,76 @@ export function DiarySection() {
       document.body.style.overflow = previousOverflow;
     };
   }, [isMobileSidebarOpen, isSettingsOpen, metricModal]);
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof navigator === "undefined" ||
+      !("permissions" in navigator)
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const syncPermission = async () => {
+      try {
+        const status = await navigator.permissions.query({
+          name: "microphone" as PermissionName,
+        });
+
+        if (!cancelled) {
+          setMicrophonePermission(status.state);
+        }
+
+        status.onchange = () => {
+          if (!cancelled) {
+            setMicrophonePermission(status.state);
+          }
+        };
+      } catch {
+        if (!cancelled) {
+          setMicrophonePermission("unknown");
+        }
+      }
+    };
+
+    void syncPermission();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const requestMicrophonePermission = async () => {
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      setMicrophonePermission("unknown");
+      return false;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      setMicrophonePermission("granted");
+      return true;
+    } catch {
+      setMicrophonePermission("denied");
+      return false;
+    }
+  };
+
+  const handleMicrophoneToggle = async () => {
+    if (profile.microphoneEnabled) {
+      updateProfile("microphoneEnabled", false);
+      return;
+    }
+
+    const granted = await requestMicrophonePermission();
+    updateProfile("microphoneEnabled", granted);
+  };
 
   const goToRelativeDay = (offset: number) => {
     setSelectedDate(shiftIsoDate(selectedDate, offset));
@@ -686,9 +759,11 @@ export function DiarySection() {
           accountInfo={accountInfo}
           entryCount={serverEntries.length}
           metricCount={metricDefinitions.length}
+          microphonePermission={microphonePermission}
           profile={profile}
           onClose={() => setIsSettingsOpen(false)}
           onChange={updateProfile}
+          onMicrophoneToggle={() => void handleMicrophoneToggle()}
         />
       ) : null}
     </>
@@ -1440,21 +1515,33 @@ function DiarySettingsModal({
   accountInfo,
   entryCount,
   metricCount,
+  microphonePermission,
   profile,
   onClose,
   onChange,
+  onMicrophoneToggle,
 }: {
   accountEmail: string | null;
   accountInfo: { userId: string; email: string | null; provider: string; emailConfirmed: boolean } | null;
   entryCount: number;
   metricCount: number;
+  microphonePermission: "unknown" | "prompt" | "granted" | "denied";
   profile: WorkspaceProfile;
   onClose: () => void;
   onChange: <K extends keyof WorkspaceProfile>(field: K, value: WorkspaceProfile[K]) => void;
+  onMicrophoneToggle: () => void;
 }) {
   const [tab, setTab] = useState<SettingsTab>("general");
   const providerLabel = getProviderLabel(accountInfo?.provider);
   const profileName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
+  const microphonePermissionLabel =
+    microphonePermission === "granted"
+      ? "Разрешение браузера: доступ открыт"
+      : microphonePermission === "denied"
+        ? "Разрешение браузера: доступ запрещён"
+        : microphonePermission === "prompt"
+          ? "Разрешение браузера: нужно подтверждение"
+          : "Разрешение браузера: статус недоступен";
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1556,10 +1643,15 @@ function DiarySettingsModal({
               <SettingsRow
                 label="Доступ к микрофону"
                 control={
-                  <ToggleSwitch
-                    active={profile.microphoneEnabled}
-                    onToggle={() => onChange("microphoneEnabled", !profile.microphoneEnabled)}
-                  />
+                  <div className="grid justify-items-end gap-2">
+                    <ToggleSwitch
+                      active={profile.microphoneEnabled}
+                      onToggle={onMicrophoneToggle}
+                    />
+                    <span className="text-xs text-[var(--muted)]">
+                      {microphonePermissionLabel}
+                    </span>
+                  </div>
                 }
               />
             </div>
