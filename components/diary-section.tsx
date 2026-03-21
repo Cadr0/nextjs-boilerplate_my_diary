@@ -854,7 +854,7 @@ function SortableMetricCard({
                 <div className="mt-3">
                   <ToggleSwitch active={Boolean(value)} onToggle={() => onChange(!Boolean(value))} />
                 </div>
-              ) : (
+              ) : metric.type === "text" ? null : (
                 <p className="mt-2 flex flex-wrap items-end gap-1 text-[1.9rem] leading-none font-semibold tracking-[-0.05em] text-[var(--foreground)] sm:text-[2.15rem]">
                   <span>{formatMetricValue(metric, value)}</span>
                   <span className="pb-1 text-sm font-medium text-[var(--muted)] sm:text-lg">
@@ -1219,6 +1219,13 @@ function MetricBuilderModal({
               </div>
             </div>
 
+            <div className="rounded-[22px] border border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-4">
+              <p className="text-sm font-medium text-[var(--foreground)]">Вид метрики</p>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                Нажми на иконку слева от названия, чтобы выбрать цвет и иконку в выпадающем окне.
+              </p>
+            </div>
+
             <div className="rounded-[24px] border border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-4 sm:rounded-[28px]">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -1263,11 +1270,11 @@ function MetricBuilderModal({
                         <div className="mt-3">
                           <ToggleSwitch active={Boolean(getMetricDefaultValue(metric))} onToggle={() => undefined} />
                         </div>
-                      ) : (
+                      ) : metric.type === "text" ? null : (
                         <p className="mt-2 flex flex-wrap items-end gap-1 text-[1.9rem] leading-none font-semibold tracking-[-0.05em] text-[var(--foreground)]">
-                          <span>{formatMetricValue(metric, getMetricDefaultValue(metric)) || "Текст"}</span>
+                          <span>{formatMetricValue(metric, getMetricDefaultValue(metric))}</span>
                           <span className="pb-1 text-sm font-medium text-[var(--muted)]">
-                            {metric.type === "text" ? "заметка" : metric.unit}
+                            {metric.unit}
                           </span>
                         </p>
                       )}
@@ -1289,6 +1296,16 @@ function MetricBuilderModal({
                         readOnly
                         className="h-2.5 w-full cursor-default appearance-none rounded-full"
                         style={getMetricRangeStyle(metric, getMetricDefaultValue(metric))}
+                      />
+                    </div>
+                  ) : metric.type === "text" ? (
+                    <div className="mt-4">
+                      <textarea
+                        value=""
+                        readOnly
+                        placeholder="Введите текст"
+                        rows={3}
+                        className="w-full rounded-[18px] border border-[var(--border)] bg-white px-3 py-3 text-sm leading-6 text-[var(--foreground)] outline-none"
                       />
                     </div>
                   ) : null}
@@ -1386,13 +1403,6 @@ function MetricBuilderModal({
                 </div>
               </div>
             ) : null}
-
-            <div className="rounded-[22px] border border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-4">
-              <p className="text-sm font-medium text-[var(--foreground)]">Вид метрики</p>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                Нажми на иконку слева от названия, чтобы выбрать цвет и иконку в выпадающем окне.
-              </p>
-            </div>
 
             <div className="grid gap-3 rounded-[24px] border border-[var(--border)] bg-white/88 p-4 sm:rounded-[28px]">
               <label className="grid gap-2">
