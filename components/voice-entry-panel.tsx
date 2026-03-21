@@ -22,7 +22,7 @@ function formatDuration(seconds: number) {
   return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
 }
 
-function getVoiceStatusCopy(args: {
+function getStatusCopy(args: {
   isRecording: boolean;
   isTranscribing: boolean;
   isExtracting: boolean;
@@ -37,14 +37,14 @@ function getVoiceStatusCopy(args: {
   }
 
   if (args.isExtracting) {
-    return "Заполняем поля";
+    return "Заполняем форму";
   }
 
-  return "Готово к записи";
+  return null;
 }
 
 export function VoiceEntryPanel() {
-  const { applyVoiceExtraction, metricDefinitions, profile } = useWorkspace();
+  const { applyVoiceExtraction, metricDefinitions, profile, updateProfile } = useWorkspace();
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -80,7 +80,7 @@ export function VoiceEntryPanel() {
           name: metric?.name ?? update.metric_id,
           value:
             update.value === null
-              ? "null"
+              ? "—"
               : typeof update.value === "boolean"
                 ? update.value
                   ? "Да"
@@ -98,6 +98,13 @@ export function VoiceEntryPanel() {
     { label: "Стресс", value: extraction?.stress == null ? "—" : String(extraction.stress) },
     { label: "Сон", value: extraction?.sleep_hours == null ? "—" : String(extraction.sleep_hours) },
   ];
+
+  const statusCopy = getStatusCopy({
+    isRecording,
+    isTranscribing,
+    isExtracting,
+    seconds: recordingSeconds,
+  });
 
   const stopStream = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -119,6 +126,20 @@ export function VoiceEntryPanel() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     streamRef.current = stream;
     return stream;
+  };
+
+  const clearVoiceState = () => {
+    setTranscript("");
+    setExtraction(null);
+    setAudioUrl((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+
+      return null;
+    });
+    setError(null);
+    setNotice(null);
   };
 
   const runExtraction = async (nextTranscript: string, autoApply = true) => {
@@ -158,6 +179,7 @@ export function VoiceEntryPanel() {
             })),
         }),
       });
+
       const result = (await response.json()) as {
         extraction?: DiaryExtractionResult;
         error?: string;
@@ -171,7 +193,7 @@ export function VoiceEntryPanel() {
 
       if (autoApply) {
         applyVoiceExtraction(trimmed, result.extraction);
-        setNotice("Поля дневника обновлены.");
+        setNotice("Поля обновлены.");
       }
     } catch (requestError) {
       setError(
@@ -222,14 +244,13 @@ export function VoiceEntryPanel() {
   };
 
   const startRecording = async () => {
-    if (
-      !isSupported ||
-      !profile.microphoneEnabled ||
-      isRecording ||
-      isTranscribing ||
-      isExtracting ||
-      isStartingRef.current
-    ) {
+    if (!isSupported || isRecording || isTranscribing || isExtracting || isStartingRef.current) {
+      return;
+    }
+
+    if (!profile.microphoneEnabled) {
+      setError(null);
+      setNotice("Включить микрофон для голосового ввода?");
       return;
     }
 
@@ -317,7 +338,6 @@ export function VoiceEntryPanel() {
     }
 
     stopStream();
-    setNotice(null);
   }, [isRecording, profile.microphoneEnabled]);
 
   useEffect(() => {
@@ -332,226 +352,173 @@ export function VoiceEntryPanel() {
   }, [audioUrl]);
 
   return (
-    <section className="mt-4 overflow-hidden rounded-[28px] border border-[rgba(47,111,97,0.12)] bg-[linear-gradient(180deg,rgba(247,249,246,0.98),rgba(242,246,243,0.92))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] sm:rounded-[32px] sm:p-5">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)]">
-        <div className="grid gap-4">
-          <div className="rounded-[24px] border border-[rgba(47,111,97,0.12)] bg-[radial-gradient(circle_at_top,rgba(47,111,97,0.14),rgba(47,111,97,0.04)_44%,rgba(255,255,255,0.92)_72%)] p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-[20px] border border-[rgba(47,111,97,0.14)] bg-white/86 text-[var(--accent)] shadow-[0_16px_32px_rgba(47,111,97,0.08)]">
-                  <MicOrbitIcon active={isRecording} />
-                </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-                    Voice
-                  </p>
-                  <h3 className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
-                    Запись голосом
-                  </h3>
-                </div>
-              </div>
-
-              <span
-                className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                  isRecording
-                    ? "bg-[rgba(208,84,102,0.12)] text-[rgb(145,41,58)]"
-                    : "border border-[var(--border)] bg-white/88 text-[var(--muted)]"
-                }`}
-              >
-                {getVoiceStatusCopy({
-                  isRecording,
-                  isTranscribing,
-                  isExtracting,
-                  seconds: recordingSeconds,
-                })}
-              </span>
-            </div>
-
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={isRecording ? stopRecording : startRecording}
-                disabled={!isSupported || !profile.microphoneEnabled || isTranscribing || isExtracting}
-                className={`inline-flex min-h-12 items-center gap-3 rounded-full px-5 text-sm font-medium transition ${
-                  isRecording
-                    ? "bg-[rgb(145,41,58)] text-white shadow-[0_18px_34px_rgba(145,41,58,0.24)]"
-                    : "bg-[var(--accent)] text-white shadow-[0_18px_34px_rgba(47,111,97,0.22)] hover:brightness-105"
-                } disabled:cursor-not-allowed disabled:opacity-60`}
-              >
-                {isRecording ? <StopCircleIcon /> : <MicIcon />}
-                {isRecording ? "Остановить" : "Надиктовать"}
-              </button>
-
-              <span className="rounded-full border border-[var(--border)] bg-white/86 px-3 py-2 text-xs text-[var(--muted)]">
-                До 3 минут
-              </span>
-
-              {audioUrl ? (
-                <span className="rounded-full border border-[rgba(47,111,97,0.14)] bg-white/86 px-3 py-2 text-xs text-[var(--accent)]">
-                  Запись готова
-                </span>
-              ) : null}
-            </div>
-
-            <WaveformRow active={isRecording || isTranscribing || isExtracting} />
+    <section className="mt-4 grid gap-3">
+      <div className="overflow-hidden rounded-[28px] border border-[rgba(47,111,97,0.12)] bg-[linear-gradient(180deg,rgba(247,249,246,0.98),rgba(242,246,243,0.92))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] sm:rounded-[32px] sm:p-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-[rgba(47,111,97,0.14)] bg-white/86 text-[var(--accent)] shadow-[0_14px_28px_rgba(47,111,97,0.08)]">
+            <MicIcon />
           </div>
-
-          {!isSupported ? (
-            <InlineMessage tone="danger">
-              В этом браузере нет поддержки записи через MediaRecorder.
-            </InlineMessage>
-          ) : null}
-
-          {isSupported && !profile.microphoneEnabled ? (
-            <InlineMessage tone="neutral">
-              Доступ к микрофону выключен в настройках.
-            </InlineMessage>
-          ) : null}
-
-          {error ? <InlineMessage tone="danger">{error}</InlineMessage> : null}
-          {notice ? <InlineMessage tone="success">{notice}</InlineMessage> : null}
-
-          {audioUrl ? (
-            <div className="rounded-[22px] border border-[var(--border)] bg-white/90 p-3">
-              <audio controls src={audioUrl} className="w-full" />
-            </div>
-          ) : null}
-
-          <div className="grid gap-3 rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <TranscriptIcon />
-                <p className="text-sm font-semibold text-[var(--foreground)]">Транскрипт</p>
-              </div>
-
-              {transcript ? (
-                <button
-                  type="button"
-                  onClick={() => void runExtraction(transcript, true)}
-                  disabled={isExtracting}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
-                >
-                  <RefreshIcon />
-                  Обновить
-                </button>
-              ) : null}
-            </div>
-
-            {transcript ? (
-              <textarea
-                value={transcript}
-                onChange={(event) => setTranscript(event.target.value)}
-                rows={7}
-                className="rounded-[20px] border border-[var(--border)] bg-[rgba(247,249,246,0.72)] px-4 py-3 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-              />
-            ) : (
-              <div className="rounded-[20px] border border-dashed border-[var(--border)] bg-[rgba(247,249,246,0.7)] px-4 py-6 text-sm leading-6 text-[var(--muted)]">
-                После записи здесь появится расшифровка.
-              </div>
-            )}
-
-            {transcript ? (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => void runExtraction(transcript, true)}
-                  disabled={isExtracting}
-                  className="rounded-full border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Применить заново
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTranscript("");
-                    setExtraction(null);
-                    setAudioUrl((current) => {
-                      if (current) {
-                        URL.revokeObjectURL(current);
-                      }
-
-                      return null;
-                    });
-                    setError(null);
-                    setNotice(null);
-                  }}
-                  className="rounded-full border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-[var(--muted)] transition hover:text-[var(--foreground)]"
-                >
-                  Очистить
-                </button>
-              </div>
-            ) : null}
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+              Voice
+            </p>
+            <h3 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-xl">
+              Голосовой ввод
+            </h3>
           </div>
         </div>
 
-        <div className="grid gap-3">
-          <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:p-5">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={!isSupported || isTranscribing || isExtracting}
+            className={`inline-flex min-h-12 items-center gap-3 rounded-full px-5 text-sm font-medium transition ${
+              isRecording
+                ? "bg-[rgb(145,41,58)] text-white shadow-[0_18px_34px_rgba(145,41,58,0.24)]"
+                : "bg-[var(--accent)] text-white shadow-[0_18px_34px_rgba(47,111,97,0.22)] hover:brightness-105"
+            } disabled:cursor-not-allowed disabled:opacity-60`}
+          >
+            {isRecording ? <StopCircleIcon /> : <MicIcon />}
+            {isRecording ? "Остановить" : "Голосовой ввод"}
+          </button>
+
+          <span className="rounded-full border border-[var(--border)] bg-white/88 px-3 py-2 text-xs text-[var(--muted)]">
+            До 3 минут
+          </span>
+
+          {statusCopy ? (
+            <span className="rounded-full border border-[rgba(47,111,97,0.14)] bg-white/88 px-3 py-2 text-xs text-[var(--accent)]">
+              {statusCopy}
+            </span>
+          ) : null}
+        </div>
+
+        {(isRecording || isTranscribing || isExtracting) ? (
+          <WaveformRow active />
+        ) : null}
+      </div>
+
+      {!isSupported ? (
+        <InlineMessage tone="danger">В этом браузере нет поддержки записи через MediaRecorder.</InlineMessage>
+      ) : null}
+
+      {!profile.microphoneEnabled && notice === "Включить микрофон для голосового ввода?" ? (
+        <ActionMessage
+          tone="neutral"
+          actionLabel="Включить микрофон"
+          onAction={() => {
+            updateProfile("microphoneEnabled", true);
+            setNotice("Микрофон включён. Нажми кнопку ещё раз.");
+          }}
+        >
+          Микрофон сейчас выключен.
+        </ActionMessage>
+      ) : null}
+
+      {error ? <InlineMessage tone="danger">{error}</InlineMessage> : null}
+      {notice && notice !== "Включить микрофон для голосового ввода?" ? (
+        <InlineMessage tone="success">{notice}</InlineMessage>
+      ) : null}
+
+      {transcript ? (
+        <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <TranscriptIcon />
+              <p className="text-sm font-semibold text-[var(--foreground)]">Транскрипт</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void runExtraction(transcript, true)}
+                disabled={isExtracting}
+                className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RefreshIcon />
+                Обновить
+              </button>
+              <button
+                type="button"
+                onClick={clearVoiceState}
+                className="inline-flex min-h-9 items-center rounded-full border border-[var(--border)] bg-white px-3 text-xs font-medium text-[var(--muted)] transition hover:text-[var(--foreground)]"
+              >
+                Очистить
+              </button>
+            </div>
+          </div>
+
+          <textarea
+            value={transcript}
+            onChange={(event) => setTranscript(event.target.value)}
+            rows={5}
+            className="mt-3 w-full rounded-[18px] border border-[var(--border)] bg-[rgba(247,249,246,0.72)] px-4 py-3 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+          />
+        </div>
+      ) : null}
+
+      {extraction ? (
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.9fr)]">
+          <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
             <div className="flex items-center gap-2">
               <SparkPanelIcon />
               <p className="text-sm font-semibold text-[var(--foreground)]">Что заполнится</p>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {summaryCards.map((item) => (
                 <div
                   key={item.label}
-                  className="rounded-[18px] border border-[rgba(47,111,97,0.1)] bg-[rgba(247,249,246,0.84)] px-3 py-3"
+                  className="rounded-[16px] border border-[rgba(47,111,97,0.1)] bg-[rgba(247,249,246,0.84)] px-3 py-2.5"
                 >
-                  <span className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">
+                  <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
                     {item.label}
                   </span>
-                  <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">{item.value}</p>
+                  <p className="mt-1.5 text-sm leading-5 text-[var(--foreground)]">{item.value}</p>
                 </div>
               ))}
             </div>
 
-            <div className="mt-4 grid gap-3">
-              <ChipGroup
-                label="Факторы"
-                items={extraction?.factors ?? []}
-                emptyCopy="Появятся после разбора."
-              />
+            <div className="mt-3 grid gap-3">
+              <ChipGroup label="Факторы" items={extraction.factors} emptyCopy="Нет факторов." />
               <ChipGroup
                 label="Предупреждения"
-                items={extraction?.warnings ?? []}
-                emptyCopy="Пока нет."
+                items={extraction.warnings}
+                emptyCopy="Нет предупреждений."
                 tone="warning"
               />
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:p-5">
+          <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
             <div className="flex items-center gap-2">
               <GridIcon />
               <p className="text-sm font-semibold text-[var(--foreground)]">Метрики</p>
             </div>
 
             {extractionMetricRows.length > 0 ? (
-              <div className="mt-4 grid gap-2">
+              <div className="mt-3 grid gap-2">
                 {extractionMetricRows.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center justify-between gap-3 rounded-[18px] border border-[rgba(47,111,97,0.08)] bg-[rgba(247,249,246,0.84)] px-3 py-2.5 text-sm text-[var(--foreground)]"
+                    className="flex items-center justify-between gap-3 rounded-[16px] border border-[rgba(47,111,97,0.08)] bg-[rgba(247,249,246,0.84)] px-3 py-2.5 text-sm text-[var(--foreground)]"
                   >
                     <span className="truncate font-medium">{item.name}</span>
-                    <span className="rounded-full bg-white px-2.5 py-1 text-xs text-[var(--muted)]">
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[var(--muted)]">
                       {item.value}
                     </span>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="mt-4 text-sm leading-6 text-[var(--muted)]">
-                После разбора здесь появятся метрики, которые AI смог уверенно заполнить.
+              <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+                AI не нашёл метрики, которые можно уверенно заполнить.
               </p>
             )}
-
-            <div className="mt-4 rounded-[18px] border border-[rgba(47,111,97,0.08)] bg-[rgba(247,249,246,0.78)] px-3 py-3 text-sm leading-6 text-[var(--muted)]">
-              Значения применяются в форму автоматически, но ты можешь их поправить перед дальнейшей работой.
-            </div>
           </div>
         </div>
-      </div>
+      ) : null}
     </section>
   );
 }
@@ -577,6 +544,36 @@ function InlineMessage({
   );
 }
 
+function ActionMessage({
+  children,
+  tone,
+  actionLabel,
+  onAction,
+}: {
+  children: string;
+  tone: "neutral" | "success";
+  actionLabel: string;
+  onAction: () => void;
+}) {
+  const toneClass =
+    tone === "success"
+      ? "border-[rgba(47,111,97,0.14)] text-[var(--foreground)]"
+      : "border-[var(--border)] text-[var(--muted)]";
+
+  return (
+    <div className={`flex flex-wrap items-center justify-between gap-3 rounded-[18px] border bg-white/92 px-4 py-3 text-sm ${toneClass}`}>
+      <span>{children}</span>
+      <button
+        type="button"
+        onClick={onAction}
+        className="inline-flex min-h-9 items-center rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+      >
+        {actionLabel}
+      </button>
+    </div>
+  );
+}
+
 function ChipGroup({
   label,
   items,
@@ -590,7 +587,7 @@ function ChipGroup({
 }) {
   return (
     <div className="grid gap-2">
-      <span className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">{label}</span>
+      <span className="text-[10px] uppercase tracking-[0.16em] text-[var(--muted)]">{label}</span>
       {items.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {items.map((item) => (
@@ -615,7 +612,7 @@ function ChipGroup({
 
 function WaveformRow({ active }: { active: boolean }) {
   return (
-    <div className="mt-5 flex h-12 items-end gap-1.5 rounded-[18px] border border-[rgba(47,111,97,0.08)] bg-white/70 px-4 py-3">
+    <div className="mt-4 flex h-10 items-end gap-1.5 rounded-[16px] border border-[rgba(47,111,97,0.08)] bg-white/70 px-4 py-2.5">
       {[14, 24, 18, 30, 16, 28, 20, 26, 14, 22].map((height, index) => (
         <span
           key={`${height}-${index}`}
@@ -635,18 +632,6 @@ function MicIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-current">
       <path d="M12 15.25a3.75 3.75 0 0 0 3.75-3.75V7a3.75 3.75 0 1 0-7.5 0v4.5A3.75 3.75 0 0 0 12 15.25Zm0 2a5.76 5.76 0 0 1-5.75-5.75.75.75 0 0 0-1.5 0 7.25 7.25 0 0 0 6.5 7.2V21a.75.75 0 0 0 1.5 0v-2.3a7.25 7.25 0 0 0 6.5-7.2.75.75 0 0 0-1.5 0A5.76 5.76 0 0 1 12 17.25Z" />
-    </svg>
-  );
-}
-
-function MicOrbitIcon({ active }: { active: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
-      <path d="M12 14a3 3 0 0 0 3-3V7a3 3 0 1 0-6 0v4a3 3 0 0 0 3 3Z" />
-      <path d="M7 11a5 5 0 0 0 10 0" />
-      <path d="M12 16v3" />
-      <path d="M9.5 19h5" />
-      <circle cx="12" cy="12" r={active ? "9" : "8"} className={active ? "opacity-70" : "opacity-35"} />
     </svg>
   );
 }
