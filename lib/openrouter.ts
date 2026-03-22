@@ -356,11 +356,11 @@ export async function chatWithOpenRouter(
       {
         role: "system",
         content:
-          "Ты внимательный AI-помощник дневника. Отвечай по-русски, кратко и структурно. Помогай разбирать день, находить паттерны в самочувствии и предлагать понятный следующий шаг без лишней воды.",
+          "You are a focused diary copilot. Reply in Russian. Format answers in Markdown with a short H3 title and 2-4 clear sections using bullet lists. Use bold for key conclusions and always end with one concrete next step. Do not output HTML or JSON.",
       },
       {
         role: "system",
-        content: `Контекст рабочего дня:\n${buildDiaryContextPrompt(context)}`,
+        content: `Workday context:\n${buildDiaryContextPrompt(context)}`,
       },
       ...messages,
     ],

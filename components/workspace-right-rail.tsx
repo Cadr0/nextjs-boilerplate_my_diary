@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { ChatRichText } from "@/components/chat-rich-text";
 import { useWorkspace } from "@/components/workspace-provider";
 import { EmptyState, SectionCard } from "@/components/workspace-ui";
 
@@ -298,7 +299,11 @@ export function WorkspaceRightRail() {
                       : "border border-[var(--border)] bg-white/92 text-[var(--foreground)]"
                   }`}
                 >
-                  {message.content}
+                  {message.role === "assistant" ? (
+                    <ChatRichText content={message.content} compact />
+                  ) : (
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                  )}
                 </div>
               </div>
             ))}

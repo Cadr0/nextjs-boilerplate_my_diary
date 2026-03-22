@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { ChatRichText } from "@/components/chat-rich-text";
 import { useWorkspace } from "@/components/workspace-provider";
 import { aiModelOptions } from "@/lib/workspace";
 
@@ -272,7 +273,11 @@ export function DiaryAssistantPanel() {
                       : "border border-[var(--border)] bg-white/92 text-[var(--foreground)]"
                   }`}
                 >
-                  {message.content}
+                  {message.role === "assistant" ? (
+                    <ChatRichText content={message.content} />
+                  ) : (
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                  )}
                 </div>
               </div>
             ))
