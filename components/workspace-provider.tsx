@@ -219,6 +219,7 @@ function collapseMetricReference(value: string) {
 function buildDraftForDate(
   date: string,
   entry: DiaryEntry | undefined,
+  entriesByDate: Record<string, DiaryEntry>,
   metricDefinitions: MetricDefinition[],
   drafts: Record<string, WorkspaceDraft>,
 ) {
@@ -247,6 +248,14 @@ function buildDraftForDate(
       const previousValue = drafts[previousDate]?.metricValues[metric.id];
 
       if (previousValue === undefined) {
+        continue;
+      }
+
+      const previousEntry = entriesByDate[previousDate];
+      if (
+        previousEntry &&
+        !Object.prototype.hasOwnProperty.call(previousEntry.metric_values, metric.id)
+      ) {
         continue;
       }
 
@@ -395,10 +404,11 @@ export function WorkspaceProvider({
       buildDraftForDate(
         selectedDate,
         selectedEntry,
+        entriesByDate,
         metricDefinitions,
         workspaceState.drafts,
       ),
-    [metricDefinitions, selectedDate, selectedEntry, workspaceState.drafts],
+    [entriesByDate, metricDefinitions, selectedDate, selectedEntry, workspaceState.drafts],
   );
 
   useEffect(() => {
@@ -581,6 +591,7 @@ export function WorkspaceProvider({
         buildDraftForDate(
           selectedDate,
           entriesByDate[selectedDate],
+          entriesByDate,
           current.metricDefinitions,
           current.drafts,
         );
@@ -1075,7 +1086,13 @@ export function WorkspaceProvider({
       .map((date) => {
         const draft =
           workspaceState.drafts[date] ??
-          buildDraftForDate(date, entriesByDate[date], metricDefinitions, workspaceState.drafts);
+          buildDraftForDate(
+            date,
+            entriesByDate[date],
+            entriesByDate,
+            metricDefinitions,
+            workspaceState.drafts,
+          );
         const tasks = workspaceState.tasks.filter((task) => task.scheduledDate === date);
         const visibleMetrics = getVisibleMetricDefinitions(metricDefinitions).filter((metric) => {
           const value = draft.metricValues[metric.id];
