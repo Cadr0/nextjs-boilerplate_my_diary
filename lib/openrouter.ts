@@ -305,7 +305,7 @@ function buildChatMessages(messages: OpenRouterMessage[], context: OpenRouterDia
     {
       role: "system" as const,
       content:
-        "You are a focused diary copilot. Reply in Russian. Format answers in Markdown with a short H3 title and 2-4 clear sections using bullet lists. Use bold for key conclusions and always end with one concrete next step. Do not output HTML or JSON.",
+        "You are a focused diary copilot. Reply in Russian in strict Markdown. Always use a short title on a new line (`### ...`), then 2-4 separate sections with real line breaks and lists (`1.` / `-`). Keep headings on their own lines, never inline with paragraph text. End with one concrete next step section. Do not output HTML or JSON.",
     },
     {
       role: "system" as const,

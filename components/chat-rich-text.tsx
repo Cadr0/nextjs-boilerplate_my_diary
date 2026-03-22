@@ -20,11 +20,19 @@ type InlineToken =
   | { type: "strong"; value: string }
   | { type: "code"; value: string };
 
-const headingPattern = /^\s{0,3}(#{1,3})\s+(.+)$/;
+const headingPattern = /^\s{0,3}(#{1,3})\s*(.+)$/;
 const unorderedPattern = /^\s*[-*]\s+(.+)$/;
-const orderedPattern = /^\s*\d+\.\s+(.+)$/;
+const orderedPattern = /^\s*(?:\*\*)?(\d+)\.(?:\*\*)?\s+(.+?)\s*(?:\*\*)?$/;
 const quotePattern = /^\s*>\s?(.*)$/;
 const codeFencePattern = /^\s*```([a-zA-Z0-9_-]+)?\s*$/;
+
+function normalizeMarkdown(input: string) {
+  return input
+    .replace(/\r\n?/g, "\n")
+    .replace(/(^|\n)(#{1,3})(?=\S)/g, "$1$2 ")
+    .replace(/([^\n])\s+(#{1,3}\s*\*{0,2})/g, "$1\n\n$2")
+    .replace(/(\S)\s+(\*\*\d+\.\s+)/g, "$1\n$2");
+}
 
 function isBoundaryLine(line: string) {
   return (
@@ -98,7 +106,7 @@ function renderInline(text: string, keyPrefix: string) {
 
 function parseBlocks(markdown: string): ParsedBlock[] {
   const blocks: ParsedBlock[] = [];
-  const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+  const lines = normalizeMarkdown(markdown).split("\n");
   let index = 0;
 
   while (index < lines.length) {
@@ -170,7 +178,7 @@ function parseBlocks(markdown: string): ParsedBlock[] {
         if (!itemMatch) {
           break;
         }
-        items.push(itemMatch[1].trim());
+        items.push((itemMatch[2] ?? "").trim());
         index += 1;
       }
 
