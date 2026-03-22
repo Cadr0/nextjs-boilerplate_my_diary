@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAuthState } from "@/lib/auth";
-import { chatWithOpenRouter, getOpenRouterConfigError } from "@/lib/openrouter";
+import { getOpenRouterConfigError, streamChatWithOpenRouter } from "@/lib/openrouter";
 import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
 
 type RequestPayload = {
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "At least one message is required." }, { status: 400 });
     }
 
-    const reply = await chatWithOpenRouter(messages, {
+    const stream = await streamChatWithOpenRouter(messages, {
       date,
       draft,
       metricDefinitions,
@@ -65,7 +65,13 @@ export async function POST(request: Request) {
       model,
     });
 
-    return NextResponse.json({ reply }, { status: 200 });
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       {

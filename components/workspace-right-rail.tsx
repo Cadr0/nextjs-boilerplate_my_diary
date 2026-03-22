@@ -93,7 +93,8 @@ export function WorkspaceRightRail() {
     }
 
     const userMessage = createChatMessage("user", trimmed);
-    const nextMessages = [...chatMessages, userMessage];
+    const assistantDraft = createChatMessage("assistant", "");
+    const nextMessages = [...chatMessages, userMessage, assistantDraft];
 
     setChatInput("");
     setChatState("sending");
@@ -120,18 +121,50 @@ export function WorkspaceRightRail() {
         }),
       });
 
-      const result = (await response.json()) as { reply?: string; error?: string };
-
-      if (!response.ok || !result.reply) {
+      if (!response.ok) {
+        const result = (await response.json().catch(() => ({}))) as { error?: string };
         throw new Error(result.error ?? "Не удалось получить ответ от RouterAI.");
       }
 
-      updateChatForDate(selectedDate, (current) => [
-        ...current,
-        createChatMessage("assistant", result.reply ?? ""),
-      ]);
+      if (!response.body) {
+        throw new Error("Потоковый ответ недоступен.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantReply = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        assistantReply += decoder.decode(value, { stream: true });
+
+        updateChatForDate(selectedDate, (current) =>
+          current.map((message) =>
+            message.id === assistantDraft.id
+              ? {
+                  ...message,
+                  content: assistantReply,
+                }
+              : message,
+          ),
+        );
+      }
+
+      assistantReply += decoder.decode();
+
+      if (!assistantReply.trim()) {
+        throw new Error("RouterAI вернул пустой ответ.");
+      }
+
       setChatState("idle");
     } catch (sendError) {
+      updateChatForDate(selectedDate, (current) =>
+        current.filter((message) => message.id !== assistantDraft.id || message.content.trim()),
+      );
       setChatState("error");
       setChatError(
         sendError instanceof Error ? sendError.message : "Не удалось отправить сообщение.",
