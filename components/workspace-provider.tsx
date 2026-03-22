@@ -252,14 +252,18 @@ function buildDraftForDate(
       }
 
       const previousEntry = entriesByDate[previousDate];
+      const normalizedPreviousValue = normalizeMetricValue(metric, previousValue);
       if (
         previousEntry &&
         !Object.prototype.hasOwnProperty.call(previousEntry.metric_values, metric.id)
       ) {
-        continue;
+        const normalizedDefaultValue = normalizeMetricValue(metric, getMetricDefaultValue(metric));
+        if (normalizedPreviousValue === normalizedDefaultValue) {
+          continue;
+        }
       }
 
-      nextMetricValues[metric.id] = normalizeMetricValue(metric, previousValue);
+      nextMetricValues[metric.id] = normalizedPreviousValue;
       break;
     }
   }
