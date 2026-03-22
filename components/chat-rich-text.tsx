@@ -22,7 +22,7 @@ type InlineToken =
 
 const headingPattern = /^\s{0,3}(#{1,3})\s*(.+)$/;
 const unorderedPattern = /^\s*[-*]\s+(.+)$/;
-const orderedPattern = /^\s*(?:\*\*)?(\d+)\.(?:\*\*)?\s+(.+?)\s*(?:\*\*)?$/;
+const orderedPattern = /^\s*(?:\*\*)?(\d+)\.(?:\*\*)?\s*(.+?)\s*(?:\*\*)?$/;
 const quotePattern = /^\s*>\s?(.*)$/;
 const codeFencePattern = /^\s*```([a-zA-Z0-9_-]+)?\s*$/;
 
@@ -31,7 +31,9 @@ function normalizeMarkdown(input: string) {
     .replace(/\r\n?/g, "\n")
     .replace(/(^|\n)(#{1,3})(?=\S)/g, "$1$2 ")
     .replace(/([^\n])\s+(#{1,3}\s*\*{0,2})/g, "$1\n\n$2")
-    .replace(/(\S)\s+(\*\*\d+\.\s+)/g, "$1\n$2");
+    .replace(/(\S)\s+(\*{0,2}\d+\.\*{0,2}\s*)/g, "$1\n$2")
+    .replace(/(\*{2}\s*)(\d+\.)/g, "$1\n$2 ")
+    .replace(/(\*\*|__)\s*(?=#{1,3}\s)/g, "$1\n");
 }
 
 function isBoundaryLine(line: string) {

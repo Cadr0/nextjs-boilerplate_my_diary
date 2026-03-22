@@ -65,11 +65,46 @@ export async function POST(request: Request) {
       model,
     });
 
-    return new Response(stream, {
+    const reader = stream.getReader();
+    const encoder = new TextEncoder();
+
+    const sseStream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) {
+              break;
+            }
+
+            const chunk = new TextDecoder().decode(value);
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ delta: chunk })}\n\n`),
+            );
+          }
+
+          controller.enqueue(encoder.encode("event: done\ndata: {}\n\n"));
+          controller.close();
+        } catch (error) {
+          controller.enqueue(
+            encoder.encode(
+              `event: error\ndata: ${JSON.stringify({ message: error instanceof Error ? error.message : "stream failed" })}\n\n`,
+            ),
+          );
+          controller.close();
+        } finally {
+          reader.releaseLock();
+        }
+      },
+    });
+
+    return new Response(sseStream, {
       status: 200,
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Type": "text/event-stream; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
       },
     });
   } catch (error) {

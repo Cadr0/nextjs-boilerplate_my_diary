@@ -133,6 +133,7 @@ export function WorkspaceRightRail() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let assistantReply = "";
+      let buffer = "";
 
       while (true) {
         const { value, done } = await reader.read();
@@ -140,21 +141,62 @@ export function WorkspaceRightRail() {
           break;
         }
 
-        assistantReply += decoder.decode(value, { stream: true });
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
 
-        updateChatForDate(selectedDate, (current) =>
-          current.map((message) =>
-            message.id === assistantDraft.id
-              ? {
-                  ...message,
-                  content: assistantReply,
-                }
-              : message,
-          ),
-        );
+        for (const eventChunk of events) {
+          const lines = eventChunk
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean);
+
+          let eventName = "message";
+          let dataPayload = "";
+
+          for (const line of lines) {
+            if (line.startsWith("event:")) {
+              eventName = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              dataPayload += line.slice(5).trim();
+            }
+          }
+
+          if (!dataPayload) {
+            continue;
+          }
+
+          if (eventName === "done") {
+            continue;
+          }
+
+          if (eventName === "error") {
+            const payload = JSON.parse(dataPayload) as { message?: string };
+            throw new Error(payload.message ?? "Ошибка потокового ответа.");
+          }
+
+          const payload = JSON.parse(dataPayload) as { delta?: string };
+          const delta = payload.delta ?? "";
+          if (!delta) {
+            continue;
+          }
+
+          assistantReply += delta;
+
+          updateChatForDate(selectedDate, (current) =>
+            current.map((message) =>
+              message.id === assistantDraft.id
+                ? {
+                    ...message,
+                    content: assistantReply,
+                  }
+                : message,
+            ),
+          );
+        }
       }
 
-      assistantReply += decoder.decode();
+      buffer += decoder.decode();
 
       if (!assistantReply.trim()) {
         throw new Error("RouterAI вернул пустой ответ.");
