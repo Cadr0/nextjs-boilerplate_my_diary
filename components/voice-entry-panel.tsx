@@ -6,6 +6,7 @@ import { useWorkspace } from "@/components/workspace-provider";
 import type { DiaryExtractionResult } from "@/lib/ai/contracts";
 
 const MAX_RECORDING_SECONDS = 180;
+const PROCESS_STEP_LABELS = ["Анализируем вашу запись", "Выставляем метрики по вашему запросу"];
 
 function getSupportedMimeType() {
   if (typeof MediaRecorder === "undefined") {
@@ -33,11 +34,11 @@ function getStatusCopy(args: {
   }
 
   if (args.isTranscribing) {
-    return "Расшифровываем";
+    return PROCESS_STEP_LABELS[0];
   }
 
   if (args.isExtracting) {
-    return "Заполняем форму";
+    return PROCESS_STEP_LABELS[1];
   }
 
   return null;
@@ -55,13 +56,18 @@ export function VoiceEntryPanel() {
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
+  const progressHideTimerRef = useRef<number | null>(null);
   const isStartingRef = useRef(false);
+  const wasProcessingRef = useRef(false);
   const contextVersionRef = useRef(0);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [showProcessingState, setShowProcessingState] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingStepIndex, setProcessingStepIndex] = useState(0);
   const [transcript, setTranscript] = useState("");
   const [extraction, setExtraction] = useState<DiaryExtractionResult | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -104,6 +110,7 @@ export function VoiceEntryPanel() {
     isExtracting,
     seconds: recordingSeconds,
   });
+  const isProcessing = isTranscribing || isExtracting;
 
   const stopStream = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -114,6 +121,13 @@ export function VoiceEntryPanel() {
     if (timerRef.current !== null) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
+    }
+  };
+
+  const clearProgressHideTimer = () => {
+    if (progressHideTimerRef.current !== null) {
+      window.clearTimeout(progressHideTimerRef.current);
+      progressHideTimerRef.current = null;
     }
   };
 
@@ -354,10 +368,81 @@ export function VoiceEntryPanel() {
   };
 
   useEffect(() => {
+    if (isProcessing && !wasProcessingRef.current) {
+      setProcessingProgress(6);
+      setProcessingStepIndex(0);
+    }
+
+    wasProcessingRef.current = isProcessing;
+  }, [isProcessing]);
+
+  useEffect(() => {
+    if (isExtracting) {
+      setProcessingStepIndex(1);
+      return;
+    }
+
+    if (isTranscribing) {
+      setProcessingStepIndex(0);
+    }
+  }, [isExtracting, isTranscribing]);
+
+  useEffect(() => {
+    if (isProcessing) {
+      clearProgressHideTimer();
+      setShowProcessingState(true);
+      return;
+    }
+
+    if (!showProcessingState) {
+      return;
+    }
+
+    clearProgressHideTimer();
+    progressHideTimerRef.current = window.setTimeout(() => {
+      setShowProcessingState(false);
+      setProcessingProgress(0);
+      setProcessingStepIndex(0);
+      progressHideTimerRef.current = null;
+    }, 700);
+
+    return () => {
+      clearProgressHideTimer();
+    };
+  }, [isProcessing, showProcessingState]);
+
+  useEffect(() => {
+    if (!showProcessingState) {
+      return;
+    }
+
+    const targetProgress = isTranscribing ? 56 : isExtracting ? 92 : 100;
+
+    const intervalId = window.setInterval(() => {
+      setProcessingProgress((current) => {
+        if (current >= targetProgress) {
+          return current;
+        }
+
+        const nextStep = Math.max(1, Math.ceil((targetProgress - current) / 8));
+        return Math.min(targetProgress, current + nextStep);
+      });
+    }, 100);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isExtracting, isTranscribing, showProcessingState]);
+
+  useEffect(() => {
     contextVersionRef.current += 1;
 
     recorderRef.current?.stop();
     stopTimer();
+    clearProgressHideTimer();
+    setShowProcessingState(false);
+    setProcessingProgress(0);
+    setProcessingStepIndex(0);
     clearVoiceState();
     setRecordingSeconds(0);
   }, [selectedDate]);
@@ -378,6 +463,7 @@ export function VoiceEntryPanel() {
     return () => {
       stopTimer();
       stopStream();
+      clearProgressHideTimer();
 
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
@@ -406,7 +492,7 @@ export function VoiceEntryPanel() {
           <button
             type="button"
             onClick={isRecording ? stopRecording : startRecording}
-            disabled={!isSupported || isTranscribing || isExtracting}
+            disabled={!isSupported || isProcessing}
             className={`inline-flex min-h-12 items-center gap-3 rounded-full px-5 text-sm font-medium transition ${
               isRecording
                 ? "bg-[rgb(145,41,58)] text-white shadow-[0_18px_34px_rgba(145,41,58,0.24)]"
@@ -428,7 +514,14 @@ export function VoiceEntryPanel() {
           ) : null}
         </div>
 
-        {(isRecording || isTranscribing || isExtracting) ? <WaveformRow active /> : null}
+        {(isRecording || isProcessing) ? <WaveformRow active /> : null}
+        {showProcessingState ? (
+          <ProcessingState
+            progress={processingProgress}
+            stepIndex={processingStepIndex}
+            totalSteps={PROCESS_STEP_LABELS.length}
+          />
+        ) : null}
       </div>
 
       {!isSupported ? (
@@ -495,24 +588,39 @@ export function VoiceEntryPanel() {
 
       {extraction ? (
         <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
-          <div className="flex items-center gap-2">
-            <GridIcon />
-            <p className="text-sm font-semibold text-[var(--foreground)]">
-              Измененные метрики
-            </p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <GridIcon />
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                Измененные метрики
+              </p>
+            </div>
+            <span className="rounded-full border border-[rgba(47,111,97,0.14)] bg-[rgba(247,249,246,0.92)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--accent)]">
+              {extractionMetricRows.length} шт.
+            </span>
           </div>
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            Ниже значения, которые система извлекла из вашей записи.
+          </p>
 
           {extractionMetricRows.length > 0 ? (
-            <div className="mt-3 grid gap-2">
-              {extractionMetricRows.map((item) => (
+            <div className="mt-3 grid gap-2.5">
+              {extractionMetricRows.map((item, index) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between gap-3 rounded-[16px] border border-[rgba(47,111,97,0.08)] bg-[rgba(247,249,246,0.84)] px-3 py-2.5 text-sm text-[var(--foreground)]"
+                  className="rounded-[18px] border border-[rgba(47,111,97,0.1)] bg-[linear-gradient(180deg,rgba(247,249,246,0.95),rgba(244,248,245,0.88))] px-3.5 py-3 text-[var(--foreground)]"
                 >
-                  <span className="truncate font-medium">{item.name}</span>
-                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[var(--muted)]">
-                    {item.value}
-                  </span>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--muted)]">
+                        Метрика {index + 1}
+                      </p>
+                      <p className="truncate text-sm font-semibold">{item.name}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-[rgba(47,111,97,0.14)] bg-white px-3 py-1 text-xs font-semibold text-[var(--accent)]">
+                      {item.value}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -524,6 +632,69 @@ export function VoiceEntryPanel() {
         </div>
       ) : null}
     </section>
+  );
+}
+
+function ProcessingState({
+  progress,
+  stepIndex,
+  totalSteps,
+}: {
+  progress: number;
+  stepIndex: number;
+  totalSteps: number;
+}) {
+  return (
+    <div className="mt-4 rounded-[18px] border border-[rgba(47,111,97,0.14)] bg-white/88 p-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-[var(--foreground)]">Обработка записи</p>
+        <span className="text-xs font-medium text-[var(--accent)]">{progress}%</span>
+      </div>
+
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[rgba(47,111,97,0.12)]">
+        <div
+          className="h-full rounded-full bg-[var(--accent)] transition-all duration-500"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      <div className="mt-3 grid gap-2">
+        {PROCESS_STEP_LABELS.map((label, index) => {
+          const isDone = index < stepIndex;
+          const isActive = index === stepIndex;
+
+          return (
+            <div key={label} className="flex items-center gap-2 text-xs text-[var(--foreground)]">
+              <span
+                className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] ${
+                  isDone
+                    ? "border-transparent bg-[var(--accent)] text-white"
+                    : isActive
+                      ? "border-[rgba(47,111,97,0.22)] bg-[rgba(47,111,97,0.1)] text-[var(--accent)]"
+                      : "border-[var(--border)] bg-white text-[var(--muted)]"
+                }`}
+              >
+                {isActive ? (
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inset-0 animate-ping rounded-full bg-[var(--accent)]" />
+                    <span className="relative h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+                  </span>
+                ) : null}
+                {isDone ? "✓" : isActive ? "" : index + 1}
+              </span>
+              <span
+                className={`transition-colors ${
+                  isDone || isActive ? "text-[var(--foreground)]" : "text-[var(--muted)]"
+                }`}
+              >
+                {label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-[11px] text-[var(--muted)]">Шаг {Math.min(stepIndex + 1, totalSteps)} из {totalSteps}</p>
+    </div>
   );
 }
 
