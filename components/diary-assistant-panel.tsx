@@ -42,10 +42,16 @@ export function DiaryAssistantPanel() {
   const [chatMessagesByDate, setChatMessagesByDate] = useState<Record<string, ChatMessage[]>>({});
   const [chatState, setChatState] = useState<"idle" | "sending" | "error">("idle");
   const [chatError, setChatError] = useState<string | null>(null);
+  const [streamingAssistantId, setStreamingAssistantId] = useState<string | null>(null);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const modelMenuRef = useRef<HTMLDivElement | null>(null);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const chatAbortRef = useRef<AbortController | null>(null);
 
-  const chatMessages = chatMessagesByDate[selectedDate] ?? [];
+  const chatMessages = useMemo(
+    () => chatMessagesByDate[selectedDate] ?? [],
+    [chatMessagesByDate, selectedDate],
+  );
 
   useEffect(() => {
     try {
@@ -95,6 +101,19 @@ export function DiaryAssistantPanel() {
     };
   }, [isModelMenuOpen]);
 
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({
+      behavior: chatState === "sending" ? "smooth" : "auto",
+      block: "end",
+    });
+  }, [chatMessages, chatState, selectedDate]);
+
+  useEffect(() => {
+    return () => {
+      chatAbortRef.current?.abort();
+    };
+  }, []);
+
   const quickPrompts = useMemo(
     () => ["Разбери мой день", "Что сильнее всего повлияло?", "Есть ли риск перегруза?"],
     [],
@@ -117,27 +136,34 @@ export function DiaryAssistantPanel() {
       return;
     }
 
+    const targetDate = selectedDate;
     const userMessage = createChatMessage("user", trimmed);
-    const nextMessages = [...chatMessages, userMessage];
+    const assistantMessage = createChatMessage("assistant", "");
+    const nextMessages = [...chatMessages, userMessage, assistantMessage];
 
     setChatInput("");
     setChatState("sending");
     setChatError(null);
-    updateChatForDate(selectedDate, () => nextMessages);
+    setStreamingAssistantId(assistantMessage.id);
+    updateChatForDate(targetDate, () => nextMessages);
 
     try {
+      const controller = new AbortController();
+      chatAbortRef.current = controller;
+
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        signal: controller.signal,
         body: JSON.stringify({
-          messages: nextMessages.map((message) => ({
+          messages: [...chatMessages, userMessage].map((message) => ({
             role: message.role,
             content: message.content,
           })),
           context: {
-            date: selectedDate,
+            date: targetDate,
             draft: selectedDraft,
             metricDefinitions: metricDefinitions.filter((metric) => metric.isActive),
             tasks: selectedTasks,
@@ -146,18 +172,66 @@ export function DiaryAssistantPanel() {
         }),
       });
 
-      const result = (await response.json()) as { reply?: string; error?: string };
+      if (!response.ok) {
+        let errorMessage = "Не удалось получить ответ от AI.";
 
-      if (!response.ok || !result.reply) {
-        throw new Error(result.error ?? "Не удалось получить ответ от AI.");
+        try {
+          const result = (await response.json()) as { error?: string };
+          errorMessage = result.error ?? errorMessage;
+        } catch {
+          const text = await response.text();
+          errorMessage = text || errorMessage;
+        }
+
+        throw new Error(errorMessage);
       }
 
-      updateChatForDate(selectedDate, (current) => [
-        ...current,
-        createChatMessage("assistant", result.reply ?? ""),
-      ]);
+      if (!response.body) {
+        throw new Error("Не удалось получить потоковый ответ от AI.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantContent = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+
+        if (done) {
+          assistantContent += decoder.decode();
+          break;
+        }
+
+        assistantContent += decoder.decode(value, { stream: true });
+
+        updateChatForDate(targetDate, (current) =>
+          current.map((message) =>
+            message.id === assistantMessage.id
+              ? { ...message, content: assistantContent }
+              : message,
+          ),
+        );
+      }
+
+      if (!assistantContent.trim()) {
+        throw new Error("AI вернул пустой ответ.");
+      }
+
       setChatState("idle");
+      setStreamingAssistantId(null);
+      chatAbortRef.current = null;
     } catch (sendError) {
+      updateChatForDate(targetDate, (current) =>
+        current.filter((message) => message.id !== assistantMessage.id),
+      );
+      setStreamingAssistantId(null);
+      chatAbortRef.current = null;
+
+      if (sendError instanceof DOMException && sendError.name === "AbortError") {
+        setChatState("idle");
+        return;
+      }
+
       setChatState("error");
       setChatError(
         sendError instanceof Error ? sendError.message : "Не удалось отправить сообщение.",
@@ -265,26 +339,28 @@ export function DiaryAssistantPanel() {
                 key={message.id}
                 className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                <div
-                  className={`max-w-[94%] rounded-[22px] px-3 py-2.5 text-sm leading-6 sm:max-w-[92%] sm:rounded-[24px] sm:px-4 sm:py-3 sm:leading-7 ${
-                    message.role === "user"
-                      ? "bg-[var(--accent)] text-white shadow-[0_16px_30px_rgba(47,111,97,0.2)]"
-                      : "border border-[var(--border)] bg-white/92 text-[var(--foreground)]"
-                  }`}
-                >
-                  {message.content}
-                </div>
+                {message.role === "user" ? (
+                  <div className="max-w-[94%] rounded-[22px] bg-[var(--accent)] px-3 py-2.5 text-sm leading-6 text-white shadow-[0_16px_30px_rgba(47,111,97,0.2)] sm:max-w-[92%] sm:rounded-[24px] sm:px-4 sm:py-3 sm:leading-7">
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                  </div>
+                ) : (
+                  <div className="max-w-[96%] rounded-[22px] border border-[var(--border)] bg-white/95 px-3.5 py-3 text-[15px] leading-7 text-[var(--foreground)] shadow-[0_14px_24px_rgba(24,33,29,0.06)] sm:max-w-[94%] sm:rounded-[24px] sm:px-4 sm:py-3.5">
+                    <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[rgba(47,111,97,0.2)] bg-[rgba(47,111,97,0.08)] text-[10px] text-[var(--accent)]">
+                        AI
+                      </span>
+                      Diary AI
+                    </div>
+                    <ChatMessageContent
+                      content={message.content}
+                      streaming={chatState === "sending" && message.id === streamingAssistantId}
+                    />
+                  </div>
+                )}
               </div>
             ))
           )}
-
-          {chatState === "sending" ? (
-            <div className="flex justify-start">
-              <div className="rounded-[22px] border border-[var(--border)] bg-white/92 px-3 py-2.5 text-sm text-[var(--muted)] sm:rounded-[24px] sm:px-4 sm:py-3">
-                AI печатает...
-              </div>
-            </div>
-          ) : null}
+          <div ref={chatEndRef} />
         </div>
 
         {chatError ? <p className="mt-3 text-sm text-[rgb(136,47,63)]">{chatError}</p> : null}
@@ -325,6 +401,80 @@ export function DiaryAssistantPanel() {
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function renderInlineSegments(line: string) {
+  const segments = line.split(/(\*\*[^*]+\*\*)/g);
+
+  return segments.map((segment, index) => {
+    if (segment.startsWith("**") && segment.endsWith("**")) {
+      return (
+        <strong key={`${segment}-${index}`} className="font-semibold text-[var(--foreground)]">
+          {segment.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    return <span key={`${segment}-${index}`}>{segment}</span>;
+  });
+}
+
+function ChatMessageContent({
+  content,
+  streaming,
+}: {
+  content: string;
+  streaming: boolean;
+}) {
+  const lines = content.split("\n");
+
+  return (
+    <div className="grid gap-2 text-sm leading-7 text-[var(--foreground)]">
+      {lines.map((line, index) => {
+        const trimmed = line.trim();
+
+        if (!trimmed) {
+          return <div key={`space-${index}`} className="h-2" />;
+        }
+
+        if (/^#{1,3}\s+/.test(trimmed)) {
+          return (
+            <p key={`heading-${index}`} className="text-base font-semibold tracking-[-0.02em]">
+              {renderInlineSegments(trimmed.replace(/^#{1,3}\s+/, ""))}
+            </p>
+          );
+        }
+
+        if (/^[-*]\s+/.test(trimmed)) {
+          return (
+            <div key={`bullet-${index}`} className="flex items-start gap-2">
+              <span className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]/65" />
+              <p>{renderInlineSegments(trimmed.replace(/^[-*]\s+/, ""))}</p>
+            </div>
+          );
+        }
+
+        const numbered = trimmed.match(/^(\d+)\.\s+(.*)$/);
+
+        if (numbered) {
+          return (
+            <div key={`numbered-${index}`} className="flex items-start gap-2">
+              <span className="min-w-4 text-[var(--muted)]">{numbered[1]}.</span>
+              <p>{renderInlineSegments(numbered[2] ?? "")}</p>
+            </div>
+          );
+        }
+
+        return <p key={`line-${index}`}>{renderInlineSegments(line)}</p>;
+      })}
+
+      {streaming ? (
+        <span className="inline-flex h-5 items-center">
+          <span className="h-4 w-1 animate-pulse rounded bg-[var(--accent)]/60" />
+        </span>
+      ) : null}
     </div>
   );
 }

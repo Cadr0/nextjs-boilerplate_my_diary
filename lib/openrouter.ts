@@ -347,23 +347,140 @@ export async function analyzeDiaryEntry(entry: AnalyzeDiaryEntryInput) {
   );
 }
 
+function buildDiaryChatMessages(
+  messages: OpenRouterMessage[],
+  context: OpenRouterDiaryContext,
+) {
+  return [
+    {
+      role: "system" as const,
+      content:
+        "Ты внимательный AI-помощник дневника. Отвечай по-русски, кратко и структурно. Помогай разбирать день, находить паттерны в самочувствии и предлагать понятный следующий шаг без лишней воды.",
+    },
+    {
+      role: "system" as const,
+      content: `Контекст рабочего дня:\n${buildDiaryContextPrompt(context)}`,
+    },
+    ...messages,
+  ];
+}
+
+type OpenRouterStreamPayload = {
+  choices?: Array<{
+    delta?: {
+      content?: string;
+    };
+  }>;
+};
+
+export async function streamChatWithOpenRouter(
+  messages: OpenRouterMessage[],
+  context: OpenRouterDiaryContext,
+) {
+  const configError = getOpenRouterConfigError();
+
+  if (configError) {
+    throw new Error(configError);
+  }
+
+  const response = await fetch(`${openRouterBaseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${openRouterApiKey}`,
+      "HTTP-Referer": siteUrl,
+      "X-Title": appTitle,
+    },
+    body: JSON.stringify({
+      model: context.model ?? openRouterModel,
+      temperature: 0.35,
+      max_tokens: 420,
+      stream: true,
+      messages: buildDiaryChatMessages(messages, context),
+    }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as OpenRouterPayload;
+    throw new Error(payload.error?.message ?? "OpenRouter request failed.");
+  }
+
+  if (!response.body) {
+    throw new Error("OpenRouter did not provide a stream body.");
+  }
+
+  const sourceReader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let buffer = "";
+
+      const pushSseChunk = (line: string) => {
+        const trimmed = line.trim();
+
+        if (!trimmed.startsWith("data:")) {
+          return;
+        }
+
+        const data = trimmed.slice(5).trim();
+
+        if (!data || data === "[DONE]") {
+          return;
+        }
+
+        try {
+          const chunk = JSON.parse(data) as OpenRouterStreamPayload;
+          const token = chunk.choices?.[0]?.delta?.content;
+
+          if (token) {
+            controller.enqueue(encoder.encode(token));
+          }
+        } catch {
+          // Ignore malformed partial SSE chunks.
+        }
+      };
+
+      try {
+        while (true) {
+          const { value, done } = await sourceReader.read();
+
+          if (done) {
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          lines.forEach(pushSseChunk);
+        }
+
+        buffer += decoder.decode();
+        const tail = buffer.trim();
+
+        if (tail.length > 0) {
+          pushSseChunk(tail);
+        }
+
+        controller.close();
+      } catch (streamError) {
+        controller.error(streamError);
+      } finally {
+        sourceReader.releaseLock();
+      }
+    },
+  });
+}
+
 export async function chatWithOpenRouter(
   messages: OpenRouterMessage[],
   context: OpenRouterDiaryContext,
 ) {
   return requestOpenRouter(
-    [
-      {
-        role: "system",
-        content:
-          "Ты внимательный AI-помощник дневника. Отвечай по-русски, кратко и структурно. Помогай разбирать день, находить паттерны в самочувствии и предлагать понятный следующий шаг без лишней воды.",
-      },
-      {
-        role: "system",
-        content: `Контекст рабочего дня:\n${buildDiaryContextPrompt(context)}`,
-      },
-      ...messages,
-    ],
+    buildDiaryChatMessages(messages, context),
     {
       model: context.model,
       temperature: 0.35,
