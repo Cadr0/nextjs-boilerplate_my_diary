@@ -258,18 +258,6 @@ export function DiaryAssistantPanel() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div ref={modelMenuRef}>
-              <ModelPicker
-                activeModel={profile.aiModel}
-                isOpen={isModelMenuOpen}
-                onSelect={(model) => {
-                  updateProfile("aiModel", model);
-                  setIsModelMenuOpen(false);
-                }}
-                onToggle={() => setIsModelMenuOpen((current) => !current)}
-              />
-            </div>
-
             <button
               type="button"
               onClick={() => void requestEntryAnalysis()}
@@ -293,13 +281,12 @@ export function DiaryAssistantPanel() {
           </div>
 
           {selectedEntry?.ai_analysis ? (
-            <div className="mt-4 grid gap-3 text-sm leading-7 text-[var(--foreground)]">
-              {selectedEntry.ai_analysis
-                .split("\n")
-                .filter(Boolean)
-                .map((line, index) => (
-                  <p key={`${line}-${index}`}>{line}</p>
-                ))}
+            <div className="mt-4 rounded-[20px] border border-[rgba(47,111,97,0.14)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,249,246,0.86))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] sm:p-5">
+              <ChatMessageContent
+                content={selectedEntry.ai_analysis}
+                streaming={false}
+                variant="analysis"
+              />
             </div>
           ) : (
             <div className="mt-4 grid gap-2">
@@ -372,28 +359,29 @@ export function DiaryAssistantPanel() {
             void sendChatMessage(chatInput);
           }}
         >
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[26px] border border-[var(--border)] bg-[rgba(255,255,255,0.98)] p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] backdrop-blur sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-3 sm:rounded-[30px] sm:px-4 sm:py-3">
+          <div className="flex flex-wrap items-center gap-2 rounded-[26px] border border-[var(--border)] bg-[rgba(255,255,255,0.98)] p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] backdrop-blur sm:gap-3 sm:rounded-[30px] sm:px-4 sm:py-3">
             <input
               value={chatInput}
               onChange={(event) => setChatInput(event.target.value)}
               placeholder="Спросите Diary AI"
-              className="col-span-2 min-w-0 rounded-full border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.96)] px-4 py-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] sm:col-span-1 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:text-base"
+              className="min-w-[220px] flex-1 rounded-full border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.96)] px-4 py-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:text-base"
             />
 
-            <button
-              type="button"
-              onClick={() => void requestEntryAnalysis()}
-              disabled={analysisState === "loading"}
-              className="col-span-1 inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11"
-            >
-              <SparkIcon />
-              {analysisState === "loading" ? "Идёт анализ" : "Разобрать день"}
-            </button>
-
+            <div ref={modelMenuRef} className="shrink-0">
+              <ModelPicker
+                activeModel={profile.aiModel}
+                isOpen={isModelMenuOpen}
+                onSelect={(model) => {
+                  updateProfile("aiModel", model);
+                  setIsModelMenuOpen(false);
+                }}
+                onToggle={() => setIsModelMenuOpen((current) => !current)}
+              />
+            </div>
             <button
               type="submit"
               disabled={chatState === "sending"}
-              className="inline-flex h-11 w-11 items-center justify-center justify-self-end rounded-full bg-[var(--accent)] text-white shadow-[0_16px_28px_rgba(47,111,97,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_16px_28px_rgba(47,111,97,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
               aria-label="Отправить"
             >
               <SendIcon />
@@ -421,17 +409,31 @@ function renderInlineSegments(line: string) {
   });
 }
 
+function normalizeAiText(content: string) {
+  return content
+    .replace(/\r\n?/g, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function ChatMessageContent({
   content,
   streaming,
+  variant = "chat",
 }: {
   content: string;
   streaming: boolean;
+  variant?: "chat" | "analysis";
 }) {
-  const lines = content.split("\n");
+  const lines = normalizeAiText(content).split("\n");
 
   return (
-    <div className="grid gap-2 text-sm leading-7 text-[var(--foreground)]">
+    <div
+      className={`grid text-[var(--foreground)] ${
+        variant === "analysis" ? "gap-3 text-[15px] leading-7" : "gap-2 text-sm leading-7"
+      }`}
+    >
       {lines.map((line, index) => {
         const trimmed = line.trim();
 
@@ -439,18 +441,62 @@ function ChatMessageContent({
           return <div key={`space-${index}`} className="h-2" />;
         }
 
+        if (/^[-]{2,}$/.test(trimmed)) {
+          return <div key={`divider-${index}`} className="my-1 h-px w-full bg-[var(--border)]/85" />;
+        }
+
         if (/^#{1,3}\s+/.test(trimmed)) {
           return (
-            <p key={`heading-${index}`} className="text-base font-semibold tracking-[-0.02em]">
+            <p
+              key={`heading-${index}`}
+              className={`font-semibold tracking-[-0.02em] ${
+                variant === "analysis" ? "text-lg leading-8" : "text-base"
+              }`}
+            >
               {renderInlineSegments(trimmed.replace(/^#{1,3}\s+/, ""))}
             </p>
           );
         }
 
+        if (/^>\s+/.test(trimmed)) {
+          return (
+            <div
+              key={`quote-${index}`}
+              className="rounded-[14px] border border-[rgba(47,111,97,0.16)] bg-[rgba(47,111,97,0.06)] px-3 py-2 text-[var(--foreground)]/90"
+            >
+              {renderInlineSegments(trimmed.replace(/^>\s+/, ""))}
+            </div>
+          );
+        }
+
+        if (/^\|.+\|$/.test(trimmed)) {
+          const cells = trimmed
+            .split("|")
+            .map((cell) => cell.trim())
+            .filter(Boolean);
+
+          if (cells.every((cell) => /^:?-{2,}:?$/.test(cell))) {
+            return null;
+          }
+
+          return (
+            <div key={`table-${index}`} className="flex flex-wrap gap-2">
+              {cells.map((cell, cellIndex) => (
+                <span
+                  key={`${cell}-${cellIndex}`}
+                  className="rounded-full border border-[rgba(47,111,97,0.18)] bg-[rgba(47,111,97,0.08)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)]"
+                >
+                  {renderInlineSegments(cell)}
+                </span>
+              ))}
+            </div>
+          );
+        }
+
         if (/^[-*]\s+/.test(trimmed)) {
           return (
-            <div key={`bullet-${index}`} className="flex items-start gap-2">
-              <span className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]/65" />
+            <div key={`bullet-${index}`} className="flex items-start gap-2.5">
+              <span className="mt-[10px] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]/70" />
               <p>{renderInlineSegments(trimmed.replace(/^[-*]\s+/, ""))}</p>
             </div>
           );
@@ -461,7 +507,7 @@ function ChatMessageContent({
         if (numbered) {
           return (
             <div key={`numbered-${index}`} className="flex items-start gap-2">
-              <span className="min-w-4 text-[var(--muted)]">{numbered[1]}.</span>
+              <span className="min-w-4 font-medium text-[var(--muted)]">{numbered[1]}.</span>
               <p>{renderInlineSegments(numbered[2] ?? "")}</p>
             </div>
           );
