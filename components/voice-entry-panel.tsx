@@ -549,83 +549,83 @@ export function VoiceEntryPanel() {
       ) : null}
 
       {audioUrl ? (
-        <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <TranscriptIcon />
-              <p className="text-sm font-semibold text-[var(--foreground)]">Транскрипт</p>
-            </div>
+        <div className="grid items-start gap-3 lg:grid-cols-2">
+          <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <TranscriptIcon />
+                <p className="text-sm font-semibold text-[var(--foreground)]">Транскрипт</p>
+              </div>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void runExtraction(transcript, true)}
-                disabled={isExtracting || transcript.trim().length === 0}
-                className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <RefreshIcon />
-                Обновить
-              </button>
-              <button
-                type="button"
-                onClick={clearVoiceState}
-                className="inline-flex min-h-9 items-center rounded-full border border-[var(--border)] bg-white px-3 text-xs font-medium text-[var(--muted)] transition hover:text-[var(--foreground)]"
-              >
-                Очистить
-              </button>
-            </div>
-          </div>
-
-          <textarea
-            value={transcript}
-            onChange={(event) => setTranscript(event.target.value)}
-            rows={5}
-            placeholder="Текст расшифровки появится здесь после записи или вставь его вручную."
-            className="mt-3 w-full rounded-[18px] border border-[var(--border)] bg-[rgba(247,249,246,0.72)] px-4 py-3 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-          />
-        </div>
-      ) : null}
-
-      {extraction ? (
-        <div className="mx-auto w-full max-w-5xl rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <GridIcon />
-              <p className="text-sm font-semibold text-[var(--foreground)]">
-                Измененные метрики
-              </p>
-            </div>
-            <span className="rounded-full border border-[rgba(47,111,97,0.14)] bg-[rgba(247,249,246,0.92)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--accent)]">
-              {extractionMetricRows.length} шт.
-            </span>
-          </div>
-
-          {extractionMetricRows.length > 0 ? (
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {extractionMetricRows.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between gap-2 rounded-[14px] border border-[rgba(47,111,97,0.1)] bg-[linear-gradient(180deg,rgba(247,249,246,0.95),rgba(244,248,245,0.88))] px-3 py-2 text-[var(--foreground)]"
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void runExtraction(transcript, true)}
+                  disabled={isExtracting || transcript.trim().length === 0}
+                  className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <p className="truncate text-[13px] font-medium leading-none">{item.name}</p>
-                  <span className="shrink-0 rounded-full border border-[rgba(47,111,97,0.16)] bg-white px-2.5 py-0.5 text-[12px] font-semibold text-[var(--accent)]">
-                    {item.value}
-                  </span>
-                </div>
-              ))}
+                  <RefreshIcon />
+                  Обновить
+                </button>
+                <button
+                  type="button"
+                  onClick={clearVoiceState}
+                  className="inline-flex min-h-9 items-center rounded-full border border-[var(--border)] bg-white px-3 text-xs font-medium text-[var(--muted)] transition hover:text-[var(--foreground)]"
+                >
+                  Очистить
+                </button>
+              </div>
             </div>
-          ) : (
-            <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-              AI не нашёл метрики, которые можно уверенно заполнить.
-            </p>
-          )}
-        </div>
-      ) : null}
 
-      {extraction && extractionMetricRows.length > 9 ? (
-        <p className="mx-auto mt-1 w-full max-w-5xl text-[11px] text-[var(--muted)]">
-          Показаны все извлеченные метрики в компактном виде.
-        </p>
+            <textarea
+              value={transcript}
+              onChange={(event) => setTranscript(event.target.value)}
+              rows={7}
+              placeholder="Текст расшифровки появится здесь после записи или вставь его вручную."
+              className="mt-3 w-full rounded-[18px] border border-[var(--border)] bg-[rgba(247,249,246,0.72)] px-4 py-3 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+            />
+          </div>
+
+          <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <GridIcon />
+                <p className="text-sm font-semibold text-[var(--foreground)]">Измененные метрики</p>
+              </div>
+              <span className="rounded-full border border-[rgba(47,111,97,0.14)] bg-[rgba(247,249,246,0.92)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--accent)]">
+                {extractionMetricRows.length} шт.
+              </span>
+            </div>
+
+            {extraction ? (
+              extractionMetricRows.length > 0 ? (
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {extractionMetricRows.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between gap-2 rounded-[14px] border border-[rgba(47,111,97,0.1)] bg-[linear-gradient(180deg,rgba(247,249,246,0.95),rgba(244,248,245,0.88))] px-3 py-2 text-[var(--foreground)]"
+                    >
+                      <p className="truncate text-[13px] font-medium leading-none">{item.name}</p>
+                      <span className="shrink-0 rounded-full border border-[rgba(47,111,97,0.16)] bg-white px-2.5 py-0.5 text-[12px] font-semibold text-[var(--accent)]">
+                        {item.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+                  AI не нашёл метрики, которые можно уверенно заполнить.
+                </p>
+              )
+            ) : (
+              <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+                {isProcessing
+                  ? "Метрики появятся здесь сразу после завершения анализа."
+                  : "Нажмите «Обновить», чтобы извлечь метрики из транскрипта."}
+              </p>
+            )}
+          </div>
+        </div>
       ) : null}
     </section>
   );
