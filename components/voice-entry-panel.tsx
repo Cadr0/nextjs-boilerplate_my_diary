@@ -398,36 +398,52 @@ export function VoiceEntryPanel() {
       return;
     }
 
+    if (processingProgress < 100) {
+      return;
+    }
+
     clearProgressHideTimer();
     progressHideTimerRef.current = window.setTimeout(() => {
       setShowProcessingState(false);
       setProcessingProgress(0);
       setProcessingStepIndex(0);
       progressHideTimerRef.current = null;
-    }, 700);
+    }, 550);
 
     return () => {
       clearProgressHideTimer();
     };
-  }, [isProcessing, showProcessingState]);
+  }, [isProcessing, processingProgress, showProcessingState]);
 
   useEffect(() => {
     if (!showProcessingState) {
       return;
     }
 
-    const targetProgress = isTranscribing ? 56 : isExtracting ? 92 : 100;
-
     const intervalId = window.setInterval(() => {
       setProcessingProgress((current) => {
-        if (current >= targetProgress) {
-          return current;
+        const stage = isTranscribing ? "transcribing" : isExtracting ? "extracting" : "finalizing";
+        const stageFloor = stage === "transcribing" ? 8 : stage === "extracting" ? 58 : current;
+        const stageCap = stage === "transcribing" ? 82 : stage === "extracting" ? 97 : 100;
+        const normalized = Math.max(current, stageFloor);
+
+        if (normalized >= stageCap) {
+          return normalized;
         }
 
-        const nextStep = Math.max(1, Math.ceil((targetProgress - current) / 8));
-        return Math.min(targetProgress, current + nextStep);
+        const distance = stageCap - normalized;
+        const baseStep =
+          stage === "transcribing"
+            ? Math.max(0.25, Math.min(2.2, distance * 0.18))
+            : stage === "extracting"
+              ? Math.max(0.18, Math.min(1.5, distance * 0.14))
+              : Math.max(0.35, Math.min(3, distance * 0.28));
+        const jitter = 0.75 + Math.random() * 0.7;
+        const next = normalized + baseStep * jitter;
+
+        return Math.min(stageCap, next);
       });
-    }, 100);
+    }, 120);
 
     return () => {
       window.clearInterval(intervalId);
@@ -640,11 +656,13 @@ function ProcessingState({
   stepIndex: number;
   totalSteps: number;
 }) {
+  const roundedProgress = Math.round(progress);
+
   return (
     <div className="mt-4 rounded-[18px] border border-[rgba(47,111,97,0.14)] bg-white/88 p-3.5">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-semibold text-[var(--foreground)]">Обработка записи</p>
-        <span className="text-xs font-medium text-[var(--accent)]">{progress}%</span>
+        <span className="text-xs font-medium text-[var(--accent)]">{roundedProgress}%</span>
       </div>
 
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-[rgba(47,111,97,0.12)]">
