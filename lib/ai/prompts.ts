@@ -68,13 +68,29 @@ export function buildPeriodAnalysisPrompt(args: {
   to: string;
   entries: PeriodAnalysisEntryPayload[];
 }) {
+  // Собираем все уникальные метрики из записей
+  const allMetricNames = new Set<string>();
+  for (const entry of args.entries) {
+    for (const metric of entry.metrics) {
+      allMetricNames.add(metric.name);
+    }
+  }
+  const metricNames = Array.from(allMetricNames);
+
   return [
     "Ты анализируешь дневниковые записи за выбранный период.",
+    "",
+    "ВАЖНО: Учитывай ВСЕ метрики, включая boolean (да/нет) метрики.",
+    "Boolean метрики показывают наличие/отсутствие факторов и важны для анализа паттернов.",
+    "",
+    "Доступные метрики в записях: " + metricNames.join(", "),
     "",
     "Правила:",
     "- Верни только JSON.",
     "- Не используй markdown.",
     "- Суммируй паттерны по всем записям за период.",
+    "- Для boolean метрик: анализируй как часто фактор присутствовал (да) или отсутствовал (нет).",
+    "- Пример: 'Тренировки были в 5 из 7 дней' или 'Кофе употреблялся ежедневно'.",
     "- Не преувеличивай причинно-следственные связи.",
     "- Отделяй наблюдения от гипотез.",
     "- Рекомендации должны быть короткими и практичными.",
@@ -88,7 +104,13 @@ export function buildPeriodAnalysisPrompt(args: {
     '    "mood": "string | null",',
     '    "energy": "string | null",',
     '    "stress": "string | null",',
-    '    "sleep": "string | null"',
+    '    "sleep": "string | null",',
+    '    "custom_metrics": {',
+    '      "название_метрики": "тренд для этой метрики"',
+    "    }",
+    "  },",
+    '  "boolean_metrics_summary": {',
+    '    "название_метрики": "сколько раз было да/нет, паттерн"',
     "  },",
     '  "possible_factors": ["string"],',
     '  "recommendations": ["string"]',

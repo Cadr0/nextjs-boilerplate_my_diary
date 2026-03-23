@@ -33,7 +33,9 @@ export type PeriodAnalysisResult = {
     energy: string | null;
     stress: string | null;
     sleep: string | null;
+    custom_metrics?: Record<string, string>;
   };
+  boolean_metrics_summary?: Record<string, string>;
   possible_factors: string[];
   recommendations: string[];
 };
@@ -140,6 +142,24 @@ export function parsePeriodAnalysisResult(value: unknown): PeriodAnalysisResult 
   }
 
   const metricTrends = isObject(value.metric_trends) ? value.metric_trends : {};
+  const customMetrics = isObject(metricTrends.custom_metrics) ? metricTrends.custom_metrics : {};
+  const booleanMetricsSummary = isObject(value.boolean_metrics_summary) ? value.boolean_metrics_summary : {};
+
+  // Преобразуем custom_metrics в Record<string, string>
+  const customMetricsRecord: Record<string, string> = {};
+  for (const [key, val] of Object.entries(customMetrics)) {
+    if (typeof val === "string" && val.trim()) {
+      customMetricsRecord[key] = val.trim();
+    }
+  }
+
+  // Преобразуем boolean_metrics_summary в Record<string, string>
+  const booleanMetricsRecord: Record<string, string> = {};
+  for (const [key, val] of Object.entries(booleanMetricsSummary)) {
+    if (typeof val === "string" && val.trim()) {
+      booleanMetricsRecord[key] = val.trim();
+    }
+  }
 
   return {
     period_summary: requireString(value.period_summary, "Period summary is required."),
@@ -149,7 +169,9 @@ export function parsePeriodAnalysisResult(value: unknown): PeriodAnalysisResult 
       energy: readNullableString(metricTrends.energy),
       stress: readNullableString(metricTrends.stress),
       sleep: readNullableString(metricTrends.sleep),
+      custom_metrics: Object.keys(customMetricsRecord).length > 0 ? customMetricsRecord : undefined,
     },
+    boolean_metrics_summary: Object.keys(booleanMetricsRecord).length > 0 ? booleanMetricsRecord : undefined,
     possible_factors: readStringArray(value.possible_factors).slice(0, 8),
     recommendations: readStringArray(value.recommendations).slice(0, 8),
   };
