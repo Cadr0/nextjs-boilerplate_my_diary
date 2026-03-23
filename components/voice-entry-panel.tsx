@@ -587,7 +587,7 @@ export function VoiceEntryPanel() {
       ) : null}
 
       {extraction ? (
-        <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
+        <div className="mx-auto w-full max-w-5xl rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <GridIcon />
@@ -599,28 +599,18 @@ export function VoiceEntryPanel() {
               {extractionMetricRows.length} шт.
             </span>
           </div>
-          <p className="mt-2 text-xs text-[var(--muted)]">
-            Ниже значения, которые система извлекла из вашей записи.
-          </p>
 
           {extractionMetricRows.length > 0 ? (
-            <div className="mt-3 grid gap-2.5">
-              {extractionMetricRows.map((item, index) => (
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {extractionMetricRows.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-[18px] border border-[rgba(47,111,97,0.1)] bg-[linear-gradient(180deg,rgba(247,249,246,0.95),rgba(244,248,245,0.88))] px-3.5 py-3 text-[var(--foreground)]"
+                  className="flex items-center justify-between gap-2 rounded-[14px] border border-[rgba(47,111,97,0.1)] bg-[linear-gradient(180deg,rgba(247,249,246,0.95),rgba(244,248,245,0.88))] px-3 py-2 text-[var(--foreground)]"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--muted)]">
-                        Метрика {index + 1}
-                      </p>
-                      <p className="truncate text-sm font-semibold">{item.name}</p>
-                    </div>
-                    <span className="shrink-0 rounded-full border border-[rgba(47,111,97,0.14)] bg-white px-3 py-1 text-xs font-semibold text-[var(--accent)]">
-                      {item.value}
-                    </span>
-                  </div>
+                  <p className="truncate text-[13px] font-medium leading-none">{item.name}</p>
+                  <span className="shrink-0 rounded-full border border-[rgba(47,111,97,0.16)] bg-white px-2.5 py-0.5 text-[12px] font-semibold text-[var(--accent)]">
+                    {item.value}
+                  </span>
                 </div>
               ))}
             </div>
@@ -630,6 +620,12 @@ export function VoiceEntryPanel() {
             </p>
           )}
         </div>
+      ) : null}
+
+      {extraction && extractionMetricRows.length > 9 ? (
+        <p className="mx-auto mt-1 w-full max-w-5xl text-[11px] text-[var(--muted)]">
+          Показаны все извлеченные метрики в компактном виде.
+        </p>
       ) : null}
     </section>
   );
