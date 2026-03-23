@@ -245,7 +245,6 @@ export function VoiceEntryPanel() {
         },
         body: JSON.stringify({
           transcript: trimmed,
-          model: profile.aiModel,
           metricDefinitions: metricDefinitions
             .filter((metric) => metric.isActive)
             .map((metric) => ({

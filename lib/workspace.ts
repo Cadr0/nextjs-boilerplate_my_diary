@@ -1,3 +1,5 @@
+import { aiModelOptions as aiModelCatalog, DEFAULT_ROUTERAI_PAID_MODEL } from "@/lib/ai/models";
+
 export type MetricInputType = "scale" | "number" | "boolean" | "text";
 export type MetricSemanticKey = "mood" | "energy" | "stress" | "sleep";
 export type MetricUnitPreset =
@@ -324,28 +326,7 @@ export const metricAccentOptions = [
 
 export const metricTemplateLibrary = metricTemplates;
 
-export const aiModelOptions = [
-  {
-    id: "deepseek/deepseek-v3.2",
-    label: "DeepSeek V3.2",
-    description: "Primary model for diary extraction and analysis.",
-  },
-  {
-    id: "arcee-ai/trinity-large-preview:free",
-    label: "Trinity Large",
-    description: "Free large preview fallback model.",
-  },
-  {
-    id: "nvidia/nemotron-3-super-120b-a12b:free",
-    label: "Nemotron 120B",
-    description: "Large free reasoning model from NVIDIA.",
-  },
-  {
-    id: "stepfun/step-3.5-flash:free",
-    label: "Step 3.5 Flash",
-    description: "Fast free chat model for quick responses.",
-  },
-] as const;
+export const aiModelOptions = aiModelCatalog;
 
 export const defaultProfile: WorkspaceProfile = {
   firstName: "Diary",
@@ -360,7 +341,7 @@ export const defaultProfile: WorkspaceProfile = {
   keepRightRailOpen: true,
   microphoneEnabled: true,
   chatTone: "supportive",
-  aiModel: "deepseek/deepseek-v3.2",
+  aiModel: DEFAULT_ROUTERAI_PAID_MODEL,
 };
 
 function generateId(prefix: string) {

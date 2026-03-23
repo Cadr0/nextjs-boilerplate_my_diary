@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
 
+import { resolveAiProvider } from "@/lib/ai/models";
 import { getAuthState } from "@/lib/auth";
 import {
   getDiaryEntryAnalysisContext,
   getSupabaseConfigError,
   updateDiaryEntryAnalysis,
 } from "@/lib/diary";
-import { analyzeDiaryEntry, getOpenRouterConfigError } from "@/lib/openrouter";
+import {
+  analyzeDiaryEntry as analyzeDiaryEntryOpenRouter,
+  getOpenRouterConfigError,
+} from "@/lib/openrouter";
+import {
+  analyzeDiaryEntry as analyzeDiaryEntryRouterAi,
+  getRouterAiConfigError,
+} from "@/lib/routerai";
 
 type RouteContext = {
   params: Promise<{
@@ -21,12 +29,6 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: supabaseConfigError }, { status: 500 });
   }
 
-  const openRouterConfigError = getOpenRouterConfigError();
-
-  if (openRouterConfigError) {
-    return NextResponse.json({ error: openRouterConfigError }, { status: 500 });
-  }
-
   const { user } = await getAuthState();
 
   if (!user) {
@@ -35,6 +37,14 @@ export async function POST(request: Request, context: RouteContext) {
 
   try {
     const body = (await request.json().catch(() => ({}))) as { model?: string };
+    const provider = resolveAiProvider(body.model);
+    const providerConfigError =
+      provider === "openrouter" ? getOpenRouterConfigError() : getRouterAiConfigError();
+
+    if (providerConfigError) {
+      return NextResponse.json({ error: providerConfigError }, { status: 500 });
+    }
+
     const { id } = await context.params;
 
     if (!id) {
@@ -42,18 +52,32 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const { entry, metrics } = await getDiaryEntryAnalysisContext(id);
-    const aiAnalysis = await analyzeDiaryEntry({
-      entryDate: entry.entry_date,
-      summary: entry.summary ?? "",
-      notes: entry.notes ?? "",
-      model: body.model,
-      metrics: metrics.map((metric) => ({
-        name: metric.name,
-        type: metric.type,
-        unit: metric.unit,
-        value: metric.value,
-      })),
-    });
+    const aiAnalysis =
+      provider === "openrouter"
+        ? await analyzeDiaryEntryOpenRouter({
+            entryDate: entry.entry_date,
+            summary: entry.summary ?? "",
+            notes: entry.notes ?? "",
+            model: body.model,
+            metrics: metrics.map((metric) => ({
+              name: metric.name,
+              type: metric.type,
+              unit: metric.unit,
+              value: metric.value,
+            })),
+          })
+        : await analyzeDiaryEntryRouterAi({
+            entryDate: entry.entry_date,
+            summary: entry.summary ?? "",
+            notes: entry.notes ?? "",
+            model: body.model,
+            metrics: metrics.map((metric) => ({
+              name: metric.name,
+              type: metric.type,
+              unit: metric.unit,
+              value: metric.value,
+            })),
+          });
     const updatedEntry = await updateDiaryEntryAnalysis(id, aiAnalysis);
 
     return NextResponse.json({ entry: updatedEntry }, { status: 200 });

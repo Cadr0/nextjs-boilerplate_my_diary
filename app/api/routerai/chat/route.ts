@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAuthState } from "@/lib/auth";
-import { chatWithOpenRouter, getOpenRouterConfigError } from "@/lib/openrouter";
+import { getRouterAiConfigError, streamChatWithRouterAi } from "@/lib/routerai";
 import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
 
 type RequestPayload = {
@@ -19,10 +19,10 @@ type RequestPayload = {
 };
 
 export async function POST(request: Request) {
-  const openRouterConfigError = getOpenRouterConfigError();
+  const routerAiConfigError = getRouterAiConfigError();
 
-  if (openRouterConfigError) {
-    return NextResponse.json({ error: openRouterConfigError }, { status: 500 });
+  if (routerAiConfigError) {
+    return NextResponse.json({ error: routerAiConfigError }, { status: 500 });
   }
 
   const { user } = await getAuthState();
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "At least one message is required." }, { status: 400 });
     }
 
-    const reply = await chatWithOpenRouter(messages, {
+    const stream = await streamChatWithRouterAi(messages, {
       date,
       draft,
       metricDefinitions,
@@ -65,12 +65,20 @@ export async function POST(request: Request) {
       model,
     });
 
-    return NextResponse.json({ reply }, { status: 200 });
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : "Failed to send OpenRouter message.",
+          error instanceof Error ? error.message : "Failed to send RouterAI message.",
       },
       { status: 500 },
     );

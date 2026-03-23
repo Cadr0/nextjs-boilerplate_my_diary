@@ -315,7 +315,6 @@ export async function POST(request: Request) {
     const normalizedTranscript = normalizeReference(payload.transcript);
     const { extraction, debug } = await extractDiaryDataFromTranscriptWithDebug({
       transcript: payload.transcript,
-      model: payload.model,
       metricDefinitions: payload.metricDefinitions,
     });
 

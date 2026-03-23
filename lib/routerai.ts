@@ -1,15 +1,27 @@
 import "server-only";
 
-import { parseDiaryExtractionResult, type DiaryExtractionMetricDefinition, type DiaryExtractionResult } from "@/lib/ai/contracts";
-import { buildDiaryExtractionPrompt } from "@/lib/ai/prompts";
+import {
+  parseDiaryExtractionResult,
+  parsePeriodAnalysisResult,
+  type DiaryExtractionMetricDefinition,
+  type DiaryExtractionResult,
+  type PeriodAnalysisEntryPayload,
+  type PeriodAnalysisResult,
+} from "@/lib/ai/contracts";
+import { buildDiaryExtractionPrompt, buildPeriodAnalysisPrompt } from "@/lib/ai/prompts";
+import { DEFAULT_ROUTERAI_PAID_MODEL } from "@/lib/ai/models";
 import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
 
 const routerAiBaseUrl =
   process.env.ROUTERAI_BASE_URL ?? "https://routerai.ru/api/v1";
 const routerAiApiKey = process.env.ROUTERAI_API_KEY;
-const routerAiModel = process.env.ROUTERAI_MODEL ?? "google/gemini-2.5-flash-lite";
+const routerAiModel = process.env.ROUTERAI_MODEL ?? DEFAULT_ROUTERAI_PAID_MODEL;
 const routerAiStructuredModel =
-  process.env.ROUTERAI_STRUCTURED_MODEL ?? "google/gemini-2.5-flash-lite";
+  process.env.ROUTERAI_STRUCTURED_MODEL ??
+  process.env.ROUTERAI_SPEECH_MODEL ??
+  "google/gemini-2.5-flash-lite";
+const routerAiDeepSeekModel = DEFAULT_ROUTERAI_PAID_MODEL;
+const routerAiDeepSeekMaxTokens = 2500;
 
 export function getRouterAiConfigError() {
   if (!routerAiApiKey) {
@@ -23,6 +35,7 @@ type AnalyzeDiaryEntryInput = {
   entryDate: string;
   summary: string;
   notes: string;
+  model?: string;
   metrics: Array<{
     name: string;
     type: string;
@@ -31,80 +44,62 @@ type AnalyzeDiaryEntryInput = {
   }>;
 };
 
+type AnalyzeDiaryPeriodInput = {
+  from: string;
+  to: string;
+  entries: PeriodAnalysisEntryPayload[];
+  model?: string;
+};
+
 export async function analyzeDiaryEntry(entry: AnalyzeDiaryEntryInput) {
-  const configError = getRouterAiConfigError();
-
-  if (configError) {
-    throw new Error(configError);
-  }
-
-  const response = await fetch(`${routerAiBaseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${routerAiApiKey}`,
+  return requestRouterAi(
+    [
+      {
+        role: "system",
+        content:
+          "Ты аналитик дневника. Отвечай по-русски естественно и содержательно: можно абзацами и короткими списками, без жёстких рамок формата.",
+      },
+      {
+        role: "user",
+        content: [
+          `Дата: ${entry.entryDate}`,
+          "",
+          "Главное за день:",
+          entry.summary || "Нет данных.",
+          "",
+          "Как прошел день:",
+          entry.notes || "Нет данных.",
+          "",
+          "Метрики из БД:",
+          entry.metrics.length > 0
+            ? entry.metrics
+                .map(
+                  (metric) =>
+                    `- ${metric.name}: ${String(metric.value)}${metric.unit ? ` ${metric.unit}` : ""} [тип: ${metric.type}]`,
+                )
+                .join("\n")
+            : "- Нет сохраненных метрик.",
+        ].join("\n"),
+      },
+    ],
+    {
+      model: entry.model,
+      temperature: 0.6,
     },
-    body: JSON.stringify({
-      model: routerAiModel,
-      temperature: 0.2,
-      max_tokens: 180,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Ты анализируешь короткие дневниковые записи. Отвечай по-русски. Верни 3 коротких пункта: главное состояние дня, вероятная причина, один практичный следующий шаг. Будь конкретным и спокойным.",
-        },
-        {
-          role: "user",
-          content: [
-            `Дата: ${entry.entryDate}`,
-            `Главное за день: ${entry.summary || "—"}`,
-            `Заметки: ${entry.notes || "—"}`,
-            "Метрики:",
-            entry.metrics.length > 0
-              ? entry.metrics
-                  .map(
-                    (metric) =>
-                      `- ${metric.name}: ${String(metric.value)}${metric.unit ? ` ${metric.unit}` : ""} (${metric.type})`,
-                  )
-                  .join("\n")
-              : "- Нет сохранённых метрик.",
-          ].join("\n"),
-        },
-      ],
-    }),
-    cache: "no-store",
-  });
-
-  const payload = (await response.json()) as {
-    choices?: Array<{
-      message?: {
-        content?: string;
-      };
-    }>;
-    error?: {
-      message?: string;
-    };
-  };
-
-  if (!response.ok) {
-    throw new Error(
-      payload.error?.message ?? "RouterAI request failed.",
-    );
-  }
-
-  const content = payload.choices?.[0]?.message?.content?.trim();
-
-  if (!content) {
-    throw new Error("RouterAI returned an empty analysis.");
-  }
-
-  return content;
+  );
 }
 
 type RouterAiChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
+};
+
+type RouterAiStreamPayload = {
+  choices?: Array<{
+    delta?: {
+      content?: string;
+    };
+  }>;
 };
 
 export type VoiceExtractionDebug = {
@@ -123,6 +118,7 @@ type RouterAiDiaryContext = {
   draft: WorkspaceDraft;
   metricDefinitions: MetricDefinition[];
   tasks: TaskItem[];
+  model?: string;
 };
 
 type RouterAiRequestOptions = {
@@ -130,6 +126,19 @@ type RouterAiRequestOptions = {
   temperature?: number;
   model?: string;
 };
+
+function resolveRouterAiMaxTokens(model: string, maxTokens?: number) {
+  const requestedMax =
+    typeof maxTokens === "number" && Number.isFinite(maxTokens)
+      ? Math.max(1, Math.floor(maxTokens))
+      : undefined;
+
+  if (model !== routerAiDeepSeekModel) {
+    return undefined;
+  }
+
+  return Math.min(routerAiDeepSeekMaxTokens, requestedMax ?? routerAiDeepSeekMaxTokens);
+}
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -287,18 +296,25 @@ async function requestRouterAi(
     throw new Error(configError);
   }
 
+  const requestedModel = options?.model ?? routerAiModel;
+  const maxTokens = resolveRouterAiMaxTokens(requestedModel, options?.maxTokens);
+  const body: Record<string, unknown> = {
+    model: requestedModel,
+    temperature: options?.temperature ?? 0.55,
+    messages,
+  };
+
+  if (typeof maxTokens === "number") {
+    body.max_tokens = maxTokens;
+  }
+
   const response = await fetch(`${routerAiBaseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${routerAiApiKey}`,
     },
-    body: JSON.stringify({
-      model: options?.model ?? routerAiModel,
-      temperature: options?.temperature ?? 0.35,
-      max_tokens: options?.maxTokens ?? 280,
-      messages,
-    }),
+    body: JSON.stringify(body),
     cache: "no-store",
   });
 
@@ -360,7 +376,6 @@ async function requestStructuredJson<T>(
   const content = await requestRouterAi(messages, {
     model: requestedModel,
     temperature: 0.1,
-    maxTokens: 900,
   });
   debug.rawResponse = content;
   const jsonCandidate = extractJsonObject(content);
@@ -401,7 +416,6 @@ async function requestStructuredJson<T>(
       {
         model: requestedModel,
         temperature: 0,
-        maxTokens: 900,
       },
     );
     debug.repairedResponse = repairedContent;
@@ -449,24 +463,142 @@ function buildDiaryContextPrompt(context: RouterAiDiaryContext) {
   ].join("\n");
 }
 
+function buildRouterAiDiaryChatMessages(
+  messages: RouterAiChatMessage[],
+  context: RouterAiDiaryContext,
+) {
+  return [
+    {
+      role: "system" as const,
+      content:
+        "Ты внимательный AI-помощник дневника. Отвечай по-русски тепло и естественно, без жестких рамок формата. Помогай разбирать день, планировать следующий шаг и замечать паттерны без давления на пользователя.",
+    },
+    {
+      role: "system" as const,
+      content: `Контекст рабочего дня:\n${buildDiaryContextPrompt(context)}`,
+    },
+    ...messages,
+  ];
+}
+
+export async function streamChatWithRouterAi(
+  messages: RouterAiChatMessage[],
+  context: RouterAiDiaryContext,
+) {
+  const configError = getRouterAiConfigError();
+
+  if (configError) {
+    throw new Error(configError);
+  }
+
+  const requestedModel = context.model ?? routerAiModel;
+  const maxTokens = resolveRouterAiMaxTokens(requestedModel);
+  const body: Record<string, unknown> = {
+    model: requestedModel,
+    temperature: 0.6,
+    stream: true,
+    messages: buildRouterAiDiaryChatMessages(messages, context),
+  };
+
+  if (typeof maxTokens === "number") {
+    body.max_tokens = maxTokens;
+  }
+
+  const response = await fetch(`${routerAiBaseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${routerAiApiKey}`,
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: { message?: string };
+    };
+    throw new Error(payload.error?.message ?? "RouterAI request failed.");
+  }
+
+  if (!response.body) {
+    throw new Error("RouterAI did not provide a stream body.");
+  }
+
+  const sourceReader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let buffer = "";
+
+      const pushSseChunk = (line: string) => {
+        const trimmed = line.trim();
+
+        if (!trimmed.startsWith("data:")) {
+          return;
+        }
+
+        const data = trimmed.slice(5).trim();
+
+        if (!data || data === "[DONE]") {
+          return;
+        }
+
+        try {
+          const chunk = JSON.parse(data) as RouterAiStreamPayload;
+          const token = chunk.choices?.[0]?.delta?.content;
+
+          if (token) {
+            controller.enqueue(encoder.encode(token));
+          }
+        } catch {
+          // Ignore malformed partial SSE chunks.
+        }
+      };
+
+      try {
+        while (true) {
+          const { value, done } = await sourceReader.read();
+
+          if (done) {
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          lines.forEach(pushSseChunk);
+        }
+
+        buffer += decoder.decode();
+        const tail = buffer.trim();
+
+        if (tail.length > 0) {
+          pushSseChunk(tail);
+        }
+
+        controller.close();
+      } catch (streamError) {
+        controller.error(streamError);
+      } finally {
+        sourceReader.releaseLock();
+      }
+    },
+  });
+}
+
 export async function chatWithRouterAi(
   messages: RouterAiChatMessage[],
   context: RouterAiDiaryContext,
 ) {
   return requestRouterAi(
-    [
-      {
-        role: "system",
-        content:
-          "Ты внимательный AI-помощник дневника. Отвечай по-русски, кратко и тепло. Помогай разбирать день, планировать следующий шаг, замечать паттерны и не дави на пользователя. Если уместно, структурируй ответ короткими абзацами или компактным списком.",
-      },
-      {
-        role: "system",
-        content: `Контекст рабочего дня:\n${buildDiaryContextPrompt(context)}`,
-      },
-      ...messages,
-    ],
-    { maxTokens: 420 },
+    buildRouterAiDiaryChatMessages(messages, context),
+    {
+      model: context.model,
+      temperature: 0.6,
+    },
   );
 }
 
@@ -538,4 +670,30 @@ export async function extractDiaryDataFromTranscriptWithDebug(args: {
       },
     };
   }
+}
+
+export async function analyzeDiaryPeriod(
+  input: AnalyzeDiaryPeriodInput,
+): Promise<PeriodAnalysisResult> {
+  const structured = await requestStructuredJson(
+    [
+      {
+        role: "system",
+        content:
+          "Ты анализируешь паттерны в дневниковых записях за период. Отвечай по-русски и возвращай только структурированный JSON.",
+      },
+      {
+        role: "user",
+        content: buildPeriodAnalysisPrompt({
+          from: input.from,
+          to: input.to,
+          entries: input.entries,
+        }),
+      },
+    ],
+    parsePeriodAnalysisResult,
+    input.model ?? routerAiModel,
+  );
+
+  return structured.parsed;
 }

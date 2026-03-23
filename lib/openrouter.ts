@@ -12,13 +12,14 @@ import {
   buildDiaryExtractionPrompt,
   buildPeriodAnalysisPrompt,
 } from "@/lib/ai/prompts";
+import { DEFAULT_OPENROUTER_FREE_MODEL } from "@/lib/ai/models";
 import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
 
 const openRouterBaseUrl =
   process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
 const openRouterApiKey = process.env.OPENROUTER_API_KEY;
 const openRouterModel =
-  process.env.OPENROUTER_MODEL ?? "deepseek/deepseek-v3.2";
+  process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_FREE_MODEL;
 const structuredExtractionModel =
   process.env.OPENROUTER_STRUCTURED_MODEL ?? openRouterModel;
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -82,6 +83,28 @@ type OpenRouterRequestOptions = {
   temperature?: number;
 };
 
+function buildOpenRouterRequestBody(
+  messages: OpenRouterMessage[],
+  model: string,
+  options?: OpenRouterRequestOptions & { stream?: boolean },
+) {
+  const body: Record<string, unknown> = {
+    model,
+    temperature: options?.temperature ?? 0.45,
+    messages,
+  };
+
+  if (typeof options?.maxTokens === "number" && Number.isFinite(options.maxTokens)) {
+    body.max_tokens = Math.max(1, Math.floor(options.maxTokens));
+  }
+
+  if (options?.stream) {
+    body.stream = true;
+  }
+
+  return body;
+}
+
 async function fetchOpenRouter(
   messages: OpenRouterMessage[],
   model: string,
@@ -95,12 +118,7 @@ async function fetchOpenRouter(
       "HTTP-Referer": siteUrl,
       "X-Title": appTitle,
     },
-    body: JSON.stringify({
-      model,
-      temperature: options?.temperature ?? 0.35,
-      max_tokens: options?.maxTokens ?? 320,
-      messages,
-    }),
+    body: JSON.stringify(buildOpenRouterRequestBody(messages, model, options)),
     cache: "no-store",
   });
 
@@ -217,7 +235,7 @@ async function requestStructuredJson<T>(
       {
         model: options?.model,
         temperature: 0,
-        maxTokens: options?.maxTokens ?? 420,
+        maxTokens: options?.maxTokens,
       },
     );
 
@@ -292,7 +310,7 @@ export async function analyzeDiaryEntry(entry: AnalyzeDiaryEntryInput) {
       {
         role: "system",
         content:
-          "Ты анализируешь короткие дневниковые записи. Отвечай по-русски. Верни 3 коротких пункта: главное состояние дня, вероятная причина, один практичный следующий шаг. Будь конкретным и спокойным.",
+          "Ты аналитик дневника. Отвечай по-русски естественно и содержательно: можно абзацами и короткими списками, без жёсткого шаблона.",
       },
       {
         role: "user",
@@ -314,7 +332,7 @@ export async function analyzeDiaryEntry(entry: AnalyzeDiaryEntryInput) {
       {
         role: "system",
         content:
-          "Используй для анализа весь дневной payload: поле «Как прошел день», поле «Главное за день» и метрики из БД. Не игнорируй метрики, если они есть. Сформируй связный русский разбор дня на 3-4 абзаца: главное состояние, ключевые факторы, сигналы риска или напряжения, один практичный следующий шаг.",
+          "Используй весь дневной payload: поле «Как прошел день», поле «Главное за день» и метрики из БД. Не игнорируй метрики. Дай разбор в свободной форме: ключевое состояние, важные факторы, сигналы риска/перегруза и практичные следующие шаги.",
       },
       {
         role: "user",
@@ -341,8 +359,7 @@ export async function analyzeDiaryEntry(entry: AnalyzeDiaryEntryInput) {
     ],
     {
       model: entry.model,
-      temperature: 0.2,
-      maxTokens: 220,
+      temperature: 0.6,
     },
   );
 }
@@ -355,7 +372,7 @@ function buildDiaryChatMessages(
     {
       role: "system" as const,
       content:
-        "Ты внимательный AI-помощник дневника. Отвечай по-русски, кратко и структурно. Помогай разбирать день, находить паттерны в самочувствии и предлагать понятный следующий шаг без лишней воды.",
+        "Ты внимательный AI-помощник дневника. Отвечай по-русски в свободной, но ясной форме: используй абзацы и списки, когда это помогает. Помогай разбирать день, находить паттерны самочувствия и предлагать реалистичные следующие шаги.",
     },
     {
       role: "system" as const,
@@ -391,13 +408,16 @@ export async function streamChatWithOpenRouter(
       "HTTP-Referer": siteUrl,
       "X-Title": appTitle,
     },
-    body: JSON.stringify({
-      model: context.model ?? openRouterModel,
-      temperature: 0.35,
-      max_tokens: 420,
-      stream: true,
-      messages: buildDiaryChatMessages(messages, context),
-    }),
+    body: JSON.stringify(
+      buildOpenRouterRequestBody(
+        buildDiaryChatMessages(messages, context),
+        context.model ?? openRouterModel,
+        {
+          temperature: 0.55,
+          stream: true,
+        },
+      ),
+    ),
     cache: "no-store",
   });
 
@@ -483,8 +503,7 @@ export async function chatWithOpenRouter(
     buildDiaryChatMessages(messages, context),
     {
       model: context.model,
-      temperature: 0.35,
-      maxTokens: 420,
+      temperature: 0.6,
     },
   );
 }
@@ -513,7 +532,6 @@ export async function extractDiaryDataFromTranscript(args: {
     {
       model: structuredExtractionModel,
       temperature: 0.1,
-      maxTokens: 420,
     },
   );
 }
@@ -540,8 +558,7 @@ export async function analyzeDiaryPeriod(
     parsePeriodAnalysisResult,
     {
       model: input.model,
-      temperature: 0.15,
-      maxTokens: 640,
+      temperature: 0.35,
     },
   );
 }

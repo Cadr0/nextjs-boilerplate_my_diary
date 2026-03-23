@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { resolveAiProvider } from "@/lib/ai/models";
 import { getAuthState } from "@/lib/auth";
 import { getOpenRouterConfigError, streamChatWithOpenRouter } from "@/lib/openrouter";
+import { getRouterAiConfigError, streamChatWithRouterAi } from "@/lib/routerai";
 import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
 
 type RequestPayload = {
@@ -19,12 +21,6 @@ type RequestPayload = {
 };
 
 export async function POST(request: Request) {
-  const openRouterConfigError = getOpenRouterConfigError();
-
-  if (openRouterConfigError) {
-    return NextResponse.json({ error: openRouterConfigError }, { status: 500 });
-  }
-
   const { user } = await getAuthState();
 
   if (!user) {
@@ -48,6 +44,14 @@ export async function POST(request: Request) {
     const metricDefinitions = payload.context?.metricDefinitions ?? [];
     const tasks = payload.context?.tasks ?? [];
     const model = payload.context?.model;
+    const provider = resolveAiProvider(model);
+
+    const providerConfigError =
+      provider === "openrouter" ? getOpenRouterConfigError() : getRouterAiConfigError();
+
+    if (providerConfigError) {
+      return NextResponse.json({ error: providerConfigError }, { status: 500 });
+    }
 
     if (!date || !draft) {
       return NextResponse.json({ error: "Diary context is required." }, { status: 400 });
@@ -57,13 +61,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "At least one message is required." }, { status: 400 });
     }
 
-    const stream = await streamChatWithOpenRouter(messages, {
-      date,
-      draft,
-      metricDefinitions,
-      tasks,
-      model,
-    });
+    const stream =
+      provider === "openrouter"
+        ? await streamChatWithOpenRouter(messages, {
+            date,
+            draft,
+            metricDefinitions,
+            tasks,
+            model,
+          })
+        : await streamChatWithRouterAi(messages, {
+            date,
+            draft,
+            metricDefinitions,
+            tasks,
+            model,
+          });
 
     return new Response(stream, {
       status: 200,
@@ -78,7 +91,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : "Failed to send OpenRouter message.",
+          error instanceof Error ? error.message : "Failed to send AI message.",
       },
       { status: 500 },
     );

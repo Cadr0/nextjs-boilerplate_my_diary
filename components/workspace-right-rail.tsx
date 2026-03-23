@@ -91,27 +91,29 @@ export function WorkspaceRightRail() {
       return;
     }
 
+    const targetDate = selectedDate;
     const userMessage = createChatMessage("user", trimmed);
-    const nextMessages = [...chatMessages, userMessage];
+    const assistantMessage = createChatMessage("assistant", "");
+    const nextMessages = [...chatMessages, userMessage, assistantMessage];
 
     setChatInput("");
     setChatState("sending");
     setChatError(null);
-    updateChatForDate(selectedDate, () => nextMessages);
+    updateChatForDate(targetDate, () => nextMessages);
 
     try {
-      const response = await fetch("/api/routerai/chat", {
+      const response = await fetch("/api/ai/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          messages: nextMessages.map((message) => ({
+          messages: [...chatMessages, userMessage].map((message) => ({
             role: message.role,
             content: message.content,
           })),
           context: {
-            date: selectedDate,
+            date: targetDate,
             draft: selectedDraft,
             metricDefinitions: metricDefinitions.filter((metric) => metric.isActive),
             tasks: selectedTasks,
@@ -119,18 +121,56 @@ export function WorkspaceRightRail() {
         }),
       });
 
-      const result = (await response.json()) as { reply?: string; error?: string };
+      if (!response.ok) {
+        let errorMessage = "Не удалось получить ответ от ИИ.";
 
-      if (!response.ok || !result.reply) {
-        throw new Error(result.error ?? "Не удалось получить ответ от RouterAI.");
+        try {
+          const result = (await response.json()) as { error?: string };
+          errorMessage = result.error ?? errorMessage;
+        } catch {
+          const text = await response.text();
+          errorMessage = text || errorMessage;
+        }
+
+        throw new Error(errorMessage);
       }
 
-      updateChatForDate(selectedDate, (current) => [
-        ...current,
-        createChatMessage("assistant", result.reply ?? ""),
-      ]);
+      if (!response.body) {
+        throw new Error("Не удалось получить потоковый ответ от ИИ.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantContent = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+
+        if (done) {
+          assistantContent += decoder.decode();
+          break;
+        }
+
+        assistantContent += decoder.decode(value, { stream: true });
+
+        updateChatForDate(targetDate, (current) =>
+          current.map((message) =>
+            message.id === assistantMessage.id
+              ? { ...message, content: assistantContent }
+              : message,
+          ),
+        );
+      }
+
+      if (!assistantContent.trim()) {
+        throw new Error("ИИ вернул пустой ответ.");
+      }
+
       setChatState("idle");
     } catch (sendError) {
+      updateChatForDate(targetDate, (current) =>
+        current.filter((message) => message.id !== assistantMessage.id),
+      );
       setChatState("error");
       setChatError(
         sendError instanceof Error ? sendError.message : "Не удалось отправить сообщение.",
