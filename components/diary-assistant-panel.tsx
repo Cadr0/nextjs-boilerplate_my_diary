@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { ChatRichText } from "@/components/chat-rich-text";
 import { useWorkspace } from "@/components/workspace-provider";
 import { aiModelOptions } from "@/lib/workspace";
 
@@ -118,7 +119,8 @@ export function DiaryAssistantPanel() {
     }
 
     const userMessage = createChatMessage("user", trimmed);
-    const nextMessages = [...chatMessages, userMessage];
+    const assistantDraft = createChatMessage("assistant", "");
+    const nextMessages = [...chatMessages, userMessage, assistantDraft];
 
     setChatInput("");
     setChatState("sending");
@@ -146,18 +148,92 @@ export function DiaryAssistantPanel() {
         }),
       });
 
-      const result = (await response.json()) as { reply?: string; error?: string };
-
-      if (!response.ok || !result.reply) {
+      if (!response.ok) {
+        const result = (await response.json().catch(() => ({}))) as { error?: string };
         throw new Error(result.error ?? "Не удалось получить ответ от AI.");
       }
 
-      updateChatForDate(selectedDate, (current) => [
-        ...current,
-        createChatMessage("assistant", result.reply ?? ""),
-      ]);
+      if (!response.body) {
+        throw new Error("Потоковый ответ недоступен.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantReply = "";
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+
+        for (const eventChunk of events) {
+          const lines = eventChunk
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean);
+
+          let eventName = "message";
+          let dataPayload = "";
+
+          for (const line of lines) {
+            if (line.startsWith("event:")) {
+              eventName = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              dataPayload += line.slice(5).trim();
+            }
+          }
+
+          if (!dataPayload) {
+            continue;
+          }
+
+          if (eventName === "done") {
+            continue;
+          }
+
+          if (eventName === "error") {
+            const payload = JSON.parse(dataPayload) as { message?: string };
+            throw new Error(payload.message ?? "Ошибка потокового ответа.");
+          }
+
+          const payload = JSON.parse(dataPayload) as { delta?: string };
+          const delta = payload.delta ?? "";
+          if (!delta) {
+            continue;
+          }
+
+          assistantReply += delta;
+
+          updateChatForDate(selectedDate, (current) =>
+            current.map((message) =>
+              message.id === assistantDraft.id
+                ? {
+                    ...message,
+                    content: assistantReply,
+                  }
+                : message,
+            ),
+          );
+        }
+      }
+
+      buffer += decoder.decode();
+
+      if (!assistantReply.trim()) {
+        throw new Error("AI вернул пустой ответ.");
+      }
+
       setChatState("idle");
     } catch (sendError) {
+      updateChatForDate(selectedDate, (current) =>
+        current.filter((message) => message.id !== assistantDraft.id || message.content.trim()),
+      );
       setChatState("error");
       setChatError(
         sendError instanceof Error ? sendError.message : "Не удалось отправить сообщение.",
@@ -272,7 +348,11 @@ export function DiaryAssistantPanel() {
                       : "border border-[var(--border)] bg-white/92 text-[var(--foreground)]"
                   }`}
                 >
-                  {message.content}
+                  {message.role === "assistant" ? (
+                    <ChatRichText content={message.content} />
+                  ) : (
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                  )}
                 </div>
               </div>
             ))

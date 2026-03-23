@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAuthState } from "@/lib/auth";
-import { chatWithOpenRouter, getOpenRouterConfigError } from "@/lib/openrouter";
+import { getOpenRouterConfigError, streamChatWithOpenRouter } from "@/lib/openrouter";
 import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
 
 type RequestPayload = {
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "At least one message is required." }, { status: 400 });
     }
 
-    const reply = await chatWithOpenRouter(messages, {
+    const stream = await streamChatWithOpenRouter(messages, {
       date,
       draft,
       metricDefinitions,
@@ -65,7 +65,48 @@ export async function POST(request: Request) {
       model,
     });
 
-    return NextResponse.json({ reply }, { status: 200 });
+    const reader = stream.getReader();
+    const encoder = new TextEncoder();
+
+    const sseStream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) {
+              break;
+            }
+
+            const chunk = new TextDecoder().decode(value);
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ delta: chunk })}\n\n`),
+            );
+          }
+
+          controller.enqueue(encoder.encode("event: done\ndata: {}\n\n"));
+          controller.close();
+        } catch (error) {
+          controller.enqueue(
+            encoder.encode(
+              `event: error\ndata: ${JSON.stringify({ message: error instanceof Error ? error.message : "stream failed" })}\n\n`,
+            ),
+          );
+          controller.close();
+        } finally {
+          reader.releaseLock();
+        }
+      },
+    });
+
+    return new Response(sseStream, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       {

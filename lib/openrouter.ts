@@ -76,6 +76,20 @@ type OpenRouterPayload = {
   };
 };
 
+type OpenRouterStreamPayload = {
+  choices?: Array<{
+    delta?: {
+      content?: string;
+    };
+    message?: {
+      content?: string;
+    };
+  }>;
+  error?: {
+    message?: string;
+  };
+};
+
 type OpenRouterRequestOptions = {
   model?: string;
   maxTokens?: number;
@@ -286,6 +300,21 @@ function buildDiaryContextPrompt(context: OpenRouterDiaryContext) {
   ].join("\n");
 }
 
+function buildChatMessages(messages: OpenRouterMessage[], context: OpenRouterDiaryContext) {
+  return [
+    {
+      role: "system" as const,
+      content:
+        "You are a focused diary copilot. Reply in Russian in strict Markdown. Always use a short title on a new line (`### ...`), then 2-4 separate sections with real line breaks and lists (`1.` / `-`). Keep headings on their own lines, never inline with paragraph text. End with one concrete next step section. Do not output HTML or JSON.",
+    },
+    {
+      role: "system" as const,
+      content: `Workday context:\n${buildDiaryContextPrompt(context)}`,
+    },
+    ...messages,
+  ];
+}
+
 export async function analyzeDiaryEntry(entry: AnalyzeDiaryEntryInput) {
   return requestOpenRouter(
     [
@@ -351,25 +380,131 @@ export async function chatWithOpenRouter(
   messages: OpenRouterMessage[],
   context: OpenRouterDiaryContext,
 ) {
-  return requestOpenRouter(
-    [
-      {
-        role: "system",
-        content:
-          "Ты внимательный AI-помощник дневника. Отвечай по-русски, кратко и структурно. Помогай разбирать день, находить паттерны в самочувствии и предлагать понятный следующий шаг без лишней воды.",
-      },
-      {
-        role: "system",
-        content: `Контекст рабочего дня:\n${buildDiaryContextPrompt(context)}`,
-      },
-      ...messages,
-    ],
-    {
-      model: context.model,
-      temperature: 0.35,
-      maxTokens: 420,
+  return requestOpenRouter(buildChatMessages(messages, context), {
+    model: context.model,
+    temperature: 0.35,
+    maxTokens: 420,
+  });
+}
+
+export async function streamChatWithOpenRouter(
+  messages: OpenRouterMessage[],
+  context: OpenRouterDiaryContext,
+): Promise<ReadableStream<Uint8Array>> {
+  const configError = getOpenRouterConfigError();
+
+  if (configError) {
+    throw new Error(configError);
+  }
+
+  const requestedModel = context.model ?? openRouterModel;
+  const response = await fetch(`${openRouterBaseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${openRouterApiKey}`,
+      "HTTP-Referer": siteUrl,
+      "X-Title": appTitle,
     },
-  );
+    body: JSON.stringify({
+      model: requestedModel,
+      temperature: 0.35,
+      max_tokens: 420,
+      stream: true,
+      messages: buildChatMessages(messages, context),
+    }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as OpenRouterPayload;
+    throw new Error(payload.error?.message ?? "OpenRouter streaming request failed.");
+  }
+
+  if (!response.body) {
+    throw new Error("OpenRouter streaming response body is missing.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      let buffer = "";
+
+      const pushDeltaFromLine = (line: string) => {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) {
+          return false;
+        }
+
+        const data = trimmed.slice(5).trim();
+        if (!data) {
+          return false;
+        }
+
+        if (data === "[DONE]") {
+          controller.close();
+          return true;
+        }
+
+        try {
+          const payload = JSON.parse(data) as OpenRouterStreamPayload;
+          const chunk =
+            payload.choices?.[0]?.delta?.content ?? payload.choices?.[0]?.message?.content ?? "";
+
+          if (chunk) {
+            controller.enqueue(encoder.encode(chunk));
+          }
+        } catch {
+          return false;
+        }
+
+        return false;
+      };
+
+      const pump = async () => {
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) {
+              break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+
+            while (true) {
+              const newlineIndex = buffer.indexOf("\n");
+              if (newlineIndex === -1) {
+                break;
+              }
+
+              const line = buffer.slice(0, newlineIndex);
+              buffer = buffer.slice(newlineIndex + 1);
+
+              const isCompleted = pushDeltaFromLine(line);
+              if (isCompleted) {
+                return;
+              }
+            }
+          }
+
+          if (buffer.trim()) {
+            pushDeltaFromLine(buffer);
+          }
+
+          controller.close();
+        } catch (error) {
+          controller.error(error);
+        } finally {
+          reader.releaseLock();
+        }
+      };
+
+      void pump();
+    },
+  });
 }
 
 export async function extractDiaryDataFromTranscript(args: {
