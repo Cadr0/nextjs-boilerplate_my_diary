@@ -173,9 +173,11 @@ export function SmallToggle({
 export function TrendChart({
   accent,
   points,
+  formatValue,
 }: {
   accent: string;
   points: { date: string; label: string; value: number }[];
+  formatValue?: (value: number) => string;
 }) {
   if (points.length === 0) {
     return <EmptyState copy="Для этой метрики пока недостаточно данных." />;
@@ -243,7 +245,7 @@ export function TrendChart({
           >
             <p className="text-xs text-[var(--muted)]">{point.label}</p>
             <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">
-              {point.value}
+              {formatValue ? formatValue(point.value) : point.value}
             </p>
           </div>
         ))}

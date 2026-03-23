@@ -1076,7 +1076,7 @@ function MetricBuilderModal({
   }, [isAppearancePickerOpen]);
 
   const unitOptions = getMetricUnitOptions(metric.type);
-  const supportsAnalytics = metric.type === "scale" || metric.type === "number";
+  const supportsAnalytics = metric.type === "scale" || metric.type === "number" || metric.type === "boolean";
   const usesUnit = metric.type === "scale" || metric.type === "number";
 
   const applyTemplate = (template: MetricTemplate) => {
@@ -1371,7 +1371,7 @@ function MetricBuilderModal({
                           max: nextUnitOption.defaultMax,
                           step: nextUnitOption.defaultStep,
                           showInAnalytics:
-                            option.value === "boolean" || option.value === "text"
+                            option.value === "text"
                               ? false
                               : current.showInAnalytics,
                         }),
@@ -1520,7 +1520,7 @@ function MetricBuilderModal({
                   description={
                     supportsAnalytics
                       ? "Метрика попадет в аналитику, графики и AI-разбор дня."
-                      : "Аналитика доступна только для шкалы и числовых метрик."
+                      : "Аналитика доступна для шкалы, числовых и Да/Нет-метрик."
                   }
                   active={supportsAnalytics && metric.showInAnalytics}
                   disabled={!supportsAnalytics}

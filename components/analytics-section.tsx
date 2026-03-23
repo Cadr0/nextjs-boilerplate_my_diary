@@ -38,6 +38,23 @@ function formatAverage(value: number | null, unit = "") {
   return `${display}${unit ? ` ${unit}` : ""}`;
 }
 
+function toTrendPointValue(metricType: string, rawValue: unknown) {
+  if (metricType === "boolean") {
+    return typeof rawValue === "boolean" ? Number(rawValue) : null;
+  }
+
+  return typeof rawValue === "number" ? rawValue : null;
+}
+
+function formatTrendPointValue(metricType: string, value: number, unit = "") {
+  if (metricType === "boolean") {
+    return value >= 0.5 ? "Да" : "Нет";
+  }
+
+  const display = Number.isInteger(value) ? String(value) : value.toFixed(1);
+  return `${display}${unit ? ` ${unit}` : ""}`;
+}
+
 export function AnalyticsSection() {
   const {
     analyticsMetricDefinitions,
@@ -102,8 +119,7 @@ export function AnalyticsSection() {
     entry_date: entry.entry_date,
     summary: entry.summary,
     notes: entry.notes,
-    metrics: metricDefinitions
-      .filter((metric) => metric.isActive)
+    metrics: analyticsMetricDefinitions
       .flatMap((metric) => {
         const value = entry.metric_values[metric.id];
 
@@ -277,12 +293,13 @@ export function AnalyticsSection() {
                   const points = deferredEntries
                     .map((entry) => {
                       const rawValue = entry.metric_values[metric.id];
+                      const value = toTrendPointValue(metric.type, rawValue);
 
-                      return typeof rawValue === "number"
+                      return value !== null
                         ? {
                             date: entry.entry_date,
                             label: formatCompactDate(entry.entry_date),
-                            value: rawValue,
+                            value,
                           }
                         : null;
                     })
@@ -291,6 +308,13 @@ export function AnalyticsSection() {
                         point,
                       ): point is { date: string; label: string; value: number } => Boolean(point),
                     );
+                  const yesRate =
+                    metric.type === "boolean" && points.length > 0
+                      ? Math.round(
+                          (points.filter((point) => point.value >= 0.5).length / points.length) *
+                            100,
+                        )
+                      : null;
 
                   return (
                     <div
@@ -311,12 +335,18 @@ export function AnalyticsSection() {
                             color: metric.accent,
                           }}
                         >
-                          {points.length} точек
+                          {metric.type === "boolean" && yesRate !== null
+                            ? `Да: ${yesRate}%`
+                            : `${points.length} точек`}
                         </span>
                       </div>
 
                       <div className="mt-4 rounded-[20px] border border-[var(--border)] bg-white/80 p-4">
-                        <TrendChart accent={metric.accent} points={points} />
+                        <TrendChart
+                          accent={metric.accent}
+                          points={points}
+                          formatValue={(value) => formatTrendPointValue(metric.type, value, metric.unit)}
+                        />
                       </div>
                     </div>
                   );

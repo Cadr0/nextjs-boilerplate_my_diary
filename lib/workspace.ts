@@ -401,8 +401,8 @@ function slugify(value: string) {
   return normalized || generateId("metric");
 }
 
-function isNumericMetricType(type: MetricInputType) {
-  return type === "scale" || type === "number";
+function isAnalyticsMetricType(type: MetricInputType) {
+  return type === "scale" || type === "number" || type === "boolean";
 }
 
 function roundToStep(value: number, step: number) {
@@ -518,7 +518,7 @@ export function sanitizeMetricDefinition(metric: MetricDefinition): MetricDefini
       max: undefined,
       step: undefined,
       sortOrder,
-      showInAnalytics: false,
+      showInAnalytics: Boolean(metric.showInAnalytics),
       carryForward,
     };
   }
@@ -813,7 +813,7 @@ export function getAnalyticsMetricDefinitions(definitions: MetricDefinition[]) {
     (definition) =>
       definition.isActive &&
       definition.showInAnalytics &&
-      isNumericMetricType(definition.type),
+      isAnalyticsMetricType(definition.type),
   );
 }
 
