@@ -1076,7 +1076,11 @@ function MetricBuilderModal({
   }, [isAppearancePickerOpen]);
 
   const unitOptions = getMetricUnitOptions(metric.type);
-  const supportsAnalytics = metric.type === "scale" || metric.type === "number" || metric.type === "boolean";
+  const supportsAnalytics =
+    metric.type === "scale" ||
+    metric.type === "number" ||
+    metric.type === "boolean" ||
+    metric.type === "text";
   const usesUnit = metric.type === "scale" || metric.type === "number";
 
   const applyTemplate = (template: MetricTemplate) => {
@@ -1370,10 +1374,7 @@ function MetricBuilderModal({
                           min: nextUnitOption.defaultMin,
                           max: nextUnitOption.defaultMax,
                           step: nextUnitOption.defaultStep,
-                          showInAnalytics:
-                            option.value === "text"
-                              ? false
-                              : current.showInAnalytics,
+                          showInAnalytics: current.showInAnalytics,
                         }),
                       );
                     }}
@@ -1519,7 +1520,9 @@ function MetricBuilderModal({
                   label="Показывать в аналитике"
                   description={
                     supportsAnalytics
-                      ? "Метрика попадет в аналитику, графики и AI-разбор дня."
+                      ? metric.type === "text"
+                        ? "Текстовая метрика попадет в AI-разбор периода без построения графиков."
+                        : "Метрика попадет в аналитику, графики и AI-разбор дня."
                       : "Аналитика доступна для шкалы, числовых и Да/Нет-метрик."
                   }
                   active={supportsAnalytics && metric.showInAnalytics}

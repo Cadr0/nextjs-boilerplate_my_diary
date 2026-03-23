@@ -502,7 +502,7 @@ export function sanitizeMetricDefinition(metric: MetricDefinition): MetricDefini
       max: undefined,
       step: undefined,
       sortOrder,
-      showInAnalytics: false,
+      showInAnalytics: Boolean(metric.showInAnalytics),
       carryForward,
     };
   }

@@ -113,17 +113,34 @@ export function AnalyticsSection() {
       ? [entry.metric_values[sleepMetric.id] as number]
       : [],
   );
+  const aiAnalysisMetricDefinitions = useMemo(
+    () =>
+      metricDefinitions.filter((metric) => metric.isActive && metric.showInAnalytics),
+    [metricDefinitions],
+  );
 
   const totalNotes = deferredEntries.reduce((sum, entry) => sum + entry.notes.trim().length, 0);
   const rangePayload = deferredEntries.map((entry) => ({
     entry_date: entry.entry_date,
     summary: entry.summary,
     notes: entry.notes,
-    metrics: analyticsMetricDefinitions
+    metrics: aiAnalysisMetricDefinitions
       .flatMap((metric) => {
         const value = entry.metric_values[metric.id];
 
         if (value === undefined) {
+          return [];
+        }
+
+        if (metric.type === "text" && (typeof value !== "string" || value.trim().length === 0)) {
+          return [];
+        }
+
+        if (metric.type === "boolean" && typeof value !== "boolean") {
+          return [];
+        }
+
+        if ((metric.type === "number" || metric.type === "scale") && typeof value !== "number") {
           return [];
         }
 
@@ -257,7 +274,8 @@ export function AnalyticsSection() {
 
         <div className="mt-4 rounded-[22px] border border-[var(--border)] bg-white/75 px-4 py-3 text-sm text-[var(--muted)]">
           Диапазон: {formatHistoryDate(rangeStart)} — {formatHistoryDate(rangeEnd)}. Просмотр
-          записей и графиков не вызывает AI-запросы.
+          записей и графиков не вызывает AI-запросы. Текстовые метрики участвуют в AI-разборе
+          периода, но не строятся на графиках.
         </div>
       </SectionCard>
 
@@ -288,8 +306,11 @@ export function AnalyticsSection() {
             {deferredEntries.length === 0 ? (
               <EmptyState copy="В выбранном диапазоне пока нет сохраненных записей." />
             ) : view === "trends" ? (
-              <div className="grid gap-4 xl:grid-cols-2">
-                {analyticsMetricDefinitions.map((metric) => {
+              analyticsMetricDefinitions.length === 0 ? (
+                <EmptyState copy="Нет метрик для графиков. Для текста доступен только AI-разбор периода." />
+              ) : (
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {analyticsMetricDefinitions.map((metric) => {
                   const points = deferredEntries
                     .map((entry) => {
                       const rawValue = entry.metric_values[metric.id];
@@ -350,8 +371,9 @@ export function AnalyticsSection() {
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                  })}
+                </div>
+              )
             ) : (
               <div className="grid gap-3">
                 {deferredEntries
