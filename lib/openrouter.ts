@@ -304,12 +304,35 @@ function buildChatMessages(messages: OpenRouterMessage[], context: OpenRouterDia
   return [
     {
       role: "system" as const,
-      content:
-        "You are a focused diary copilot. Reply in Russian in strict Markdown. Always use a short title on a new line (`### ...`), then 2-4 separate sections with real line breaks and lists (`1.` / `-`). Keep headings on their own lines, never inline with paragraph text. End with one concrete next step section. Do not output HTML or JSON.",
+      content: `Ты внимательный AI-помощник дневника. Отвечай по-русски, структурированно и красиво.
+
+ФОРМАТИРОВАНИЕ ОБЯЗАТЕЛЬНО:
+- Всегда начинай ответ с заголовка ### (например: ### Анализ дня)
+- Используй подзаголовки #### для разделов
+- Каждый пункт списка начинай с новой строки: 1. или -
+- Используй **жирный текст** для важных моментов
+- Добавляй пустые строки между разделами для читаемости
+- Структурируй ответ: введение, основные пункты, вывод/следующий шаг
+
+ПРИМЕР ФОРМАТА:
+### Анализ дня
+
+#### Главное состояние
+1. Ты чувствовал усталость после работы
+2. **Хороший сон** помог восстановиться
+
+#### Рекомендации
+- Сделай перерыв в 15 минут
+- Выпей воды
+
+#### Следующий шаг
+Попробуй **короткую медитацию** перед сном.
+
+Не используй HTML или JSON. Только Markdown.`,
     },
     {
       role: "system" as const,
-      content: `Workday context:\n${buildDiaryContextPrompt(context)}`,
+      content: `Контекст рабочего дня:\n${buildDiaryContextPrompt(context)}`,
     },
     ...messages,
   ];
@@ -398,6 +421,31 @@ export async function streamChatWithOpenRouter(
   }
 
   const requestedModel = context.model ?? openRouterModel;
+  
+  // Free models on OpenRouter - remove token limits
+  const freeModels = [
+    "nousresearch/hermes-3-llama-3.1-405b",
+    "nousresearch/hermes-3-llama-3.1-70b",
+    "meta-llama/llama-3.1-70b-instruct",
+    "meta-llama/llama-3.1-8b-instruct",
+    "mistralai/mistral-7b-instruct",
+    "openchat/openchat-7b",
+    "gryphe/mythomax-l2-13b",
+    "undi95/remm-slerp-l2-13b",
+    "xwin-lm/xwin-lm-70b",
+    "trinity-large",
+    "nemotron",
+    "stap3.5-flash",
+    "stap-3.5-flash",
+    "nvidia/nemotron",
+    "cognitivecomputations/dolphin",
+    "jondurbin/airoboros",
+    "lizpreciatior/lzlv",
+    "migtissera/synthia",
+    "teknium/openhermes"
+  ];
+  const isFreeModel = freeModels.some(fm => requestedModel.toLowerCase().includes(fm.toLowerCase()));
+  
   const response = await fetch(`${openRouterBaseUrl}/chat/completions`, {
     method: "POST",
     headers: {
@@ -409,7 +457,7 @@ export async function streamChatWithOpenRouter(
     body: JSON.stringify({
       model: requestedModel,
       temperature: 0.35,
-      max_tokens: 420,
+      max_tokens: isFreeModel ? 4096 : 420,
       stream: true,
       messages: buildChatMessages(messages, context),
     }),

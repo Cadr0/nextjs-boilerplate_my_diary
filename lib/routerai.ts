@@ -457,8 +457,31 @@ export async function chatWithRouterAi(
     [
       {
         role: "system",
-        content:
-          "Ты внимательный AI-помощник дневника. Отвечай по-русски, кратко и тепло. Помогай разбирать день, планировать следующий шаг, замечать паттерны и не дави на пользователя. Если уместно, структурируй ответ короткими абзацами или компактным списком.",
+        content: `Ты внимательный AI-помощник дневника. Отвечай по-русски, структурированно и красиво.
+
+ФОРМАТИРОВАНИЕ ОБЯЗАТЕЛЬНО:
+- Всегда начинай ответ с заголовка ### (например: ### Анализ дня)
+- Используй подзаголовки #### для разделов
+- Каждый пункт списка начинай с новой строки: 1. или -
+- Используй **жирный текст** для важных моментов
+- Добавляй пустые строки между разделами для читаемости
+- Структурируй ответ: введение, основные пункты, вывод/следующий шаг
+
+ПРИМЕР ФОРМАТА:
+### Анализ дня
+
+#### Главное состояние
+1. Ты чувствовал усталость после работы
+2. **Хороший сон** помог восстановиться
+
+#### Рекомендации
+- Сделай перерыв в 15 минут
+- Выпей воды
+
+#### Следующий шаг
+Попробуй **короткую медитацию** перед сном.
+
+Не используй HTML или JSON. Только Markdown.`,
       },
       {
         role: "system",
@@ -466,8 +489,170 @@ export async function chatWithRouterAi(
       },
       ...messages,
     ],
-    { maxTokens: 420 },
+    { maxTokens: 2048 },
   );
+}
+
+export async function streamChatWithRouterAi(
+  messages: RouterAiChatMessage[],
+  context: RouterAiDiaryContext,
+): Promise<ReadableStream<Uint8Array>> {
+  const configError = getRouterAiConfigError();
+
+  if (configError) {
+    throw new Error(configError);
+  }
+
+  const chatMessages: RouterAiChatMessage[] = [
+    {
+      role: "system",
+      content: `Ты внимательный AI-помощник дневника. Отвечай по-русски, структурированно и красиво.
+
+ФОРМАТИРОВАНИЕ ОБЯЗАТЕЛЬНО:
+- Всегда начинай ответ с заголовка ### (например: ### Анализ дня)
+- Используй подзаголовки #### для разделов
+- Каждый пункт списка начинай с новой строки: 1. или -
+- Используй **жирный текст** для важных моментов
+- Добавляй пустые строки между разделами для читаемости
+- Структурируй ответ: введение, основные пункты, вывод/следующий шаг
+
+ПРИМЕР ФОРМАТА:
+### Анализ дня
+
+#### Главное состояние
+1. Ты чувствовал усталость после работы
+2. **Хороший сон** помог восстановиться
+
+#### Рекомендации
+- Сделай перерыв в 15 минут
+- Выпей воды
+
+#### Следующий шаг
+Попробуй **короткую медитацию** перед сном.
+
+Не используй HTML или JSON. Только Markdown.`,
+    },
+    {
+      role: "system",
+      content: `Контекст рабочего дня:\n${buildDiaryContextPrompt(context)}`,
+    },
+    ...messages,
+  ];
+
+  const response = await fetch(`${routerAiBaseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${routerAiApiKey}`,
+    },
+    body: JSON.stringify({
+      model: routerAiModel,
+      temperature: 0.35,
+      max_tokens: 2048,
+      stream: true,
+      messages: chatMessages,
+    }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: { message?: string };
+    };
+    throw new Error(payload.error?.message ?? "RouterAI streaming request failed.");
+  }
+
+  if (!response.body) {
+    throw new Error("RouterAI streaming response body is missing.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      let buffer = "";
+
+      const pushDeltaFromLine = (line: string) => {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) {
+          return false;
+        }
+
+        const data = trimmed.slice(5).trim();
+        if (!data) {
+          return false;
+        }
+
+        if (data === "[DONE]") {
+          controller.close();
+          return true;
+        }
+
+        try {
+          const payload = JSON.parse(data) as {
+            choices?: Array<{
+              delta?: { content?: string };
+              message?: { content?: string };
+            }>;
+          };
+          const chunk =
+            payload.choices?.[0]?.delta?.content ??
+            payload.choices?.[0]?.message?.content ??
+            "";
+
+          if (chunk) {
+            controller.enqueue(encoder.encode(chunk));
+          }
+        } catch {
+          return false;
+        }
+
+        return false;
+      };
+
+      const pump = async () => {
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) {
+              break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+
+            while (true) {
+              const newlineIndex = buffer.indexOf("\n");
+              if (newlineIndex === -1) {
+                break;
+              }
+
+              const line = buffer.slice(0, newlineIndex);
+              buffer = buffer.slice(newlineIndex + 1);
+
+              const isCompleted = pushDeltaFromLine(line);
+              if (isCompleted) {
+                return;
+              }
+            }
+          }
+
+          if (buffer.trim()) {
+            pushDeltaFromLine(buffer);
+          }
+
+          controller.close();
+        } catch (error) {
+          controller.error(error);
+        } finally {
+          reader.releaseLock();
+        }
+      };
+
+      void pump();
+    },
+  });
 }
 
 export async function extractDiaryDataFromTranscript(args: {

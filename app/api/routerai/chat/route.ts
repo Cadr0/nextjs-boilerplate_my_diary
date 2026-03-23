@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAuthState } from "@/lib/auth";
-import { getOpenRouterConfigError, streamChatWithOpenRouter } from "@/lib/openrouter";
+import { getRouterAiConfigError, streamChatWithRouterAi } from "@/lib/routerai";
 import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
 
 type RequestPayload = {
@@ -19,10 +19,10 @@ type RequestPayload = {
 };
 
 export async function POST(request: Request) {
-  const openRouterConfigError = getOpenRouterConfigError();
+  const routerAiConfigError = getRouterAiConfigError();
 
-  if (openRouterConfigError) {
-    return NextResponse.json({ error: openRouterConfigError }, { status: 500 });
+  if (routerAiConfigError) {
+    return NextResponse.json({ error: routerAiConfigError }, { status: 500 });
   }
 
   const { user } = await getAuthState();
@@ -47,7 +47,6 @@ export async function POST(request: Request) {
     const draft = payload.context?.draft;
     const metricDefinitions = payload.context?.metricDefinitions ?? [];
     const tasks = payload.context?.tasks ?? [];
-    const model = payload.context?.model;
 
     if (!date || !draft) {
       return NextResponse.json({ error: "Diary context is required." }, { status: 400 });
@@ -57,12 +56,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "At least one message is required." }, { status: 400 });
     }
 
-    const stream = await streamChatWithOpenRouter(messages, {
+    const stream = await streamChatWithRouterAi(messages, {
       date,
       draft,
       metricDefinitions,
       tasks,
-      model,
     });
 
     const reader = stream.getReader();
@@ -111,7 +109,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : "Failed to send OpenRouter message.",
+          error instanceof Error ? error.message : "Failed to send RouterAI message.",
       },
       { status: 500 },
     );
