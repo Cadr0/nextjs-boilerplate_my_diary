@@ -7,6 +7,28 @@ import type { DiaryExtractionResult } from "@/lib/ai/contracts";
 
 const MAX_RECORDING_SECONDS = 180;
 const PROCESS_STEP_LABELS = ["Анализируем вашу запись", "Выставляем метрики по вашему запросу"];
+const PROCESSING_ESTIMATES_STORAGE_KEY = "voice-processing-estimates-v1";
+const PROCESSING_ESTIMATE_SMOOTHING = 0.25;
+const MIN_STAGE_ESTIMATE_MS = 1200;
+const MAX_STAGE_ESTIMATE_MS = 30000;
+
+type ProcessingEstimates = {
+  transcribingMs: number;
+  extractingMs: number;
+};
+
+const DEFAULT_PROCESSING_ESTIMATES: ProcessingEstimates = {
+  transcribingMs: 7000,
+  extractingMs: 4500,
+};
+
+function clampStageEstimate(value: number) {
+  if (!Number.isFinite(value)) {
+    return MIN_STAGE_ESTIMATE_MS;
+  }
+
+  return Math.min(MAX_STAGE_ESTIMATE_MS, Math.max(MIN_STAGE_ESTIMATE_MS, Math.round(value)));
+}
 
 function getSupportedMimeType() {
   if (typeof MediaRecorder === "undefined") {
@@ -57,6 +79,8 @@ export function VoiceEntryPanel() {
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
   const progressHideTimerRef = useRef<number | null>(null);
+  const transcribingStartedAtRef = useRef<number | null>(null);
+  const extractingStartedAtRef = useRef<number | null>(null);
   const isStartingRef = useRef(false);
   const wasProcessingRef = useRef(false);
   const contextVersionRef = useRef(0);
@@ -68,6 +92,9 @@ export function VoiceEntryPanel() {
   const [showProcessingState, setShowProcessingState] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
   const [processingStepIndex, setProcessingStepIndex] = useState(0);
+  const [processingEstimates, setProcessingEstimates] = useState<ProcessingEstimates>(
+    DEFAULT_PROCESSING_ESTIMATES,
+  );
   const [transcript, setTranscript] = useState("");
   const [extraction, setExtraction] = useState<DiaryExtractionResult | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -111,6 +138,22 @@ export function VoiceEntryPanel() {
     seconds: recordingSeconds,
   });
   const isProcessing = isTranscribing || isExtracting;
+  const updateProcessingEstimate = (
+    stage: keyof ProcessingEstimates,
+    measuredDurationMs: number,
+  ) => {
+    const safeMeasured = clampStageEstimate(measuredDurationMs);
+
+    setProcessingEstimates((current) => {
+      const previous = current[stage];
+      const next = previous * (1 - PROCESSING_ESTIMATE_SMOOTHING) + safeMeasured * PROCESSING_ESTIMATE_SMOOTHING;
+
+      return {
+        ...current,
+        [stage]: clampStageEstimate(next),
+      };
+    });
+  };
 
   const stopStream = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -141,6 +184,29 @@ export function VoiceEntryPanel() {
     return stream;
   };
 
+  useEffect(() => {
+    try {
+      const rawEstimates = window.localStorage.getItem(PROCESSING_ESTIMATES_STORAGE_KEY);
+
+      if (!rawEstimates) {
+        return;
+      }
+
+      const parsed = JSON.parse(rawEstimates) as Partial<ProcessingEstimates>;
+
+      setProcessingEstimates({
+        transcribingMs: clampStageEstimate(parsed.transcribingMs ?? DEFAULT_PROCESSING_ESTIMATES.transcribingMs),
+        extractingMs: clampStageEstimate(parsed.extractingMs ?? DEFAULT_PROCESSING_ESTIMATES.extractingMs),
+      });
+    } catch {
+      // Ignore localStorage read errors and use defaults.
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(PROCESSING_ESTIMATES_STORAGE_KEY, JSON.stringify(processingEstimates));
+  }, [processingEstimates]);
+
   const clearVoiceState = () => {
     setTranscript("");
     setExtraction(null);
@@ -167,6 +233,7 @@ export function VoiceEntryPanel() {
     const contextVersion = contextVersionRef.current;
 
     try {
+      extractingStartedAtRef.current = performance.now();
       setIsExtracting(true);
       setError(null);
       setNotice(null);
@@ -226,6 +293,14 @@ export function VoiceEntryPanel() {
       );
     } finally {
       if (contextVersion === contextVersionRef.current) {
+        if (extractingStartedAtRef.current !== null) {
+          updateProcessingEstimate(
+            "extractingMs",
+            performance.now() - extractingStartedAtRef.current,
+          );
+          extractingStartedAtRef.current = null;
+        }
+
         setIsExtracting(false);
       }
     }
@@ -235,6 +310,7 @@ export function VoiceEntryPanel() {
     const contextVersion = contextVersionRef.current;
 
     try {
+      transcribingStartedAtRef.current = performance.now();
       setIsTranscribing(true);
       setError(null);
       setNotice(null);
@@ -263,7 +339,16 @@ export function VoiceEntryPanel() {
         return;
       }
 
+      if (transcribingStartedAtRef.current !== null) {
+        updateProcessingEstimate(
+          "transcribingMs",
+          performance.now() - transcribingStartedAtRef.current,
+        );
+        transcribingStartedAtRef.current = null;
+      }
+
       setTranscript(result.transcript);
+      setIsTranscribing(false);
       await runExtraction(result.transcript, true);
     } catch (requestError) {
       if (contextVersion !== contextVersionRef.current) {
@@ -276,6 +361,7 @@ export function VoiceEntryPanel() {
     } finally {
       if (contextVersion === contextVersionRef.current) {
         setIsTranscribing(false);
+        transcribingStartedAtRef.current = null;
       }
     }
   };
@@ -421,34 +507,51 @@ export function VoiceEntryPanel() {
     }
 
     const intervalId = window.setInterval(() => {
-      setProcessingProgress((current) => {
-        const stage = isTranscribing ? "transcribing" : isExtracting ? "extracting" : "finalizing";
-        const stageFloor = stage === "transcribing" ? 8 : stage === "extracting" ? 58 : current;
-        const stageCap = stage === "transcribing" ? 82 : stage === "extracting" ? 97 : 100;
-        const normalized = Math.max(current, stageFloor);
+      const now = performance.now();
 
-        if (normalized >= stageCap) {
-          return normalized;
+      setProcessingProgress((current) => {
+        if (isTranscribing) {
+          const startedAt = transcribingStartedAtRef.current ?? now;
+          const elapsedMs = Math.max(0, now - startedAt);
+          const estimateMs = Math.max(processingEstimates.transcribingMs, MIN_STAGE_ESTIMATE_MS);
+          const progressRatio = elapsedMs / estimateMs;
+          const eased = 1 - Math.exp(-2.1 * progressRatio);
+          const target = 8 + eased * 74;
+
+          return Math.max(current, Math.min(86, target));
         }
 
-        const distance = stageCap - normalized;
-        const baseStep =
-          stage === "transcribing"
-            ? Math.max(0.25, Math.min(2.2, distance * 0.18))
-            : stage === "extracting"
-              ? Math.max(0.18, Math.min(1.5, distance * 0.14))
-              : Math.max(0.35, Math.min(3, distance * 0.28));
-        const jitter = 0.75 + Math.random() * 0.7;
-        const next = normalized + baseStep * jitter;
+        if (isExtracting) {
+          const startedAt = extractingStartedAtRef.current ?? now;
+          const elapsedMs = Math.max(0, now - startedAt);
+          const estimateMs = Math.max(processingEstimates.extractingMs, MIN_STAGE_ESTIMATE_MS);
+          const progressRatio = elapsedMs / estimateMs;
+          const eased = 1 - Math.exp(-2.2 * progressRatio);
+          const base = Math.max(current, 58);
+          const target = 58 + eased * 39;
 
-        return Math.min(stageCap, next);
+          return Math.max(base, Math.min(98, target));
+        }
+
+        if (current >= 100) {
+          return current;
+        }
+
+        const next = current + Math.max(1.4, (100 - current) * 0.24);
+        return Math.min(100, next);
       });
     }, 120);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [isExtracting, isTranscribing, showProcessingState]);
+  }, [
+    isExtracting,
+    isTranscribing,
+    processingEstimates.extractingMs,
+    processingEstimates.transcribingMs,
+    showProcessingState,
+  ]);
 
   useEffect(() => {
     contextVersionRef.current += 1;
@@ -456,6 +559,10 @@ export function VoiceEntryPanel() {
     recorderRef.current?.stop();
     stopTimer();
     clearProgressHideTimer();
+    transcribingStartedAtRef.current = null;
+    extractingStartedAtRef.current = null;
+    setIsTranscribing(false);
+    setIsExtracting(false);
     setShowProcessingState(false);
     setProcessingProgress(0);
     setProcessingStepIndex(0);
@@ -480,6 +587,8 @@ export function VoiceEntryPanel() {
       stopTimer();
       stopStream();
       clearProgressHideTimer();
+      transcribingStartedAtRef.current = null;
+      extractingStartedAtRef.current = null;
 
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
