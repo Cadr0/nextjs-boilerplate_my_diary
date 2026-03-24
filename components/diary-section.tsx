@@ -1748,31 +1748,6 @@ function DiarySettingsModal({
                 }
               />
               <SettingsRow
-                label="Ежедневное напоминание"
-                control={
-                  <ToggleSwitch
-                    active={profile.dailyReminderEnabled}
-                    onToggle={() =>
-                      onChange("dailyReminderEnabled", !profile.dailyReminderEnabled)
-                    }
-                  />
-                }
-              />
-              <SettingsRow
-                label="Время напоминания"
-                control={
-                  <input
-                    type="time"
-                    value={profile.dailyReminderTime}
-                    onChange={(event) =>
-                      onChange("dailyReminderTime", event.target.value || "23:50")
-                    }
-                    disabled={!profile.dailyReminderEnabled}
-                    className="min-h-10 w-[min(48vw,210px)] rounded-full border border-[var(--border)] bg-white px-3.5 text-[13px] text-[var(--foreground)] outline-none disabled:opacity-50 sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
-                  />
-                }
-              />
-              <SettingsRow
                 label="Разрешение уведомлений"
                 control={
                   <div className="grid justify-items-end gap-2 text-right">

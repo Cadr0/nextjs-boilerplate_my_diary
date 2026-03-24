@@ -186,30 +186,9 @@ export function ProfileSection() {
                   }
                   label="получать уведомления"
                 />
-                <SmallToggle
-                  active={profile.dailyReminderEnabled}
-                  onClick={() =>
-                    updateProfile("dailyReminderEnabled", !profile.dailyReminderEnabled)
-                  }
-                  label="ежедневное напоминание"
-                />
               </div>
 
               <div className="grid gap-3 sm:grid-cols-[minmax(0,220px)_auto] sm:items-end">
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-[var(--foreground)]">
-                    Время напоминания
-                  </span>
-                  <input
-                    type="time"
-                    value={profile.dailyReminderTime}
-                    onChange={(event) =>
-                      updateProfile("dailyReminderTime", event.target.value || "23:50")
-                    }
-                    className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/90 px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                  />
-                </label>
-
                 <button
                   type="button"
                   onClick={() => void requestNotificationPermission()}
@@ -226,7 +205,7 @@ export function ProfileSection() {
                     ? "не поддерживается"
                     : notificationPermission}
                 </span>
-                . MVP работает, пока вкладка сайта открыта.
+                . Умные напоминания создаются после подтверждения рекомендации AI.
               </p>
             </div>
           </section>

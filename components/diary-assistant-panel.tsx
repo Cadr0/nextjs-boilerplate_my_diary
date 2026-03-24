@@ -31,6 +31,7 @@ export function DiaryAssistantPanel() {
     metricDefinitions,
     profile,
     requestEntryAnalysis,
+    scheduleSleepReminder,
     selectedDate,
     selectedDraft,
     selectedEntry,
@@ -44,6 +45,10 @@ export function DiaryAssistantPanel() {
   const [chatError, setChatError] = useState<string | null>(null);
   const [streamingAssistantId, setStreamingAssistantId] = useState<string | null>(null);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  const [sleepReminderStatus, setSleepReminderStatus] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
   const modelMenuRef = useRef<HTMLDivElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const chatAbortRef = useRef<AbortController | null>(null);
@@ -117,6 +122,15 @@ export function DiaryAssistantPanel() {
       chatAbortRef.current?.abort();
     };
   }, []);
+
+  const sleepReminderSuggestion = useMemo(
+    () => extractSleepReminderSuggestion(selectedEntry?.ai_analysis ?? null),
+    [selectedEntry?.ai_analysis],
+  );
+
+  useEffect(() => {
+    setSleepReminderStatus(null);
+  }, [selectedDate, selectedEntry?.ai_analysis]);
 
   const quickPrompts = useMemo(
     () => ["Разбери мой день", "Что сильнее всего повлияло?", "Есть ли риск перегруза?"],
@@ -243,6 +257,60 @@ export function DiaryAssistantPanel() {
     }
   };
 
+  const handleConfirmSleepReminder = async () => {
+    if (!sleepReminderSuggestion) {
+      return;
+    }
+
+    if (!profile.notificationsEnabled) {
+      setSleepReminderStatus({
+        tone: "error",
+        message: "Включите уведомления в настройках, чтобы создать напоминание.",
+      });
+      return;
+    }
+
+    if (typeof Notification === "undefined") {
+      setSleepReminderStatus({
+        tone: "error",
+        message: "Этот браузер не поддерживает уведомления.",
+      });
+      return;
+    }
+
+    let permission = Notification.permission;
+
+    if (permission === "default") {
+      permission = await Notification.requestPermission();
+    }
+
+    if (permission !== "granted") {
+      setSleepReminderStatus({
+        tone: "error",
+        message: "Разрешите уведомления в браузере, чтобы напоминание сработало.",
+      });
+      return;
+    }
+
+    const reminder = scheduleSleepReminder({
+      hours: sleepReminderSuggestion.hours,
+      minutes: sleepReminderSuggestion.minutes,
+      sourceDate: selectedDate,
+    });
+
+    const scheduledLabel = new Intl.DateTimeFormat(profile.locale || "ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(reminder.scheduledAt));
+
+    setSleepReminderStatus({
+      tone: "success",
+      message: `Напоминание запланировано на ${scheduledLabel}.`,
+    });
+  };
+
   return (
     <div className="grid gap-4">
       <div className="surface-card rounded-[28px] p-4 sm:rounded-[34px] sm:p-6">
@@ -285,12 +353,43 @@ export function DiaryAssistantPanel() {
           </div>
 
           {selectedEntry?.ai_analysis ? (
-            <div className="mt-4 rounded-[20px] border border-[rgba(47,111,97,0.14)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,249,246,0.86))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] sm:p-5">
-              <ChatMessageContent
-                content={selectedEntry.ai_analysis}
-                streaming={false}
-                variant="analysis"
-              />
+            <div className="mt-4 grid gap-3">
+              <div className="rounded-[20px] border border-[rgba(47,111,97,0.14)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,249,246,0.86))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] sm:p-5">
+                <ChatMessageContent
+                  content={selectedEntry.ai_analysis}
+                  streaming={false}
+                  variant="analysis"
+                />
+              </div>
+
+              {sleepReminderSuggestion ? (
+                <div className="rounded-[18px] border border-[rgba(47,111,97,0.16)] bg-[rgba(47,111,97,0.06)] p-3 sm:p-4">
+                  <p className="text-sm font-medium text-[var(--foreground)]">
+                    Найдена рекомендация по сну. Поставить умное напоминание на{" "}
+                    {sleepReminderSuggestion.label}?
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleConfirmSleepReminder()}
+                      className="inline-flex min-h-10 items-center rounded-full bg-[var(--accent)] px-3.5 text-xs font-medium text-white shadow-[0_12px_24px_rgba(47,111,97,0.22)] transition hover:brightness-105 sm:min-h-11 sm:px-4 sm:text-sm"
+                    >
+                      Включить умное напоминание
+                    </button>
+                    {sleepReminderStatus ? (
+                      <span
+                        className={`text-xs sm:text-sm ${
+                          sleepReminderStatus.tone === "success"
+                            ? "text-[var(--accent)]"
+                            : "text-[rgb(136,47,63)]"
+                        }`}
+                      >
+                        {sleepReminderStatus.message}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="mt-4 grid gap-2">
@@ -419,6 +518,41 @@ function normalizeAiText(content: string) {
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function extractSleepReminderSuggestion(content: string | null) {
+  if (!content) {
+    return null;
+  }
+
+  const normalized = normalizeAiText(content);
+
+  if (!/(сон|спат|лож|sleep|bedtime|засып|отдых)/i.test(normalized)) {
+    return null;
+  }
+
+  const timeMatches = [...normalized.matchAll(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/g)];
+  const preferredMatch =
+    timeMatches.find((match) => {
+      const hours = Number.parseInt(match[1] ?? "", 10);
+      return Number.isFinite(hours) && (hours >= 18 || hours <= 2);
+    }) ?? timeMatches[0];
+
+  const hours = preferredMatch
+    ? Number.parseInt(preferredMatch[1] ?? "", 10)
+    : 23;
+  const minutes = preferredMatch
+    ? Number.parseInt(preferredMatch[2] ?? "", 10)
+    : 50;
+
+  const safeHours = Number.isFinite(hours) ? Math.min(23, Math.max(0, hours)) : 23;
+  const safeMinutes = Number.isFinite(minutes) ? Math.min(59, Math.max(0, minutes)) : 50;
+
+  return {
+    hours: safeHours,
+    minutes: safeMinutes,
+    label: `${String(safeHours).padStart(2, "0")}:${String(safeMinutes).padStart(2, "0")}`,
+  };
 }
 
 function ChatMessageContent({

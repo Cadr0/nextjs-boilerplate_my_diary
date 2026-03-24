@@ -24,6 +24,7 @@ import type {
   TaskItem,
   WorkspaceDraft,
   WorkspaceProfile,
+  WorkspaceReminder,
 } from "@/lib/workspace";
 import {
   WORKSPACE_STORAGE_KEY,
@@ -123,6 +124,13 @@ type WorkspaceContextValue = {
   toggleTask: (taskId: string) => void;
   moveTaskToNextDay: (taskId: string) => void;
   moveTaskToSelectedDate: (taskId: string) => void;
+  scheduleSleepReminder: (options: {
+    hours: number;
+    minutes: number;
+    sourceDate?: string;
+    title?: string;
+    body?: string;
+  }) => WorkspaceReminder;
   profile: WorkspaceProfile;
   updateProfile: <K extends keyof WorkspaceProfile>(
     field: K,
@@ -176,6 +184,12 @@ function mergeWorkspaceState(
       ...baseState.drafts,
     },
     tasks: Array.isArray(persistedState.tasks) ? persistedState.tasks : baseState.tasks,
+    reminders:
+      Array.isArray(persistedState.reminders) && persistedState.reminders.length > 0
+        ? persistedState.reminders
+            .map((reminder) => sanitizeReminder(reminder))
+            .filter((reminder): reminder is WorkspaceReminder => reminder !== null)
+        : baseState.reminders,
     metricDefinitions:
       Array.isArray(persistedState.metricDefinitions) &&
       persistedState.metricDefinitions.length > 0
@@ -206,6 +220,14 @@ function generateTaskId() {
   }
 
   return `task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function generateReminderId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `reminder-${crypto.randomUUID()}`;
+  }
+
+  return `reminder-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function normalizeMetricReference(value: string) {
@@ -261,32 +283,42 @@ function buildDraftForDate(
   };
 }
 
-function parseTimeToMinutes(value: string) {
-  const match = value.match(/^(\d{2}):(\d{2})$/);
-
-  if (!match) {
+function sanitizeReminder(value: unknown): WorkspaceReminder | null {
+  if (!value || typeof value !== "object") {
     return null;
   }
 
-  const hours = Number.parseInt(match[1] ?? "", 10);
-  const minutes = Number.parseInt(match[2] ?? "", 10);
+  const candidate = value as Partial<WorkspaceReminder>;
 
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+  if (
+    typeof candidate.id !== "string" ||
+    candidate.kind !== "sleep" ||
+    typeof candidate.title !== "string" ||
+    typeof candidate.body !== "string" ||
+    typeof candidate.scheduledAt !== "string" ||
+    typeof candidate.createdAt !== "string" ||
+    typeof candidate.sourceDate !== "string"
+  ) {
     return null;
   }
 
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+  const scheduledAt = Date.parse(candidate.scheduledAt);
+  const createdAt = Date.parse(candidate.createdAt);
+
+  if (!Number.isFinite(scheduledAt) || !Number.isFinite(createdAt)) {
     return null;
   }
 
-  return hours * 60 + minutes;
-}
-
-function formatLocalDayKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return {
+    id: candidate.id,
+    kind: "sleep",
+    title: candidate.title.trim() || "Diary AI",
+    body: candidate.body.trim() || "Пора готовиться ко сну.",
+    scheduledAt: new Date(scheduledAt).toISOString(),
+    createdAt: new Date(createdAt).toISOString(),
+    sourceDate: candidate.sourceDate,
+    status: candidate.status === "sent" ? "sent" : "pending",
+  };
 }
 
 export function WorkspaceProvider({
@@ -329,7 +361,6 @@ export function WorkspaceProvider({
     ? `${WORKSPACE_STORAGE_KEY}:${accountInfo.userId}`
     : WORKSPACE_STORAGE_KEY;
   const microphoneMigrationKey = `${storageKey}:microphone-enabled-default-v1`;
-  const notificationSentStorageKey = `${storageKey}:daily-notification-last-v1`;
 
   const savedFingerprints = useRef<Record<string, string>>(
     Object.fromEntries(
@@ -389,10 +420,7 @@ export function WorkspaceProvider({
       return;
     }
 
-    if (
-      !workspaceState.profile.notificationsEnabled ||
-      !workspaceState.profile.dailyReminderEnabled
-    ) {
+    if (!workspaceState.profile.notificationsEnabled) {
       return;
     }
 
@@ -404,61 +432,65 @@ export function WorkspaceProvider({
       return;
     }
 
-    const targetMinutes = parseTimeToMinutes(workspaceState.profile.dailyReminderTime);
+    const maybeSendDueReminders = () => {
+      const now = Date.now();
+      const dueReminders = workspaceState.reminders.filter((reminder) => {
+        if (reminder.status !== "pending") {
+          return false;
+        }
 
-    if (targetMinutes === null) {
-      return;
-    }
+        const scheduledAt = Date.parse(reminder.scheduledAt);
 
-    const maybeSendNotification = () => {
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        return Number.isFinite(scheduledAt) && scheduledAt <= now;
+      });
 
-      if (currentMinutes !== targetMinutes) {
+      if (dueReminders.length === 0) {
         return;
       }
 
-      const dayKey = formatLocalDayKey(now);
-      const sentStamp = `${dayKey}:${workspaceState.profile.dailyReminderTime}`;
-      const lastSentStamp = window.localStorage.getItem(notificationSentStorageKey);
+      const sentIds = new Set<string>();
 
-      if (lastSentStamp === sentStamp) {
+      for (const reminder of dueReminders) {
+        try {
+          const notification = new Notification(reminder.title, {
+            body: reminder.body,
+            tag: `smart-reminder-${reminder.id}`,
+          });
+
+          notification.onclick = () => {
+            window.focus();
+          };
+
+          sentIds.add(reminder.id);
+        } catch {
+          continue;
+        }
+      }
+
+      if (sentIds.size === 0) {
         return;
       }
 
-      const notificationTitle = "Diary AI";
-      const notificationBody =
-        "Пора завершать день: выключайте отвлекающее и начинайте подготовку ко сну.";
-
-      try {
-        const notification = new Notification(notificationTitle, {
-          body: notificationBody,
-          tag: "daily-bedtime-reminder",
-        });
-
-        notification.onclick = () => {
-          window.focus();
-        };
-      } catch {
-        return;
-      }
-
-      window.localStorage.setItem(notificationSentStorageKey, sentStamp);
+      setWorkspaceState((current) => ({
+        ...current,
+        reminders: current.reminders.map((reminder) =>
+          sentIds.has(reminder.id)
+            ? {
+                ...reminder,
+                status: "sent",
+              }
+            : reminder,
+        ),
+      }));
     };
 
-    maybeSendNotification();
-    const intervalId = window.setInterval(maybeSendNotification, 30000);
+    maybeSendDueReminders();
+    const intervalId = window.setInterval(maybeSendDueReminders, 30000);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [
-    isHydrated,
-    notificationSentStorageKey,
-    workspaceState.profile.dailyReminderEnabled,
-    workspaceState.profile.dailyReminderTime,
-    workspaceState.profile.notificationsEnabled,
-  ]);
+  }, [isHydrated, workspaceState.profile.notificationsEnabled, workspaceState.reminders]);
 
   useEffect(() => {
     if (!isHydrated) {
@@ -1013,6 +1045,55 @@ export function WorkspaceProvider({
     });
   };
 
+  const scheduleSleepReminder = ({
+    hours,
+    minutes,
+    sourceDate,
+    title,
+    body,
+  }: {
+    hours: number;
+    minutes: number;
+    sourceDate?: string;
+    title?: string;
+    body?: string;
+  }) => {
+    const safeHours = Math.min(23, Math.max(0, Math.round(hours)));
+    const safeMinutes = Math.min(59, Math.max(0, Math.round(minutes)));
+    const now = new Date();
+    const scheduledAt = new Date();
+    scheduledAt.setHours(safeHours, safeMinutes, 0, 0);
+
+    if (scheduledAt.getTime() <= now.getTime() + 30_000) {
+      scheduledAt.setDate(scheduledAt.getDate() + 1);
+    }
+
+    const reminder: WorkspaceReminder = {
+      id: generateReminderId(),
+      kind: "sleep",
+      title: title?.trim() || "Diary AI",
+      body:
+        body?.trim() ||
+        "Пора готовиться ко сну: выключите экраны, завершите дела и переходите к отдыху.",
+      scheduledAt: scheduledAt.toISOString(),
+      createdAt: now.toISOString(),
+      sourceDate: sourceDate ?? selectedDate,
+      status: "pending",
+    };
+
+    setWorkspaceState((current) => ({
+      ...current,
+      reminders: [
+        ...current.reminders.filter(
+          (entry) => !(entry.kind === "sleep" && entry.status === "pending"),
+        ),
+        reminder,
+      ],
+    }));
+
+    return reminder;
+  };
+
   const requestEntryAnalysis = async () => {
     setAnalysisState("loading");
     setAnalysisError(null);
@@ -1247,6 +1328,7 @@ export function WorkspaceProvider({
     toggleTask,
     moveTaskToNextDay,
     moveTaskToSelectedDate,
+    scheduleSleepReminder,
     profile: workspaceState.profile,
     updateProfile,
     days,
@@ -1265,3 +1347,4 @@ export function useWorkspace() {
 
   return value;
 }
+

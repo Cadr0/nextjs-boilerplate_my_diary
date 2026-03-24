@@ -85,6 +85,19 @@ export type TaskItem = {
   carryCount: number;
 };
 
+export type WorkspaceReminderKind = "sleep";
+
+export type WorkspaceReminder = {
+  id: string;
+  kind: WorkspaceReminderKind;
+  title: string;
+  body: string;
+  scheduledAt: string;
+  createdAt: string;
+  sourceDate: string;
+  status: "pending" | "sent";
+};
+
 export type WorkspaceProfile = {
   firstName: string;
   lastName: string;
@@ -98,8 +111,6 @@ export type WorkspaceProfile = {
   keepRightRailOpen: boolean;
   microphoneEnabled: boolean;
   notificationsEnabled: boolean;
-  dailyReminderEnabled: boolean;
-  dailyReminderTime: string;
   chatTone: string;
   aiModel: string;
 };
@@ -108,6 +119,7 @@ export type PersistedWorkspaceState = {
   version: number;
   drafts: Record<string, WorkspaceDraft>;
   tasks: TaskItem[];
+  reminders: WorkspaceReminder[];
   metricDefinitions: MetricDefinition[];
   profile: WorkspaceProfile;
 };
@@ -344,8 +356,6 @@ export const defaultProfile: WorkspaceProfile = {
   keepRightRailOpen: true,
   microphoneEnabled: true,
   notificationsEnabled: false,
-  dailyReminderEnabled: false,
-  dailyReminderTime: "23:50",
   chatTone: "supportive",
   aiModel: DEFAULT_ROUTERAI_PAID_MODEL,
 };
@@ -673,6 +683,7 @@ export function createDefaultWorkspaceState(
     version: WORKSPACE_STORAGE_VERSION,
     drafts,
     tasks: [],
+    reminders: [],
     metricDefinitions,
     profile: {
       ...defaultProfile,
