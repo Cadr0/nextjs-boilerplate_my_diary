@@ -102,8 +102,12 @@ export function DiaryAssistantPanel() {
   }, [isModelMenuOpen]);
 
   useEffect(() => {
+    if (chatState !== "sending") {
+      return;
+    }
+
     chatEndRef.current?.scrollIntoView({
-      behavior: chatState === "sending" ? "smooth" : "auto",
+      behavior: "smooth",
       block: "end",
     });
   }, [chatMessages, chatState, selectedDate]);
