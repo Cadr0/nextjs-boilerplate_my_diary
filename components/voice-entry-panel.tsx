@@ -72,8 +72,8 @@ export function VoiceEntryPanel() {
     metricDefinitions,
     profile,
     selectedDate,
+    updateNotes,
     updateProfile,
-    updateNotes, // Add updateNotes to workspace context usage
   } = useWorkspace();
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -99,9 +99,11 @@ export function VoiceEntryPanel() {
   const [transcript, setTranscript] = useState("");
   const [extraction, setExtraction] = useState<DiaryExtractionResult | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [metricRecognitionEnabled, setMetricRecognitionEnabled] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [metricsEnabled, setMetricsEnabled] = useState(true); // Add toggle state  const isSupported = useMemo(
+
+  const isSupported = useMemo(
     () =>
       typeof window !== "undefined" &&
       typeof MediaRecorder !== "undefined" &&
@@ -287,7 +289,8 @@ export function VoiceEntryPanel() {
 
       setError(
         requestError instanceof Error
-          ? requestError.message          : "Не удалось разобрать голосовую запись.",
+          ? requestError.message
+          : "Не удалось разобрать голосовую запись.",
       );
     } finally {
       if (contextVersion === contextVersionRef.current) {
@@ -347,15 +350,15 @@ export function VoiceEntryPanel() {
 
       setTranscript(result.transcript);
       setIsTranscribing(false);
-      
-      // Conditional logic: if metrics enabled, run extraction; otherwise just update notes
-      if (metricsEnabled) {
-        await runExtraction(result.transcript, true);
-      } else {
-        // When metrics disabled, just update the notes field with the transcript
+
+      if (!metricRecognitionEnabled) {
         updateNotes(result.transcript);
-        setNotice("Запись сохранена в поле 'Как прошел день?'");
+        setExtraction(null);
+        setNotice("Расшифровка добавлена в поле «Как прошел день?»");
+        return;
       }
+
+      await runExtraction(result.transcript, true);
     } catch (requestError) {
       if (contextVersion !== contextVersionRef.current) {
         return;
@@ -614,7 +617,8 @@ export function VoiceEntryPanel() {
               Voice
             </p>
             <h3 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-xl">
-              Голосовой ввод            </h3>
+              Голосовой ввод
+            </h3>
           </div>
         </div>
 
@@ -642,24 +646,29 @@ export function VoiceEntryPanel() {
               {statusCopy}
             </span>
           ) : null}
-          
-          {/* Toggle switch for metric recognition */}          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-[var(--muted)]">
-              Распознавание метрик:
-            </span>            <button
-              type="button"
-              onClick={() => setMetricsEnabled(!metricsEnabled)}
-              className={`inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-${
-                metricsEnabled ? "[var(--accent)]" : "white/92"
-              } px-3 text-xs font-medium text-${                metricsEnabled ? "white" : "[var(--foreground)]"
-              } transition hover:bg-[var(--accent)/20] ${
-                !metricsEnabled ? "hover:text-[var(--accent)]" : ""
-              }`
-            }            >
-              {metricsEnabled ? "Вкл" : "Выкл"}            </button>
-          </div>
         </div>
-        {(isRecording || isProcessing) ? <WaveformRow active /> : null}        {showProcessingState ? (
+
+        <label className="mt-3 inline-flex items-center gap-3 rounded-full border border-[var(--border)] bg-white/90 px-3 py-2 text-xs font-medium text-[var(--foreground)]">
+          <span>Включить распознавание метрик</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={metricRecognitionEnabled}
+            onClick={() => setMetricRecognitionEnabled((current) => !current)}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
+              metricRecognitionEnabled ? "bg-[var(--accent)]" : "bg-[rgba(90,102,95,0.35)]"
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                metricRecognitionEnabled ? "translate-x-5" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </label>
+
+        {(isRecording || isProcessing) ? <WaveformRow active /> : null}
+        {showProcessingState ? (
           <ProcessingState
             progress={processingProgress}
             stepIndex={processingStepIndex}
@@ -670,7 +679,8 @@ export function VoiceEntryPanel() {
 
       {!isSupported ? (
         <InlineMessage tone="danger">
-          В этом браузере нет поддержки записи через MediaRecorder.        </InlineMessage>
+          В этом браузере нет поддержки записи через MediaRecorder.
+        </InlineMessage>
       ) : null}
 
       {!profile.microphoneEnabled && notice === "Включить микрофон для голосового ввода?" ? (
@@ -682,11 +692,13 @@ export function VoiceEntryPanel() {
             setNotice("Микрофон включён. Нажми кнопку ещё раз.");
           }}
         >
-          Микрофон сейчас выключен.        </ActionMessage>
+          Микрофон сейчас выключен.
+        </ActionMessage>
       ) : null}
 
       {error ? <InlineMessage tone="danger">{error}</InlineMessage> : null}
-      {notice && notice !== "Включить микрофон для голосового ввода?" ? (        <InlineMessage tone="success">{notice}</InlineMessage>
+      {notice && notice !== "Включить микрофон для голосового ввода?" ? (
+        <InlineMessage tone="success">{notice}</InlineMessage>
       ) : null}
 
       {audioUrl ? (
@@ -697,12 +709,20 @@ export function VoiceEntryPanel() {
                 <TranscriptIcon />
                 <p className="text-sm font-semibold text-[var(--foreground)]">Транскрипт</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button                  type="button"
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
                   onClick={() => void runExtraction(transcript, true)}
-                  disabled={isExtracting || transcript.trim().length === 0}
-                  className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"                >
-                  <RefreshIcon />Обновить
+                  disabled={
+                    isExtracting ||
+                    transcript.trim().length === 0 ||
+                    !metricRecognitionEnabled
+                  }
+                  className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <RefreshIcon />
+                  Обновить
                 </button>
                 <button
                   type="button"
@@ -724,7 +744,8 @@ export function VoiceEntryPanel() {
           </div>
 
           <div className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:rounded-[26px] sm:p-4">
-            <div className="flex items-center justify-between gap-3">              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
                 <GridIcon />
                 <p className="text-sm font-semibold text-[var(--foreground)]">Измененные метрики</p>
               </div>
@@ -739,8 +760,10 @@ export function VoiceEntryPanel() {
                   {extractionMetricRows.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between gap-2 rounded-[14px] border border-[rgba(47,111,97,0.1)] bg-[linear-gradient(180deg,rgba(247,249,246,0.95),rgba(244,248,245,0.88))] px-3 py-2 text-[var(--foreground)]"                    >
-                      <p className="truncate text-[13px] font-medium leading-none">{item.name}</p>                      <span className="shrink-0 rounded-full border border-[rgba(47,111,97,0.16)] bg-white px-2.5 py-0.5 text-[12px] font-semibold text-[var(--accent)]">
+                      className="flex items-center justify-between gap-2 rounded-[14px] border border-[rgba(47,111,97,0.1)] bg-[linear-gradient(180deg,rgba(247,249,246,0.95),rgba(244,248,245,0.88))] px-3 py-2 text-[var(--foreground)]"
+                    >
+                      <p className="truncate text-[13px] font-medium leading-none">{item.name}</p>
+                      <span className="shrink-0 rounded-full border border-[rgba(47,111,97,0.16)] bg-white px-2.5 py-0.5 text-[12px] font-semibold text-[var(--accent)]">
                         {item.value}
                       </span>
                     </div>
@@ -753,12 +776,15 @@ export function VoiceEntryPanel() {
               )
             ) : (
               <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-                {isProcessing
+                {!metricRecognitionEnabled
+                  ? "Распознавание метрик выключено. Выполняется только расшифровка."
+                  : isProcessing
                   ? "Метрики появятся здесь сразу после завершения анализа."
                   : "Нажмите «Обновить», чтобы извлечь метрики из транскрипта."}
               </p>
             )}
-          </div>        </div>
+          </div>
+        </div>
       ) : null}
     </section>
   );
@@ -770,7 +796,8 @@ function ProcessingState({
   totalSteps,
 }: {
   progress: number;
-  stepIndex: number;  totalSteps: number;
+  stepIndex: number;
+  totalSteps: number;
 }) {
   const roundedProgress = Math.round(progress);
 
@@ -782,15 +809,18 @@ function ProcessingState({
       </div>
 
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-[rgba(47,111,97,0.12)]">
-        <div          className="h-full rounded-full bg-[var(--accent)] transition-all duration-500"
+        <div
+          className="h-full rounded-full bg-[var(--accent)] transition-all duration-500"
           style={{ width: `${progress}%` }}
         />
       </div>
-      <div className="mt-3 grid gap-2">
+
+      <div className="mt-3 grid gap-2">
         {PROCESS_STEP_LABELS.map((label, index) => {
           const isDone = index < stepIndex;
           const isActive = index === stepIndex;
-          return (
+
+          return (
             <div key={label} className="flex items-center gap-2 text-xs text-[var(--foreground)]">
               <span
                 className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] ${
@@ -803,15 +833,19 @@ function ProcessingState({
               >
                 {isActive ? (
                   <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inset-0 animate-ping rounded-full bg-[var(--accent)]" />                    <span className="relative h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />                  </span>
+                    <span className="absolute inset-0 animate-ping rounded-full bg-[var(--accent)]" />
+                    <span className="relative h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+                  </span>
                 ) : null}
                 {isDone ? "✓" : isActive ? "" : index + 1}
               </span>
               <span
                 className={`transition-colors ${
                   isDone || isActive ? "text-[var(--foreground)]" : "text-[var(--muted)]"
-                }`}              >
-                {label}              </span>
+                }`}
+              >
+                {label}
+              </span>
             </div>
           );
         })}
@@ -820,7 +854,8 @@ function ProcessingState({
     </div>
   );
 }
-function InlineMessage({
+
+function InlineMessage({
   children,
   tone,
 }: {
@@ -834,13 +869,17 @@ function ProcessingState({
         ? "border-[rgba(47,111,97,0.14)] text-[var(--foreground)]"
         : "border-[var(--border)] text-[var(--muted)]";
 
-  return (    <div className={`rounded-[18px] border bg-white/92 px-4 py-3 text-sm ${toneClass}`}>
-      {children}    </div>
+  return (
+    <div className={`rounded-[18px] border bg-white/92 px-4 py-3 text-sm ${toneClass}`}>
+      {children}
+    </div>
   );
 }
 
-function ActionMessage({  children,
-  tone,  actionLabel,
+function ActionMessage({
+  children,
+  tone,
+  actionLabel,
   onAction,
 }: {
   children: string;
@@ -856,11 +895,14 @@ function ActionMessage({  children,
   return (
     <div
       className={`flex flex-wrap items-center justify-between gap-3 rounded-[18px] border bg-white/92 px-4 py-3 text-sm ${toneClass}`}
-    >      <span>{children}</span>      <button
+    >
+      <span>{children}</span>
+      <button
         type="button"
         onClick={onAction}
         className="inline-flex min-h-9 items-center rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-      >        {actionLabel}
+      >
+        {actionLabel}
       </button>
     </div>
   );
@@ -878,11 +920,13 @@ function WaveformRow({ active }: { active: boolean }) {
           style={{
             height: `${active ? height : Math.max(10, height - 8)}px`,
           }}
-        />      ))}
+        />
+      ))}
     </div>
   );
 }
-function MicIcon() {
+
+function MicIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-current">
       <path d="M12 15.25a3.75 3.75 0 0 0 3.75-3.75V7a3.75 3.75 0 1 0-7.5 0v4.5A3.75 3.75 0 0 0 12 15.25Zm0 2a5.76 5.76 0 0 1-5.75-5.75.75.75 0 0 0-1.5 0 7.25 7.25 0 0 0 6.5 7.2V21a.75.75 0 0 0 1.5 0v-2.3a7.25 7.25 0 0 0 6.5-7.2.75.75 0 0 0-1.5 0A5.76 5.76 0 0 1 12 17.25Z" />
@@ -891,7 +935,8 @@ function WaveformRow({ active }: { active: boolean }) {
 }
 
 function StopCircleIcon() {
-  return (    <svg
+  return (
+    <svg
       viewBox="0 0 24 24"
       fill="none"
       className="h-4 w-4"
@@ -899,12 +944,59 @@ function StopCircleIcon() {
       strokeWidth="1.8"
     >
       <circle cx="12" cy="12" r="8" />
-      <rect x="9" y="9" width="6" height="6" rx="1.2" fill="currentColor" stroke="none" />    </svg>
-  );}
+      <rect x="9" y="9" width="6" height="6" rx="1.2" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
 
 function TranscriptIcon() {
   return (
     <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className="h-4 w-4 text-[var(--accent)]"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v11A2.5 2.5 0 0 1 16.5 20h-9A2.5 2.5 0 0 1 5 17.5v-11Z" />
+      <path d="M8 9h8" />
+      <path d="M8 12h8" />
+      <path d="M8 15h5" />
+    </svg>
+  );
+}
+
+function GridIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className="h-4 w-4 text-[var(--accent)]"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <rect x="4" y="4" width="6" height="6" rx="1.5" />
+      <rect x="14" y="4" width="6" height="6" rx="1.5" />
+      <rect x="4" y="14" width="6" height="6" rx="1.5" />
+      <rect x="14" y="14" width="6" height="6" rx="1.5" />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className="h-4 w-4"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+      <path d="M20 4v7h-7" />
+    </svg>
+  );
+}
       viewBox="0 0 24 24"
       fill="none"
       className="h-4 w-4 text-[var(--accent)]"
