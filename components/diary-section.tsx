@@ -1589,6 +1589,10 @@ function DiarySettingsModal({
   onMicrophoneToggle: () => void;
 }) {
   const [tab, setTab] = useState<SettingsTab>(initialTab);
+  const [notificationPermission, setNotificationPermission] =
+    useState<NotificationPermission | "unsupported">(() =>
+      typeof Notification === "undefined" ? "unsupported" : Notification.permission,
+    );
   const providerLabel = getProviderLabel(accountInfo?.provider);
   const profileName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
   const microphonePermissionLabel =
@@ -1599,6 +1603,23 @@ function DiarySettingsModal({
         : microphonePermission === "prompt"
           ? "Разрешение браузера: нужно подтверждение"
           : "Разрешение браузера: статус недоступен";
+  const notificationPermissionLabel =
+    notificationPermission === "granted"
+      ? "Разрешение браузера: уведомления разрешены"
+      : notificationPermission === "denied"
+        ? "Разрешение браузера: уведомления запрещены"
+        : notificationPermission === "default"
+          ? "Разрешение браузера: нужно подтверждение"
+          : "Разрешение браузера: статус недоступен";
+
+  const requestNotificationPermission = async () => {
+    if (typeof Notification === "undefined") {
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+  };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1711,6 +1732,59 @@ function DiarySettingsModal({
                     />
                     <span className="max-w-[160px] text-[11px] leading-4 text-[var(--muted)] sm:max-w-[220px] sm:text-xs">
                       {microphonePermissionLabel}
+                    </span>
+                  </div>
+                }
+              />
+              <SettingsRow
+                label="Получать уведомления"
+                control={
+                  <ToggleSwitch
+                    active={profile.notificationsEnabled}
+                    onToggle={() =>
+                      onChange("notificationsEnabled", !profile.notificationsEnabled)
+                    }
+                  />
+                }
+              />
+              <SettingsRow
+                label="Ежедневное напоминание"
+                control={
+                  <ToggleSwitch
+                    active={profile.dailyReminderEnabled}
+                    onToggle={() =>
+                      onChange("dailyReminderEnabled", !profile.dailyReminderEnabled)
+                    }
+                  />
+                }
+              />
+              <SettingsRow
+                label="Время напоминания"
+                control={
+                  <input
+                    type="time"
+                    value={profile.dailyReminderTime}
+                    onChange={(event) =>
+                      onChange("dailyReminderTime", event.target.value || "23:50")
+                    }
+                    disabled={!profile.dailyReminderEnabled}
+                    className="min-h-10 w-[min(48vw,210px)] rounded-full border border-[var(--border)] bg-white px-3.5 text-[13px] text-[var(--foreground)] outline-none disabled:opacity-50 sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
+                  />
+                }
+              />
+              <SettingsRow
+                label="Разрешение уведомлений"
+                control={
+                  <div className="grid justify-items-end gap-2 text-right">
+                    <button
+                      type="button"
+                      onClick={() => void requestNotificationPermission()}
+                      className="min-h-10 rounded-full border border-[var(--border)] bg-white px-3.5 text-[13px] text-[var(--foreground)] outline-none transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:min-h-11 sm:px-4 sm:text-sm"
+                    >
+                      Разрешить в браузере
+                    </button>
+                    <span className="max-w-[160px] text-[11px] leading-4 text-[var(--muted)] sm:max-w-[220px] sm:text-xs">
+                      {notificationPermissionLabel}
                     </span>
                   </div>
                 }
