@@ -534,21 +534,25 @@ function extractSleepReminderSuggestion(content: string | null) {
   }
 
   const timeMatches = [...normalized.matchAll(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/g)];
+  if (timeMatches.length === 0) {
+    return null;
+  }
+
   const preferredMatch =
     timeMatches.find((match) => {
       const hours = Number.parseInt(match[1] ?? "", 10);
       return Number.isFinite(hours) && (hours >= 18 || hours <= 2);
     }) ?? timeMatches[0];
 
-  const hours = preferredMatch
-    ? Number.parseInt(preferredMatch[1] ?? "", 10)
-    : 23;
-  const minutes = preferredMatch
-    ? Number.parseInt(preferredMatch[2] ?? "", 10)
-    : 50;
+  const hours = Number.parseInt(preferredMatch?.[1] ?? "", 10);
+  const minutes = Number.parseInt(preferredMatch?.[2] ?? "", 10);
 
-  const safeHours = Number.isFinite(hours) ? Math.min(23, Math.max(0, hours)) : 23;
-  const safeMinutes = Number.isFinite(minutes) ? Math.min(59, Math.max(0, minutes)) : 50;
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return null;
+  }
+
+  const safeHours = Math.min(23, Math.max(0, hours));
+  const safeMinutes = Math.min(59, Math.max(0, minutes));
 
   return {
     hours: safeHours,
