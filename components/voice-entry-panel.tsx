@@ -7,6 +7,7 @@ import type { DiaryExtractionResult } from "@/lib/ai/contracts";
 
 const MAX_RECORDING_SECONDS = 180;
 const PROCESS_STEP_LABELS = ["Анализируем вашу запись", "Выставляем метрики по вашему запросу"];
+const TRANSCRIPT_ONLY_PROCESS_STEP_LABELS = [PROCESS_STEP_LABELS[0]] as const;
 const PROCESSING_ESTIMATES_STORAGE_KEY = "voice-processing-estimates-v1";
 const PROCESSING_ESTIMATE_SMOOTHING = 0.25;
 const MIN_STAGE_ESTIMATE_MS = 1200;
@@ -50,17 +51,18 @@ function getStatusCopy(args: {
   isTranscribing: boolean;
   isExtracting: boolean;
   seconds: number;
+  stepLabels: readonly string[];
 }) {
   if (args.isRecording) {
     return `Идёт запись ${formatDuration(args.seconds)}`;
   }
 
   if (args.isTranscribing) {
-    return PROCESS_STEP_LABELS[0];
+    return args.stepLabels[0] ?? null;
   }
 
   if (args.isExtracting) {
-    return PROCESS_STEP_LABELS[1];
+    return args.stepLabels[1] ?? null;
   }
 
   return null;
@@ -72,6 +74,7 @@ export function VoiceEntryPanel() {
     metricDefinitions,
     profile,
     selectedDate,
+    updateNotes,
     updateProfile,
   } = useWorkspace();
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -100,6 +103,11 @@ export function VoiceEntryPanel() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [fillMetricsFromVoice, setFillMetricsFromVoice] = useState(true);
+
+  const processingStepLabels = fillMetricsFromVoice
+    ? PROCESS_STEP_LABELS
+    : TRANSCRIPT_ONLY_PROCESS_STEP_LABELS;
 
   const isSupported = useMemo(
     () =>
@@ -136,6 +144,7 @@ export function VoiceEntryPanel() {
     isTranscribing,
     isExtracting,
     seconds: recordingSeconds,
+    stepLabels: processingStepLabels,
   });
   const isProcessing = isTranscribing || isExtracting;
   const updateProcessingEstimate = (
@@ -348,7 +357,14 @@ export function VoiceEntryPanel() {
 
       setTranscript(result.transcript);
       setIsTranscribing(false);
-      await runExtraction(result.transcript, true);
+
+      if (fillMetricsFromVoice) {
+        await runExtraction(result.transcript, true);
+      } else {
+        setExtraction(null);
+        updateNotes(result.transcript);
+        setNotice("Транскрипт добавлен в поле «Как прошел день». Метрики не заполнялись.");
+      }
     } catch (requestError) {
       if (contextVersion !== contextVersionRef.current) {
         return;
@@ -636,6 +652,25 @@ export function VoiceEntryPanel() {
               {statusCopy}
             </span>
           ) : null}
+
+          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white/88 px-3 py-1.5">
+            <span className="text-xs text-[var(--muted)]">Заполнять метрики</span>
+            <button
+              type="button"
+              onClick={() => setFillMetricsFromVoice((current) => !current)}
+              disabled={isRecording || isProcessing}
+              aria-pressed={fillMetricsFromVoice}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                fillMetricsFromVoice ? "bg-[var(--accent)]" : "bg-[rgba(24,33,29,0.18)]"
+              } disabled:cursor-not-allowed disabled:opacity-60`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                  fillMetricsFromVoice ? "translate-x-5" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+          </div>
         </div>
 
         {(isRecording || isProcessing) ? <WaveformRow active /> : null}
@@ -643,7 +678,7 @@ export function VoiceEntryPanel() {
           <ProcessingState
             progress={processingProgress}
             stepIndex={processingStepIndex}
-            totalSteps={PROCESS_STEP_LABELS.length}
+            stepLabels={processingStepLabels}
           />
         ) : null}
       </div>
@@ -685,7 +720,7 @@ export function VoiceEntryPanel() {
                 <button
                   type="button"
                   onClick={() => void runExtraction(transcript, true)}
-                  disabled={isExtracting || transcript.trim().length === 0}
+                  disabled={isExtracting || transcript.trim().length === 0 || !fillMetricsFromVoice}
                   className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <RefreshIcon />
@@ -721,7 +756,12 @@ export function VoiceEntryPanel() {
               </span>
             </div>
 
-            {extraction ? (
+            {!fillMetricsFromVoice ? (
+              <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+                Автозаполнение метрик выключено. Используется только транскрипция в поле
+                «Как прошел день».
+              </p>
+            ) : extraction ? (
               extractionMetricRows.length > 0 ? (
                 <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {extractionMetricRows.map((item) => (
@@ -758,13 +798,14 @@ export function VoiceEntryPanel() {
 function ProcessingState({
   progress,
   stepIndex,
-  totalSteps,
+  stepLabels,
 }: {
   progress: number;
   stepIndex: number;
-  totalSteps: number;
+  stepLabels: readonly string[];
 }) {
   const roundedProgress = Math.round(progress);
+  const totalSteps = stepLabels.length;
 
   return (
     <div className="mt-4 rounded-[18px] border border-[rgba(47,111,97,0.14)] bg-white/88 p-3.5">
@@ -781,7 +822,7 @@ function ProcessingState({
       </div>
 
       <div className="mt-3 grid gap-2">
-        {PROCESS_STEP_LABELS.map((label, index) => {
+        {stepLabels.map((label, index) => {
           const isDone = index < stepIndex;
           const isActive = index === stepIndex;
 
