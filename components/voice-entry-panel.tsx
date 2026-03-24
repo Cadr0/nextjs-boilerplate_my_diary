@@ -101,7 +101,8 @@ export function VoiceEntryPanel() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [metricsEnabled, setMetricsEnabled] = useState(true); // Add toggle state  const isSupported = useMemo(
+  const [metricsEnabled, setMetricsEnabled] = useState(true);
+  const isSupported = useMemo(
     () =>
       typeof window !== "undefined" &&
       typeof MediaRecorder !== "undefined" &&
@@ -882,7 +883,7 @@ function WaveformRow({ active }: { active: boolean }) {
     </div>
   );
 }
-function MicIcon() {
+}
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-current">
       <path d="M12 15.25a3.75 3.75 0 0 0 3.75-3.75V7a3.75 3.75 0 1 0-7.5 0v4.5A3.75 3.75 0 0 0 12 15.25Zm0 2a5.76 5.76 0 0 1-5.75-5.75.75.75 0 0 0-1.5 0 7.25 7.25 0 0 0 6.5 7.2V21a.75.75 0 0 0 1.5 0v-2.3a7.25 7.25 0 0 0 6.5-7.2.75.75 0 0 0-1.5 0A5.76 5.76 0 0 1 12 17.25Z" />
