@@ -119,6 +119,8 @@ type RouterAiDiaryContext = {
   metricDefinitions: MetricDefinition[];
   tasks: TaskItem[];
   model?: string;
+  requestTimestamp?: string;
+  timezone?: string;
 };
 
 type RouterAiRequestOptions = {
@@ -452,7 +454,37 @@ function buildDiaryContextPrompt(context: RouterAiDiaryContext) {
           )
           .join("\n");
 
+  const requestMomentDate = context.requestTimestamp
+    ? new Date(context.requestTimestamp)
+    : new Date();
+  const safeRequestMoment = Number.isFinite(requestMomentDate.getTime())
+    ? requestMomentDate
+    : new Date();
+  const safeTimezone = context.timezone?.trim() || "UTC";
+
+  const localRequestMoment = (() => {
+    try {
+      return new Intl.DateTimeFormat("ru-RU", {
+        timeZone: safeTimezone,
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(safeRequestMoment);
+    } catch {
+      return new Intl.DateTimeFormat("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(safeRequestMoment);
+    }
+  })();
+
   return [
+    `Request time: ${localRequestMoment} (${safeTimezone}), ISO: ${safeRequestMoment.toISOString()}`,
     `Дата: ${context.date}`,
     `Главное за день: ${context.draft.summary || "—"}`,
     `Заметки: ${context.draft.notes || "—"}`,
@@ -476,6 +508,11 @@ function buildRouterAiDiaryChatMessages(
     {
       role: "system" as const,
       content: `Контекст рабочего дня:\n${buildDiaryContextPrompt(context)}`,
+    },
+    {
+      role: "system" as const,
+      content:
+        "Use Request time from context when recommending exact clock time. Never suggest a time that is already in the past for the user's local timezone. If the time has passed, explicitly suggest the next possible slot (usually tomorrow) and say that clearly.",
     },
     ...messages,
   ];

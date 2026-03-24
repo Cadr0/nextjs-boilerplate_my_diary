@@ -17,6 +17,8 @@ type RequestPayload = {
     metricDefinitions?: MetricDefinition[];
     tasks?: TaskItem[];
     model?: string;
+    requestTimestamp?: string;
+    timezone?: string;
   };
 };
 
@@ -44,6 +46,8 @@ export async function POST(request: Request) {
     const metricDefinitions = payload.context?.metricDefinitions ?? [];
     const tasks = payload.context?.tasks ?? [];
     const model = payload.context?.model;
+    const requestTimestamp = payload.context?.requestTimestamp ?? new Date().toISOString();
+    const timezone = payload.context?.timezone ?? "UTC";
     const provider = resolveAiProvider(model);
 
     const providerConfigError =
@@ -69,6 +73,8 @@ export async function POST(request: Request) {
             metricDefinitions,
             tasks,
             model,
+            requestTimestamp,
+            timezone,
           })
         : await streamChatWithRouterAi(messages, {
             date,
@@ -76,6 +82,8 @@ export async function POST(request: Request) {
             metricDefinitions,
             tasks,
             model,
+            requestTimestamp,
+            timezone,
           });
 
     return new Response(stream, {

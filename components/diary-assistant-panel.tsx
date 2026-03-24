@@ -186,6 +186,8 @@ export function DiaryAssistantPanel() {
             metricDefinitions: metricDefinitions.filter((metric) => metric.isActive),
             tasks: selectedTasks,
             model: profile.aiModel,
+            requestTimestamp: new Date().toISOString(),
+            timezone: profile.timezone,
           },
         }),
       });
