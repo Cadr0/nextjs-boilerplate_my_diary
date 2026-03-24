@@ -958,7 +958,9 @@ function TranscriptIcon() {
       stroke="currentColor"
       strokeWidth="1.8"
     >
-      <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v11A2.5 2.5 0 0 1 16.5 20h-9A2.5 2.5 0 0 1 5 17.5v-11Z" />
+      <path
+        d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v11A2.5 2.5 0 0 1 16.5 20h-9A2.5 2.5 0 0 1 5 17.5v-11Z"
+      />
       <path d="M8 9h8" />
       <path d="M8 12h8" />
       <path d="M8 15h5" />
