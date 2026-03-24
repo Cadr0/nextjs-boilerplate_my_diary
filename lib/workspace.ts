@@ -97,6 +97,9 @@ export type WorkspaceProfile = {
   compactMetrics: boolean;
   keepRightRailOpen: boolean;
   microphoneEnabled: boolean;
+  notificationsEnabled: boolean;
+  dailyReminderEnabled: boolean;
+  dailyReminderTime: string;
   chatTone: string;
   aiModel: string;
 };
@@ -340,6 +343,9 @@ export const defaultProfile: WorkspaceProfile = {
   compactMetrics: true,
   keepRightRailOpen: true,
   microphoneEnabled: true,
+  notificationsEnabled: false,
+  dailyReminderEnabled: false,
+  dailyReminderTime: "23:50",
   chatTone: "supportive",
   aiModel: DEFAULT_ROUTERAI_PAID_MODEL,
 };

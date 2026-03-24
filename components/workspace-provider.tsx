@@ -261,6 +261,34 @@ function buildDraftForDate(
   };
 }
 
+function parseTimeToMinutes(value: string) {
+  const match = value.match(/^(\d{2}):(\d{2})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const hours = Number.parseInt(match[1] ?? "", 10);
+  const minutes = Number.parseInt(match[2] ?? "", 10);
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return null;
+  }
+
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+
+  return hours * 60 + minutes;
+}
+
+function formatLocalDayKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function WorkspaceProvider({
   children,
   initialEntries,
@@ -301,6 +329,7 @@ export function WorkspaceProvider({
     ? `${WORKSPACE_STORAGE_KEY}:${accountInfo.userId}`
     : WORKSPACE_STORAGE_KEY;
   const microphoneMigrationKey = `${storageKey}:microphone-enabled-default-v1`;
+  const notificationSentStorageKey = `${storageKey}:daily-notification-last-v1`;
 
   const savedFingerprints = useRef<Record<string, string>>(
     Object.fromEntries(
@@ -354,6 +383,82 @@ export function WorkspaceProvider({
       } satisfies PersistedWorkspaceState),
     );
   }, [workspaceState, isHydrated, storageKey]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    if (
+      !workspaceState.profile.notificationsEnabled ||
+      !workspaceState.profile.dailyReminderEnabled
+    ) {
+      return;
+    }
+
+    if (typeof window === "undefined" || typeof Notification === "undefined") {
+      return;
+    }
+
+    if (Notification.permission !== "granted") {
+      return;
+    }
+
+    const targetMinutes = parseTimeToMinutes(workspaceState.profile.dailyReminderTime);
+
+    if (targetMinutes === null) {
+      return;
+    }
+
+    const maybeSendNotification = () => {
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      if (currentMinutes !== targetMinutes) {
+        return;
+      }
+
+      const dayKey = formatLocalDayKey(now);
+      const sentStamp = `${dayKey}:${workspaceState.profile.dailyReminderTime}`;
+      const lastSentStamp = window.localStorage.getItem(notificationSentStorageKey);
+
+      if (lastSentStamp === sentStamp) {
+        return;
+      }
+
+      const notificationTitle = "Diary AI";
+      const notificationBody =
+        "Пора завершать день: выключайте отвлекающее и начинайте подготовку ко сну.";
+
+      try {
+        const notification = new Notification(notificationTitle, {
+          body: notificationBody,
+          tag: "daily-bedtime-reminder",
+        });
+
+        notification.onclick = () => {
+          window.focus();
+        };
+      } catch {
+        return;
+      }
+
+      window.localStorage.setItem(notificationSentStorageKey, sentStamp);
+    };
+
+    maybeSendNotification();
+    const intervalId = window.setInterval(maybeSendNotification, 30000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [
+    isHydrated,
+    notificationSentStorageKey,
+    workspaceState.profile.dailyReminderEnabled,
+    workspaceState.profile.dailyReminderTime,
+    workspaceState.profile.notificationsEnabled,
+  ]);
 
   useEffect(() => {
     if (!isHydrated) {

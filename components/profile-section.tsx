@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 
 import { LogoutButton } from "@/components/logout-button";
@@ -14,12 +15,25 @@ import {
 
 export function ProfileSection() {
   const { profile, updateProfile, accountEmail, accountInfo } = useWorkspace();
+  const [notificationPermission, setNotificationPermission] =
+    useState<NotificationPermission | "unsupported">(() =>
+      typeof Notification === "undefined" ? "unsupported" : Notification.permission,
+    );
   const providerLabel =
     accountInfo?.provider === "google"
       ? "Google"
       : accountInfo?.provider === "email"
         ? "Email"
         : accountInfo?.provider ?? "unknown";
+
+  const requestNotificationPermission = async () => {
+    if (typeof Notification === "undefined") {
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+  };
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -158,6 +172,62 @@ export function ProfileSection() {
                   </select>
                 </label>
               </div>
+            </div>
+          </section>
+
+          <section className="grid gap-4">
+            <h2 className="text-xl font-semibold text-[var(--foreground)]">Уведомления</h2>
+            <div className="grid gap-3 rounded-[24px] border border-[var(--border)] bg-[rgba(247,250,247,0.84)] p-4">
+              <div className="flex flex-wrap gap-2">
+                <SmallToggle
+                  active={profile.notificationsEnabled}
+                  onClick={() =>
+                    updateProfile("notificationsEnabled", !profile.notificationsEnabled)
+                  }
+                  label="получать уведомления"
+                />
+                <SmallToggle
+                  active={profile.dailyReminderEnabled}
+                  onClick={() =>
+                    updateProfile("dailyReminderEnabled", !profile.dailyReminderEnabled)
+                  }
+                  label="ежедневное напоминание"
+                />
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,220px)_auto] sm:items-end">
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-[var(--foreground)]">
+                    Время напоминания
+                  </span>
+                  <input
+                    type="time"
+                    value={profile.dailyReminderTime}
+                    onChange={(event) =>
+                      updateProfile("dailyReminderTime", event.target.value || "23:50")
+                    }
+                    className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/90 px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => void requestNotificationPermission()}
+                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/90 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  Разрешить уведомления в браузере
+                </button>
+              </div>
+
+              <p className="text-xs leading-6 text-[var(--muted)]">
+                Статус разрешения браузера:{" "}
+                <span className="font-semibold text-[var(--foreground)]">
+                  {notificationPermission === "unsupported"
+                    ? "не поддерживается"
+                    : notificationPermission}
+                </span>
+                . MVP работает, пока вкладка сайта открыта.
+              </p>
             </div>
           </section>
         </div>
