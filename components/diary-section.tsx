@@ -1684,10 +1684,10 @@ function DiarySettingsModal({
           </div>
         </div>
 
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 sm:p-8">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-2.5 sm:p-8">
           {tab === "general" ? (
             <div className="grid min-h-full content-start gap-3 sm:gap-6">
-              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+              <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">
                 Общее
               </h2>
               <SettingsRow
@@ -1696,7 +1696,7 @@ function DiarySettingsModal({
                   <select
                     value={profile.locale}
                     onChange={(event) => onChange("locale", event.target.value)}
-                    className="min-h-10 w-[min(48vw,210px)] rounded-full border border-[var(--border)] bg-white px-3.5 text-[13px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
+                    className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
                   >
                     <option value="ru-RU">Русский</option>
                     <option value="en-US">English</option>
@@ -1709,7 +1709,7 @@ function DiarySettingsModal({
                   <input
                     value={profile.timezone}
                     onChange={(event) => onChange("timezone", event.target.value)}
-                    className="min-h-10 w-[min(48vw,210px)] rounded-full border border-[var(--border)] bg-white px-3.5 text-[13px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
+                    className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
                   />
                 }
               />
@@ -1725,12 +1725,12 @@ function DiarySettingsModal({
               <SettingsRow
                 label="Доступ к микрофону"
                 control={
-                  <div className="grid justify-items-end gap-2 text-right">
+                  <div className="grid w-full gap-1.5 text-left sm:justify-items-end sm:gap-2 sm:text-right">
                     <ToggleSwitch
                       active={profile.microphoneEnabled}
                       onToggle={onMicrophoneToggle}
                     />
-                    <span className="max-w-[160px] text-[11px] leading-4 text-[var(--muted)] sm:max-w-[220px] sm:text-xs">
+                    <span className="w-full text-[10px] leading-3.5 text-[var(--muted)] sm:max-w-[220px] sm:text-xs">
                       {microphonePermissionLabel}
                     </span>
                   </div>
@@ -1750,15 +1750,15 @@ function DiarySettingsModal({
               <SettingsRow
                 label="Разрешение уведомлений"
                 control={
-                  <div className="grid justify-items-end gap-2 text-right">
+                  <div className="grid w-full gap-1.5 text-left sm:justify-items-end sm:gap-2 sm:text-right">
                     <button
                       type="button"
                       onClick={() => void requestNotificationPermission()}
-                      className="min-h-10 rounded-full border border-[var(--border)] bg-white px-3.5 text-[13px] text-[var(--foreground)] outline-none transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:min-h-11 sm:px-4 sm:text-sm"
+                      className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
                     >
                       Разрешить в браузере
                     </button>
-                    <span className="max-w-[160px] text-[11px] leading-4 text-[var(--muted)] sm:max-w-[220px] sm:text-xs">
+                    <span className="w-full text-[10px] leading-3.5 text-[var(--muted)] sm:max-w-[220px] sm:text-xs">
                       {notificationPermissionLabel}
                     </span>
                   </div>
@@ -1769,7 +1769,7 @@ function DiarySettingsModal({
 
           {tab === "profile" ? (
             <div className="grid min-h-full content-start gap-3 sm:gap-6">
-              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+              <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">
                 Профиль
               </h2>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -1804,7 +1804,7 @@ function DiarySettingsModal({
 
           {tab === "assistant" ? (
             <div className="grid min-h-full content-start gap-3 sm:gap-6">
-              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+              <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">
                 Ассистент
               </h2>
               <SettingsRow
@@ -1813,7 +1813,7 @@ function DiarySettingsModal({
                   <select
                     value={profile.aiModel}
                     onChange={(event) => onChange("aiModel", event.target.value)}
-                    className="min-h-10 w-[min(48vw,220px)] rounded-full border border-[var(--border)] bg-white px-3.5 text-[13px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
+                    className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
                   >
                     {aiModelOptions.map((option) => (
                       <option key={option.id} value={option.id}>
@@ -1829,7 +1829,7 @@ function DiarySettingsModal({
                   <select
                     value={profile.chatTone}
                     onChange={(event) => onChange("chatTone", event.target.value)}
-                    className="min-h-10 w-[min(48vw,210px)] rounded-full border border-[var(--border)] bg-white px-3.5 text-[13px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
+                    className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
                   >
                     <option value="supportive">Поддерживающий</option>
                     <option value="direct">Прямой</option>
@@ -1842,7 +1842,7 @@ function DiarySettingsModal({
 
           {tab === "account" ? (
             <div className="grid min-h-full content-start gap-3 sm:gap-6">
-              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+              <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">
                 Учетная запись
               </h2>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -1907,11 +1907,11 @@ function SettingsRow({
   control: ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5 border-b border-[var(--border)] pb-3 sm:items-center sm:gap-4 sm:pb-5">
-      <p className="pt-0.5 text-[0.98rem] leading-5 text-[var(--foreground)] sm:pt-1 sm:text-xl">
+    <div className="grid grid-cols-1 items-start gap-1.5 border-b border-[var(--border)] pb-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4 sm:pb-5">
+      <p className="text-[0.76rem] leading-4 text-[var(--foreground)] sm:pt-1 sm:text-xl sm:leading-7">
         {label}
       </p>
-      <div className="min-w-0 max-w-full justify-self-end">{control}</div>
+      <div className="min-w-0 max-w-full justify-self-stretch sm:justify-self-end">{control}</div>
     </div>
   );
 }
@@ -1927,11 +1927,11 @@ function SettingsField({
 }) {
   return (
     <label className="grid gap-2">
-      <span className="text-sm font-medium text-[var(--foreground)]">{label}</span>
+      <span className="text-[11px] font-medium text-[var(--foreground)] sm:text-sm">{label}</span>
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-11 rounded-[16px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none sm:min-h-12 sm:rounded-[18px]"
+        className="min-h-10 rounded-[14px] border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-12 sm:rounded-[18px] sm:px-4 sm:text-sm"
       />
     </label>
   );
@@ -2114,11 +2114,11 @@ function SettingsReadonlyField({
 }) {
   return (
     <label className="grid gap-2">
-      <span className="text-sm font-medium text-[var(--foreground)]">{label}</span>
+      <span className="text-[11px] font-medium text-[var(--foreground)] sm:text-sm">{label}</span>
       <input
         value={value}
         readOnly
-        className="min-h-11 rounded-[16px] border border-[var(--border)] bg-[rgba(244,247,244,0.92)] px-4 text-sm text-[var(--muted)] outline-none sm:min-h-12 sm:rounded-[18px]"
+        className="min-h-10 rounded-[14px] border border-[var(--border)] bg-[rgba(244,247,244,0.92)] px-3 text-[11px] text-[var(--muted)] outline-none sm:min-h-12 sm:rounded-[18px] sm:px-4 sm:text-sm"
       />
     </label>
   );
@@ -2135,12 +2135,12 @@ function SettingsTextarea({
 }) {
   return (
     <label className="grid gap-2">
-      <span className="text-sm font-medium text-[var(--foreground)]">{label}</span>
+      <span className="text-[11px] font-medium text-[var(--foreground)] sm:text-sm">{label}</span>
       <AutoGrowTextarea
         value={value}
         onChange={onChange}
         minRows={3}
-        className="w-full rounded-[16px] border border-[var(--border)] bg-white px-4 py-3 text-sm leading-6 text-[var(--foreground)] outline-none sm:rounded-[18px]"
+        className="w-full rounded-[14px] border border-[var(--border)] bg-white px-3 py-2.5 text-[11px] leading-5 text-[var(--foreground)] outline-none sm:rounded-[18px] sm:px-4 sm:py-3 sm:text-sm sm:leading-6"
       />
     </label>
   );
