@@ -143,21 +143,6 @@ export function LandingPage({ isAuthenticated, isConfigured }: LandingPageProps)
               понятным действиям.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href={primaryHref}
-                className="rounded-full bg-[linear-gradient(135deg,#1f9a96_0%,#2b73a8_100%)] px-6 py-3.5 text-center text-sm font-semibold !text-white shadow-[0_18px_40px_rgba(33,116,143,0.3)] ring-1 ring-white/30 transition-all duration-300 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_24px_48px_rgba(33,116,143,0.36)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2b73a8]/35"
-              >
-                {primaryLabel}
-              </Link>
-              <Link
-                href={secondaryHref}
-                className="rounded-full border border-slate-200 bg-white/88 px-6 py-3.5 text-center text-sm font-medium text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_12px_24px_rgba(15,23,42,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/25"
-              >
-                {secondaryLabel}
-              </Link>
-            </div>
-
             {!isConfigured ? (
               <div className="mt-6 rounded-[1.4rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
                 Сейчас auth в проекте настроен не полностью. После подключения всех ключей Supabase
@@ -171,26 +156,70 @@ export function LandingPage({ isAuthenticated, isConfigured }: LandingPageProps)
               <div className="flex items-center justify-between">
                 <BrandWordmark />
                 <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
-                  demo
+                  живой макет
                 </span>
               </div>
 
               <div className="mt-4 grid gap-3">
-                <DemoRow
-                  icon={<SectionIcon id="journal" />}
-                  title="Что вы увидите после входа"
-                  text="Экран дня: заметка, метрики, задачи и голосовой ввод в одном месте."
-                />
-                <DemoRow
-                  icon={<SectionIcon id="analysis" />}
-                  title="Как запускается AI"
-                  text="Разбор дня, чат и анализ периода стартуют по кнопке, а не автоматически."
-                />
-                <DemoRow
-                  icon={<SectionIcon id="privacy" />}
-                  title="Контроль и прозрачность"
-                  text="Настройки, уведомления и разрешения явно вынесены в интерфейс."
-                />
+                <article className="rounded-[1.2rem] border border-[var(--line)] bg-white/92 px-3 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+                        <SectionIcon id="voice" />
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">Голосовой ввод</p>
+                        <p className="text-xs text-slate-500">Транскрипт + авто-метрики</p>
+                      </div>
+                    </div>
+                    <span className="rounded-full border border-[var(--line)] bg-white px-2.5 py-1 text-[0.68rem] font-medium text-slate-500">
+                      до 3 минут
+                    </span>
+                  </div>
+
+                  <div className="mt-3 rounded-[1rem] border border-[var(--line)] bg-[rgba(247,249,246,0.94)] px-3 py-2.5">
+                    <p className="text-xs leading-5 text-slate-600">
+                      «Сегодня проснулся рано, настроение 8 из 10, сон 7 часов, тренировка 20 минут.
+                      Вечером хочу лечь до 23:30».
+                    </p>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                      Заполнять метрики: включено
+                    </span>
+                    <span>Текст извлечен</span>
+                  </div>
+                </article>
+
+                <article className="rounded-[1.2rem] border border-[var(--line)] bg-white/92 px-3 py-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-900">Измененные метрики</p>
+                    <span className="text-xs text-slate-500">авто по голосу</span>
+                  </div>
+                  <div className="grid gap-2.5">
+                    <MetricSliderRow label="Энергия" valueLabel="8/10" defaultValue={8} />
+                    <MetricSliderRow label="Настроение" valueLabel="8/10" defaultValue={8} />
+                    <MetricSliderRow label="Сон" valueLabel="7 ч" defaultValue={7} />
+                    <MetricSliderRow label="Тренировка" valueLabel="20 мин" defaultValue={6} />
+                  </div>
+                </article>
+
+                <article className="rounded-[1.2rem] border border-[var(--line)] bg-[linear-gradient(180deg,#f8fbff,#ffffff)] px-3 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+                      <SectionIcon id="analysis" />
+                    </span>
+                    <p className="text-sm font-semibold text-slate-900">Короткий вывод AI</p>
+                  </div>
+                  <div className="mt-2 rounded-[0.9rem] border border-[var(--line)] bg-white/92 px-3 py-2.5">
+                    <p className="text-xs leading-5 text-slate-700">
+                      День выглядит стабильно: энергия и настроение в верхней зоне. Чтобы сохранить
+                      ритм, планируйте отбой до 23:30 и оставьте короткую вечернюю заметку.
+                    </p>
+                  </div>
+                </article>
               </div>
             </div>
           </div>
@@ -287,19 +316,9 @@ export function LandingPage({ isAuthenticated, isConfigured }: LandingPageProps)
               вы сразу попадаете в дневник дня и можете работать в своем темпе.
             </p>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <Link
-                href={primaryHref}
-                className="rounded-full bg-white px-5 py-3 text-center text-sm font-semibold !text-[var(--accent-strong)] shadow-[0_14px_28px_rgba(0,0,0,0.16)] ring-1 ring-white/55 transition-all duration-300 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-[0_18px_32px_rgba(0,0,0,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/75"
-              >
-                {primaryLabel}
-              </Link>
-              <Link
-                href={secondaryHref}
-                className="rounded-full border border-white/45 px-5 py-3 text-center text-sm font-medium !text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/10 hover:shadow-[0_12px_26px_rgba(0,0,0,0.15)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-              >
-                {secondaryLabel}
-              </Link>
+            <div className="mt-6 rounded-[1rem] border border-white/20 bg-white/8 px-4 py-3 text-sm leading-6 text-white/80">
+              Вход и регистрация вынесены в верхнюю панель. Здесь мы оставили только описание, без
+              дублирующих кнопок.
             </div>
           </div>
         </div>
@@ -330,18 +349,31 @@ function BrandWordmark({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function DemoRow({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
+function MetricSliderRow({
+  label,
+  valueLabel,
+  defaultValue,
+}: {
+  label: string;
+  valueLabel: string;
+  defaultValue: number;
+}) {
   return (
-    <div className="rounded-[1.2rem] border border-[var(--line)] bg-white/88 px-3 py-3">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
-          {icon}
+    <div className="rounded-[0.95rem] border border-[var(--line)] bg-[rgba(247,249,246,0.94)] px-2.5 py-2">
+      <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
+        <span className="font-medium text-slate-700">{label}</span>
+        <span className="rounded-full bg-white px-2 py-0.5 font-semibold text-[var(--accent-strong)]">
+          {valueLabel}
         </span>
-        <div>
-          <p className="text-sm font-semibold text-slate-900">{title}</p>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
-        </div>
       </div>
+      <input
+        type="range"
+        min={0}
+        max={10}
+        defaultValue={defaultValue}
+        className="h-2 w-full cursor-pointer accent-[var(--accent)]"
+        aria-label={label}
+      />
     </div>
   );
 }
