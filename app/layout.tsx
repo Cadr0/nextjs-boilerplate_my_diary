@@ -13,12 +13,14 @@ const lora = Lora({
   variable: "--font-lora",
   subsets: ["latin", "cyrillic"],
   weight: ["500", "600", "700"],
+  preload: false,
 });
 
 const ibmPlexMono = IBM_Plex_Mono({
   variable: "--font-ibm-plex-mono",
   subsets: ["latin", "cyrillic"],
   weight: ["400", "500"],
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -48,6 +50,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
+      suppressHydrationWarning
       className={`${manrope.variable} ${lora.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
