@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="122" y1="86" x2="902" y2="914" gradientUnits="userSpaceOnUse">
+    <linearGradient id="bg" x1="164" y1="112" x2="900" y2="914" gradientUnits="userSpaceOnUse">
       <stop stop-color="#2FB0A5"/>
       <stop offset="1" stop-color="#2F6F61"/>
     </linearGradient>
-    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(330 220) rotate(48) scale(280 230)">
-      <stop stop-color="#FFFFFF" stop-opacity="0.22"/>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(318 214) rotate(45) scale(316 256)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.24"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
   </defs>
@@ -14,11 +14,13 @@
   <rect x="72" y="72" width="880" height="880" rx="220" fill="url(#bg)"/>
   <rect x="72" y="72" width="880" height="880" rx="220" fill="url(#glow)"/>
 
-  <rect x="212" y="156" width="600" height="712" rx="126" fill="#FFFFFF"/>
-  <path d="M305 156V868" stroke="#D8EAE4" stroke-width="46"/>
-  <path d="M550 156H720V374L635 330L550 374V156Z" fill="#2B73A8"/>
+  <path d="M350 190H638C709.8 190 768 248.2 768 320V700C768 768.5 712.5 824 644 824H366C296.4 824 240 767.6 240 698V320C240 248.2 278.2 190 350 190Z" fill="#FFFFFF"/>
+  <path d="M360 190V824" stroke="#D8EAE4" stroke-width="44"/>
+  <path d="M598 190H768V380L683 330L598 380V190Z" fill="#2B73A8"/>
 
-  <path d="M436 556L530 358C542 334 574 334 586 358L680 556" stroke="#2F7A6D" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M470 496H646" stroke="#2F7A6D" stroke-width="50" stroke-linecap="round"/>
-  <path d="M732 366V564" stroke="#2F7A6D" stroke-width="50" stroke-linecap="round"/>
+  <path d="M768 434V700C768 768.5 712.5 824 644 824H366C340.8 824 316.6 816.4 296.4 803L768 434Z" fill="#154F6B" fill-opacity="0.11"/>
+
+  <path d="M396 620H464L514 510L574 706L624 580H696" stroke="#2F7A6D" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="386" cy="620" r="24" fill="#2F7A6D"/>
+  <circle cx="706" cy="580" r="24" fill="#2F7A6D"/>
 </svg>
