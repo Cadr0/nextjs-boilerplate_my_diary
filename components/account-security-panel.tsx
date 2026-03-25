@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
+import { clearDiaryClientStorage } from "@/lib/client-storage";
 import { LogoutButton } from "@/components/logout-button";
 import { createClient } from "@/lib/supabase/client";
 
@@ -161,6 +162,7 @@ export function AccountSecurityPanel({
         throw new Error(result.error ?? "Не удалось удалить аккаунт.");
       }
 
+      clearDiaryClientStorage();
       await supabase.auth.signOut();
       router.replace("/login?message=account_deleted");
       router.refresh();

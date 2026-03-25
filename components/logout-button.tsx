@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { clearDiaryClientStorage } from "@/lib/client-storage";
 import { createClient } from "@/lib/supabase/client";
 
 export function LogoutButton({
@@ -21,6 +22,7 @@ export function LogoutButton({
     try {
       const supabase = createClient();
       await supabase.auth.signOut();
+      clearDiaryClientStorage();
       router.replace("/");
       router.refresh();
     } finally {

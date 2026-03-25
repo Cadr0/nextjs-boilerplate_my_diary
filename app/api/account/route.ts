@@ -3,6 +3,14 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+function isMissingRelationError(error: { code?: string; message: string }) {
+  if (error.code === "42P01") {
+    return true;
+  }
+
+  return /relation .* does not exist/i.test(error.message);
+}
+
 export async function DELETE() {
   try {
     const user = await requireUser();
@@ -18,7 +26,7 @@ export async function DELETE() {
     for (const target of cleanupTargets) {
       const { error } = await admin.from(target.table).delete().eq(target.column, user.id);
 
-      if (error) {
+      if (error && !isMissingRelationError(error)) {
         throw new Error(error.message);
       }
     }

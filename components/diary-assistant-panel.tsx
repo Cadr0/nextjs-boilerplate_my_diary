@@ -26,6 +26,7 @@ function createChatMessage(role: ChatMessage["role"], content: string): ChatMess
 
 export function DiaryAssistantPanel() {
   const {
+    accountInfo,
     analysisError,
     analysisState,
     metricDefinitions,
@@ -53,14 +54,24 @@ export function DiaryAssistantPanel() {
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const chatAbortRef = useRef<AbortController | null>(null);
 
+  const chatStorageKey = useMemo(
+    () =>
+      accountInfo?.userId
+        ? `${CHAT_STORAGE_KEY}:${accountInfo.userId}`
+        : CHAT_STORAGE_KEY,
+    [accountInfo?.userId],
+  );
+
   const chatMessages = useMemo(
     () => chatMessagesByDate[selectedDate] ?? [],
     [chatMessagesByDate, selectedDate],
   );
 
   useEffect(() => {
+    setChatMessagesByDate({});
+
     try {
-      const raw = window.localStorage.getItem(CHAT_STORAGE_KEY);
+      const raw = window.localStorage.getItem(chatStorageKey);
 
       if (!raw) {
         return;
@@ -68,13 +79,21 @@ export function DiaryAssistantPanel() {
 
       setChatMessagesByDate(JSON.parse(raw) as Record<string, ChatMessage[]>);
     } catch {
-      window.localStorage.removeItem(CHAT_STORAGE_KEY);
+      window.localStorage.removeItem(chatStorageKey);
     }
-  }, []);
+  }, [chatStorageKey]);
 
   useEffect(() => {
-    window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(chatMessagesByDate));
-  }, [chatMessagesByDate]);
+    window.localStorage.setItem(chatStorageKey, JSON.stringify(chatMessagesByDate));
+  }, [chatMessagesByDate, chatStorageKey]);
+
+  useEffect(() => {
+    if (chatStorageKey === CHAT_STORAGE_KEY) {
+      return;
+    }
+
+    window.localStorage.removeItem(CHAT_STORAGE_KEY);
+  }, [chatStorageKey]);
 
   useEffect(() => {
     if (!isModelMenuOpen) {
