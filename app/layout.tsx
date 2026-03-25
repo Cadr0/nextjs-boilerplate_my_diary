@@ -21,12 +21,16 @@ const metadataBaseUrl = (() => {
 const manrope = Manrope({
   variable: "--font-manrope",
   subsets: ["latin", "cyrillic"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  preload: false,
 });
 
 const lora = Lora({
   variable: "--font-lora",
   subsets: ["latin", "cyrillic"],
   weight: ["500", "600", "700"],
+  display: "swap",
   preload: false,
 });
 
@@ -34,6 +38,7 @@ const ibmPlexMono = IBM_Plex_Mono({
   variable: "--font-ibm-plex-mono",
   subsets: ["latin", "cyrillic"],
   weight: ["400", "500"],
+  display: "swap",
   preload: false,
 });
 
@@ -46,7 +51,6 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/icons/brand-mark.svg", sizes: "any", type: "image/svg+xml" },
       { url: "/favicon.ico", sizes: "32x32", type: "image/x-icon" },
       { url: "/icon.png", sizes: "64x64", type: "image/png" },
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
