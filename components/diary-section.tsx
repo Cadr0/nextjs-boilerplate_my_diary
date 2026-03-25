@@ -561,9 +561,10 @@ export function DiarySection() {
             <div className="flex justify-end">
               <Link
                 href="/analytics"
-                className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white px-3 text-[11px] font-medium leading-none text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:px-4 sm:text-xs"
+                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                aria-label="Открыть период и тренды"
               >
-                Период и тренды
+                <AiAnalysisIcon />
               </Link>
             </div>
           </div>
@@ -2340,6 +2341,18 @@ function MenuIcon() {
       <path d="M4 7h16" />
       <path d="M4 12h16" />
       <path d="M4 17h16" />
+    </svg>
+  );
+}
+
+function AiAnalysisIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M5 18h14" />
+      <path d="M8 18v-4" />
+      <path d="M12 18v-6" />
+      <path d="M16 18v-8" />
+      <path d="m15.5 5 .9 2.2 2.1.9-2.1.9-.9 2.2-.9-2.2-2.1-.9 2.1-.9.9-2.2Z" />
     </svg>
   );
 }
