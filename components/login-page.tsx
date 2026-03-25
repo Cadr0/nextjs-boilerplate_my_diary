@@ -245,12 +245,13 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
         return;
       }
 
+      const email = formState.email.trim().toLowerCase();
       const fullName = formState.fullName.trim();
       const { data, error: authError } = await supabase.auth.signUp({
-        email: formState.email.trim(),
+        email,
         password: formState.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
           data: fullName
             ? {
                 full_name: fullName,
@@ -269,10 +270,18 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
         return;
       }
 
+      const isAlreadyRegistered =
+        Array.isArray(data.user?.identities) && data.user.identities.length === 0;
+
+      if (isAlreadyRegistered) {
+        setError("Пользователь с таким email уже существует. Войдите или восстановите пароль.");
+        return;
+      }
+
       setStatus("Аккаунт создан. Если включено подтверждение email, открой письмо и затем войди.");
       setFormState({
         ...defaultFormState,
-        email: formState.email.trim(),
+        email,
       });
     } catch (authError) {
       setError(getFriendlyAuthError(authError));
