@@ -46,6 +46,7 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
+      { url: "/icons/brand-mark.svg", sizes: "any", type: "image/svg+xml" },
       { url: "/favicon.ico", sizes: "32x32", type: "image/x-icon" },
       { url: "/icon.png", sizes: "64x64", type: "image/png" },
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },

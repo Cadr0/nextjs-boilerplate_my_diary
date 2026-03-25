@@ -313,10 +313,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
       <header className="mx-auto w-full max-w-[28rem]">
         <div className="flex items-center justify-between gap-4 rounded-full border border-white/70 bg-white/62 px-4 py-3 shadow-[0_18px_40px_rgba(24,33,29,0.08)] backdrop-blur">
           <Link href="/" className="flex items-center gap-3">
-            <BrandGlyph
-              className="h-10 w-10 rounded-2xl shadow-[0_12px_28px_rgba(32,77,67,0.24)]"
-              iconClassName="h-[18px] w-[18px]"
-            />
+            <BrandGlyph className="h-10 w-10 rounded-2xl shadow-[0_12px_28px_rgba(32,77,67,0.24)]" />
             <div>
               <p className="text-sm font-semibold text-slate-900">Diary AI</p>
               <p className="text-xs text-slate-500">вход</p>

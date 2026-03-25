@@ -405,7 +405,7 @@ export function DiarySection() {
           className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
           aria-label="Добавить метрику"
         >
-          <BrandGlyph className="h-7 w-7 rounded-xl" iconClassName="h-3.5 w-3.5" />
+          <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_8px_18px_rgba(32,77,67,0.24)]" />
         </button>
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">Diary AI</p>
