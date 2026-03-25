@@ -1616,7 +1616,9 @@ function DiarySettingsModal({
           ? "Разрешение браузера: нужно подтверждение"
           : "Разрешение браузера: статус недоступен";
 
-  const requestNotificationPermission = async () => {
+  const requestNotificationPermission = async (): Promise<
+    NotificationPermission | "unsupported"
+  > => {
     if (typeof Notification === "undefined") {
       return "unsupported" as const;
     }
@@ -1643,7 +1645,7 @@ function DiarySettingsModal({
       return;
     }
 
-    let permission = Notification.permission;
+    let permission: NotificationPermission | "unsupported" = Notification.permission;
 
     if (permission === "default") {
       permission = await requestNotificationPermission();
