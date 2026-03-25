@@ -109,13 +109,13 @@ export function LandingPage({ isAuthenticated, isConfigured }: LandingPageProps)
             <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center">
               <Link
                 href={secondaryHref}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-center text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="min-w-[6.8rem] rounded-full border border-slate-200 bg-white px-4 py-2.5 text-center text-sm font-medium text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-[0_10px_22px_rgba(15,23,42,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/25"
               >
                 {secondaryLabel}
               </Link>
               <Link
                 href={primaryHref}
-                className="rounded-full bg-[var(--accent-strong)] px-4 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-[var(--accent)]"
+                className="min-w-[10.8rem] rounded-full bg-[linear-gradient(135deg,#1f9a96_0%,#2b73a8_100%)] px-5 py-2.5 text-center text-[0.96rem] font-semibold tracking-[-0.01em] !text-white shadow-[0_14px_30px_rgba(33,116,143,0.3)] ring-1 ring-white/30 transition-all duration-300 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_20px_38px_rgba(33,116,143,0.36)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2b73a8]/35"
               >
                 {primaryLabel}
               </Link>
@@ -146,13 +146,13 @@ export function LandingPage({ isAuthenticated, isConfigured }: LandingPageProps)
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 href={primaryHref}
-                className="rounded-full bg-[var(--accent-strong)] px-6 py-3.5 text-center text-sm font-semibold text-white shadow-[0_16px_36px_rgba(32,77,67,0.2)] transition hover:bg-[var(--accent)]"
+                className="rounded-full bg-[linear-gradient(135deg,#1f9a96_0%,#2b73a8_100%)] px-6 py-3.5 text-center text-sm font-semibold !text-white shadow-[0_18px_40px_rgba(33,116,143,0.3)] ring-1 ring-white/30 transition-all duration-300 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_24px_48px_rgba(33,116,143,0.36)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2b73a8]/35"
               >
                 {primaryLabel}
               </Link>
               <Link
                 href={secondaryHref}
-                className="rounded-full border border-slate-200 bg-white/88 px-6 py-3.5 text-center text-sm font-medium text-slate-700 transition hover:bg-white"
+                className="rounded-full border border-slate-200 bg-white/88 px-6 py-3.5 text-center text-sm font-medium text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_12px_24px_rgba(15,23,42,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/25"
               >
                 {secondaryLabel}
               </Link>
@@ -290,13 +290,13 @@ export function LandingPage({ isAuthenticated, isConfigured }: LandingPageProps)
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <Link
                 href={primaryHref}
-                className="rounded-full bg-white px-5 py-3 text-center text-sm font-semibold text-[var(--accent-strong)] transition hover:opacity-92"
+                className="rounded-full bg-white px-5 py-3 text-center text-sm font-semibold !text-[var(--accent-strong)] shadow-[0_14px_28px_rgba(0,0,0,0.16)] ring-1 ring-white/55 transition-all duration-300 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-[0_18px_32px_rgba(0,0,0,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/75"
               >
                 {primaryLabel}
               </Link>
               <Link
                 href={secondaryHref}
-                className="rounded-full border border-white/45 px-5 py-3 text-center text-sm font-medium text-white transition hover:bg-white/10"
+                className="rounded-full border border-white/45 px-5 py-3 text-center text-sm font-medium !text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/10 hover:shadow-[0_12px_26px_rgba(0,0,0,0.15)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
               >
                 {secondaryLabel}
               </Link>
@@ -412,4 +412,3 @@ function CheckIcon() {
     </svg>
   );
 }
-
