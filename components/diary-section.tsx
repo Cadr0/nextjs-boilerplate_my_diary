@@ -1593,6 +1593,10 @@ function DiarySettingsModal({
     useState<NotificationPermission | "unsupported">(() =>
       typeof Notification === "undefined" ? "unsupported" : Notification.permission,
     );
+  const [notificationTestStatus, setNotificationTestStatus] = useState<{
+    tone: "success" | "error";
+    text: string;
+  } | null>(null);
   const providerLabel = getProviderLabel(accountInfo?.provider);
   const profileName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
   const microphonePermissionLabel =
@@ -1614,11 +1618,60 @@ function DiarySettingsModal({
 
   const requestNotificationPermission = async () => {
     if (typeof Notification === "undefined") {
-      return;
+      return "unsupported" as const;
     }
 
     const permission = await Notification.requestPermission();
     setNotificationPermission(permission);
+    return permission;
+  };
+
+  const sendTestNotification = async () => {
+    if (typeof Notification === "undefined") {
+      setNotificationTestStatus({
+        tone: "error",
+        text: "Браузер не поддерживает системные уведомления.",
+      });
+      return;
+    }
+
+    if (!profile.notificationsEnabled) {
+      setNotificationTestStatus({
+        tone: "error",
+        text: "Сначала включите переключатель «Получать уведомления».",
+      });
+      return;
+    }
+
+    let permission = Notification.permission;
+
+    if (permission === "default") {
+      permission = await requestNotificationPermission();
+    }
+
+    if (permission !== "granted") {
+      setNotificationTestStatus({
+        tone: "error",
+        text: "Разрешите уведомления в браузере и повторите тест.",
+      });
+      return;
+    }
+
+    try {
+      new Notification("Diary AI", {
+        body: "Тестовое уведомление: система работает корректно.",
+        tag: `diary-notification-test-${Date.now()}`,
+      });
+      setNotificationTestStatus({
+        tone: "success",
+        text: "Тест отправлен. Если карточка появилась, уведомления работают.",
+      });
+    } catch {
+      setNotificationTestStatus({
+        tone: "error",
+        text: "Не удалось показать уведомление. Проверьте настройки браузера/ОС.",
+      });
+    }
   };
 
   useEffect(() => {
@@ -1751,16 +1804,36 @@ function DiarySettingsModal({
                 label="Разрешение уведомлений"
                 control={
                   <div className="grid w-full gap-1.5 text-left sm:justify-items-end sm:gap-2 sm:text-right">
-                    <button
-                      type="button"
-                      onClick={() => void requestNotificationPermission()}
-                      className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
-                    >
-                      Разрешить в браузере
-                    </button>
+                    <div className="grid w-full gap-1.5 sm:w-auto sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => void requestNotificationPermission()}
+                        className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:min-h-11 sm:px-4 sm:text-sm"
+                      >
+                        Разрешить в браузере
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void sendTestNotification()}
+                        className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:min-h-11 sm:px-4 sm:text-sm"
+                      >
+                        Тест уведомления
+                      </button>
+                    </div>
                     <span className="w-full text-[10px] leading-3.5 text-[var(--muted)] sm:max-w-[220px] sm:text-xs">
                       {notificationPermissionLabel}
                     </span>
+                    {notificationTestStatus ? (
+                      <span
+                        className={`w-full text-[10px] leading-3.5 sm:max-w-[220px] sm:text-xs ${
+                          notificationTestStatus.tone === "success"
+                            ? "text-[var(--accent)]"
+                            : "text-[rgb(136,47,63)]"
+                        }`}
+                      >
+                        {notificationTestStatus.text}
+                      </span>
+                    ) : null}
                   </div>
                 }
               />
