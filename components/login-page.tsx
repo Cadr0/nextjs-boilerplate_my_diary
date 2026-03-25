@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 
+import { BrandGlyph } from "@/components/brand-glyph";
 import { createClient } from "@/lib/supabase/client";
 
 type AuthMode = "login" | "register";
@@ -312,9 +313,10 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
       <header className="mx-auto w-full max-w-[28rem]">
         <div className="flex items-center justify-between gap-4 rounded-full border border-white/70 bg-white/62 px-4 py-3 shadow-[0_18px_40px_rgba(24,33,29,0.08)] backdrop-blur">
           <Link href="/" className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[color:var(--accent-strong)] text-sm font-semibold text-white shadow-[0_12px_28px_rgba(32,77,67,0.24)]">
-              DA
-            </span>
+            <BrandGlyph
+              className="h-10 w-10 rounded-2xl shadow-[0_12px_28px_rgba(32,77,67,0.24)]"
+              iconClassName="h-[18px] w-[18px]"
+            />
             <div>
               <p className="text-sm font-semibold text-slate-900">Diary AI</p>
               <p className="text-xs text-slate-500">вход</p>

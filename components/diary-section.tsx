@@ -25,6 +25,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { DiaryAssistantPanel } from "@/components/diary-assistant-panel";
 import { AccountSecurityPanel } from "@/components/account-security-panel";
+import { BrandGlyph } from "@/components/brand-glyph";
 import { InstallAppButton } from "@/components/install-app-button";
 import { LogoutButton } from "@/components/logout-button";
 import { VoiceEntryPanel } from "@/components/voice-entry-panel";
@@ -404,7 +405,7 @@ export function DiarySection() {
           className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
           aria-label="Добавить метрику"
         >
-          <PlusIcon />
+          <BrandGlyph className="h-7 w-7 rounded-xl" iconClassName="h-3.5 w-3.5" />
         </button>
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">Diary AI</p>
@@ -2322,15 +2323,6 @@ function ChevronDownIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
       <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
     </svg>
   );
 }
