@@ -11,6 +11,20 @@ type AccountSecurityPanelProps = {
   provider: string | null;
 };
 
+function getAuthRedirectBaseUrl() {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+
+  if (configured) {
+    return configured.replace(/\/+$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+
+  return "";
+}
+
 function getFriendlyAuthError(error: unknown) {
   if (!(error instanceof Error)) {
     return "Не удалось выполнить действие с учетной записью.";
@@ -65,8 +79,9 @@ export function AccountSecurityPanel({
     setStatus(null);
 
     try {
+      const redirectBase = getAuthRedirectBaseUrl();
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password?next=${encodeURIComponent("/diary")}`,
+        redirectTo: `${redirectBase}/reset-password?next=${encodeURIComponent("/diary")}`,
       });
 
       if (resetError) {
