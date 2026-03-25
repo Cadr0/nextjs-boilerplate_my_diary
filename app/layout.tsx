@@ -4,6 +4,20 @@ import { IBM_Plex_Mono, Lora, Manrope } from "next/font/google";
 import { PwaRegister } from "@/components/pwa-register";
 import "./globals.css";
 
+const metadataBaseUrl = (() => {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+
+  if (!appUrl) {
+    return undefined;
+  }
+
+  try {
+    return new URL(appUrl);
+  } catch {
+    return undefined;
+  }
+})();
+
 const manrope = Manrope({
   variable: "--font-manrope",
   subsets: ["latin", "cyrillic"],
@@ -24,6 +38,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: metadataBaseUrl,
   applicationName: "Diary AI",
   title: {
     default: "Diary AI",

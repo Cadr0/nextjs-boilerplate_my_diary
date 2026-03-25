@@ -50,6 +50,20 @@ function getSafeNext(next: string | null) {
   return next;
 }
 
+function getAuthRedirectBaseUrl() {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+
+  if (configured) {
+    return configured.replace(/\/+$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+
+  return "";
+}
+
 function getFriendlyAuthError(error: unknown) {
   if (!(error instanceof Error)) {
     return "Не удалось выполнить действие с аккаунтом.";
@@ -160,7 +174,8 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
 
     try {
       const supabase = createClient();
-      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+      const redirectBase = getAuthRedirectBaseUrl();
+      const redirectTo = `${redirectBase}/auth/callback?next=${encodeURIComponent(next)}`;
 
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -195,8 +210,9 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
 
     try {
       const supabase = createClient();
+      const redirectBase = getAuthRedirectBaseUrl();
       const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password?next=${encodeURIComponent(next)}`,
+        redirectTo: `${redirectBase}/reset-password?next=${encodeURIComponent(next)}`,
       });
 
       if (authError) {
@@ -247,11 +263,12 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
 
       const email = formState.email.trim().toLowerCase();
       const fullName = formState.fullName.trim();
+      const redirectBase = getAuthRedirectBaseUrl();
       const { data, error: authError } = await supabase.auth.signUp({
         email,
         password: formState.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+          emailRedirectTo: `${redirectBase}/auth/callback?next=${encodeURIComponent(next)}`,
           data: fullName
             ? {
                 full_name: fullName,
