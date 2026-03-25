@@ -520,15 +520,17 @@ export function DiarySection() {
         </aside>
 
         <div className="grid gap-4">
-          <div className="surface-card sticky top-3 z-20 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 rounded-[24px] px-4 py-3 xl:hidden">
-            <button
-              type="button"
-              onClick={() => setIsMobileSidebarOpen(true)}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
-              aria-label="Открыть боковую панель"
-            >
-              <MenuIcon />
-            </button>
+          <div className="surface-card sticky top-3 z-20 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-[24px] px-4 py-3 xl:hidden">
+            <div className="flex justify-start">
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(true)}
+                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
+                aria-label="Открыть боковую панель"
+              >
+                <MenuIcon />
+              </button>
+            </div>
 
             <div className="flex min-w-0 items-center justify-center gap-3">
               <button
@@ -556,7 +558,14 @@ export function DiarySection() {
               </button>
             </div>
 
-            <div aria-hidden="true" className="h-11 w-11" />
+            <div className="flex justify-end">
+              <Link
+                href="/analytics"
+                className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white px-3 text-[11px] font-medium leading-none text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:px-4 sm:text-xs"
+              >
+                Период и тренды
+              </Link>
+            </div>
           </div>
 
           <div className="surface-card rounded-[34px] p-5 sm:p-6">
@@ -594,7 +603,7 @@ export function DiarySection() {
                 </div>
                 <Link
                   href="/analytics"
-                  className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/94 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  className="hidden min-h-11 items-center rounded-full border border-[var(--border)] bg-white/94 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] xl:inline-flex"
                 >
                   Период и тренды
                 </Link>
