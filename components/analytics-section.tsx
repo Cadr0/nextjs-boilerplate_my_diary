@@ -199,6 +199,26 @@ export function AnalyticsSection() {
 
   return (
     <div className="grid gap-4">
+      <div className="surface-card sticky top-3 z-20 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 rounded-[24px] px-4 py-3 xl:hidden">
+        <Link
+          href="/diary"
+          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
+          aria-label="Вернуться в дневник"
+        >
+          <ChevronLeftIcon />
+        </Link>
+        <p className="truncate text-center text-sm font-semibold text-[var(--foreground)]">
+          Аналитика периода
+        </p>
+        <Link
+          href="/diary"
+          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
+          aria-label="Открыть дневник"
+        >
+          <DiaryPanelIcon />
+        </Link>
+      </div>
+
       <SectionCard className="rounded-[32px] p-5 sm:p-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <SectionHeader
@@ -210,7 +230,7 @@ export function AnalyticsSection() {
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/diary"
-              className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/92 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              className="hidden min-h-11 items-center rounded-full border border-[var(--border)] bg-white/92 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] xl:inline-flex"
             >
               Вернуться в дневник
             </Link>
@@ -449,6 +469,24 @@ export function AnalyticsSection() {
         </SectionCard>
       </div>
     </div>
+  );
+}
+
+function ChevronLeftIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+      <path d="m15 6-6 6 6 6" />
+    </svg>
+  );
+}
+
+function DiaryPanelIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <rect x="4" y="5" width="16" height="14" rx="2.2" />
+      <path d="M8 9h8" />
+      <path d="M8 13h8" />
+    </svg>
   );
 }
 
