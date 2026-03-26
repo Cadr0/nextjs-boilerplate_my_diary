@@ -306,7 +306,6 @@ export function DayEntryComposer() {
   const [proposedMetrics, setProposedMetrics] = useState<ProposedMetric[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [isVoiceSupported, setIsVoiceSupported] = useState(true);
 
   const activeMetricPayload = useMemo(
     () =>
@@ -387,14 +386,6 @@ export function DayEntryComposer() {
       document.removeEventListener("mousedown", handlePointerDown);
     };
   }, [isMenuOpen]);
-
-  useEffect(() => {
-    const canUseMediaDevices =
-      typeof navigator !== "undefined" &&
-      Boolean(navigator.mediaDevices?.getUserMedia);
-    const canUseRecorder = typeof MediaRecorder !== "undefined";
-    setIsVoiceSupported(canUseMediaDevices && canUseRecorder);
-  }, []);
 
   useEffect(() => {
     if (!activeStage) {
@@ -696,12 +687,16 @@ export function DayEntryComposer() {
   };
 
   const startRecording = async () => {
-    if (!isVoiceSupported || isRecording || isProcessing || isStartingRef.current) {
+    if (isRecording || isProcessing || isStartingRef.current) {
       return;
     }
 
-    if (typeof MediaRecorder === "undefined") {
-      setError("В этом браузере не поддерживается запись через MediaRecorder.");
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === "undefined"
+    ) {
+      setError("В этом браузере не поддерживается голосовой ввод.");
       return;
     }
 
@@ -894,12 +889,12 @@ export function DayEntryComposer() {
               ) : null}
             </div>
 
-            <button
-              type="button"
-              onClick={isRecording ? stopRecording : startRecording}
-              disabled={!isVoiceSupported || isProcessing}
-              aria-label={isRecording ? "Остановить запись" : "Голосовой ввод"}
-              title={isRecording ? "Остановить запись" : "Голосовой ввод"}
+              <button
+                type="button"
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isProcessing}
+                aria-label={isRecording ? "Остановить запись" : "Голосовой ввод"}
+                title={isRecording ? "Остановить запись" : "Голосовой ввод"}
               className={`inline-flex h-9 min-w-9 items-center justify-center rounded-full border text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:min-w-[44px] sm:justify-start sm:gap-2 sm:px-4 ${
                 isRecording
                   ? "border-[rgb(145,41,58)] bg-[rgb(145,41,58)] text-white shadow-[0_14px_24px_rgba(145,41,58,0.22)]"

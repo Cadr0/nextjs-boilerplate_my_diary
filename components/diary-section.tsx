@@ -301,7 +301,7 @@ export function DiarySection() {
   };
 
   useEffect(() => {
-    if (!isSettingsOpen && !isUserMenuOpen && !metricModal && !isMobileSidebarOpen) {
+    if (!isSettingsOpen && !metricModal && !isMobileSidebarOpen) {
       return;
     }
 
@@ -311,7 +311,7 @@ export function DiarySection() {
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [isMobileSidebarOpen, isSettingsOpen, isUserMenuOpen, metricModal]);
+  }, [isMobileSidebarOpen, isSettingsOpen, metricModal]);
 
   useEffect(() => {
     if (
