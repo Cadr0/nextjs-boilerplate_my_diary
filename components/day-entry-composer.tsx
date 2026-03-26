@@ -800,7 +800,7 @@ export function DayEntryComposer() {
   return (
     <section className="mt-3 grid gap-2 sm:mt-4 sm:gap-3">
       <div className="overflow-hidden rounded-[22px] border border-[var(--border)] bg-white/92 shadow-[0_12px_28px_rgba(24,33,29,0.06)] sm:rounded-[28px]">
-        <div className="px-2 pb-2 pt-3 sm:px-5 sm:pt-4">
+        <div className="px-1.5 pb-1.5 pt-2.5 sm:px-5 sm:pb-2 sm:pt-4">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-base font-medium text-[var(--foreground)] sm:text-[1.05rem]">Как прошел день?</span>
             {recordingStatus ? (
@@ -815,12 +815,12 @@ export function DayEntryComposer() {
             onChange={(event) => updateNotes(event.target.value)}
             placeholder="Что сегодня произошло, как ты себя чувствовал и что было важным?"
             rows={6}
-            className="w-full resize-y rounded-[16px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:rounded-[18px] sm:px-4 sm:text-[15px]"
+            className="w-full resize-y rounded-[14px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:rounded-[18px] sm:px-4 sm:text-[15px]"
           />
         </div>
 
-        <div className="border-t border-[var(--border)] px-1.5 py-2 sm:px-4 sm:py-2.5">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+        <div className="border-t border-[var(--border)] px-1 py-1.5 sm:px-4 sm:py-2.5">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5">
             <div ref={menuRef} className="relative">
               <button
                 type="button"
@@ -910,8 +910,9 @@ export function DayEntryComposer() {
               onClick={() => void handleBuildFromText()}
               disabled={isProcessing || isRecording}
               title="Построить метрики из текста"
-              className="inline-flex h-9 items-center rounded-full border border-[var(--accent)] bg-[var(--accent)] px-3 text-xs font-medium text-white shadow-[0_14px_24px_rgba(47,111,97,0.2)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:px-4 sm:text-sm"
+              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[var(--accent)] bg-[var(--accent)] px-3 text-xs font-medium text-white shadow-[0_14px_24px_rgba(47,111,97,0.2)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:px-4 sm:text-sm"
             >
+              <MetricsIcon />
               <span className="sm:hidden">Метрики</span>
               <span className="hidden sm:inline">Построить метрики из текста</span>
             </button>
@@ -1018,6 +1019,20 @@ export function DayEntryComposer() {
           </div>
         ) : null}
       </div>
+
+      {isRecording ? (
+        <div className="fixed inset-x-0 bottom-4 z-[70] flex justify-center px-4 sm:hidden">
+          <button
+            type="button"
+            onClick={stopRecording}
+            className="inline-flex min-h-12 items-center gap-2 rounded-full border border-[rgb(145,41,58)] bg-[rgb(145,41,58)] px-6 text-sm font-semibold text-white shadow-[0_20px_34px_rgba(145,41,58,0.28)]"
+            aria-label="Остановить запись"
+          >
+            <StopCircleIcon />
+            Остановить запись
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -1173,6 +1188,17 @@ function MicIcon() {
       <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0" />
       <path d="M12 17v3.5" />
       <path d="M8.5 20.5h7" />
+    </svg>
+  );
+}
+
+function MetricsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+      <path d="M5 18h14" />
+      <path d="M8 18v-5" />
+      <path d="M12 18v-8" />
+      <path d="M16 18v-3" />
     </svg>
   );
 }

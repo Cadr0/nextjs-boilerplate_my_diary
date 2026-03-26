@@ -43,7 +43,6 @@ import {
   formatHumanDate,
   getMetricDefaultValue,
   getMetricUnitOptions,
-  getTaskCompletionRatio,
   getTodayIsoDate,
   metricAccentOptions,
   metricTypeOptions,
@@ -237,7 +236,6 @@ export function DiarySection() {
     saveState,
     selectedDate,
     selectedDraft,
-    selectedTasks,
     serverEntries,
     setSelectedDate,
     updateMetricValue,
@@ -272,7 +270,6 @@ export function DiarySection() {
     }),
   );
 
-  const taskCompletion = getTaskCompletionRatio(selectedTasks);
   const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
   const saveStatusTitle =
     saveState === "error"
@@ -561,7 +558,7 @@ export function DiarySection() {
             </div>
           </div>
 
-          <div className="surface-card rounded-[34px] p-5 sm:p-6">
+          <div className="surface-card rounded-[28px] p-3 sm:rounded-[34px] sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-3">
@@ -611,14 +608,14 @@ export function DiarySection() {
               </div>
             </div>
 
-            <div className="mt-5 rounded-[28px] border border-[var(--border)] bg-white/88 p-2 sm:p-5">
-              <label className="grid gap-2">
-                <span className="text-sm font-medium text-[var(--foreground)]">Главное за день</span>
+            <div className="mt-4 rounded-[24px] border border-[var(--border)] bg-white/88 p-2 sm:mt-5 sm:rounded-[28px] sm:p-5">
+              <label className="grid gap-2.5">
+                <span className="text-base leading-6 font-medium text-[var(--foreground)]">Главное за день</span>
                 <input
                   value={selectedDraft.summary}
                   onChange={(event) => updateSummary(event.target.value)}
                   placeholder="Короткий заголовок дня одним предложением"
-                  className="min-h-12 rounded-[20px] border border-[var(--border)] bg-white/95 px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  className="min-h-11 rounded-[16px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-2.5 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:min-h-12 sm:rounded-[20px] sm:px-4"
                 />
               </label>
 
@@ -685,9 +682,6 @@ export function DiarySection() {
             <div className="mt-5 flex flex-wrap gap-3 text-sm text-[var(--muted)]">
               <span className="rounded-full border border-[var(--border)] bg-white/80 px-3 py-2">
                 {visibleMetricDefinitions.length} метрик на день
-              </span>
-              <span className="rounded-full border border-[var(--border)] bg-white/80 px-3 py-2">
-                {taskCompletion}% задач закрыто
               </span>
             </div>
           </div>
