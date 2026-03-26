@@ -798,11 +798,11 @@ export function DayEntryComposer() {
   };
 
   return (
-    <section className="mt-4 grid gap-3">
-      <div className="overflow-hidden rounded-[28px] border border-[var(--border)] bg-white/92 shadow-[0_18px_34px_rgba(24,33,29,0.06)]">
-        <div className="px-4 pb-2 pt-4 sm:px-5">
+    <section className="mt-3 grid gap-2 sm:mt-4 sm:gap-3">
+      <div className="overflow-hidden rounded-[22px] border border-[var(--border)] bg-white/92 shadow-[0_12px_28px_rgba(24,33,29,0.06)] sm:rounded-[28px]">
+        <div className="px-2 pb-2 pt-3 sm:px-5 sm:pt-4">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-[1.05rem] font-medium text-[var(--foreground)]">Как прошел день?</span>
+            <span className="text-base font-medium text-[var(--foreground)] sm:text-[1.05rem]">Как прошел день?</span>
             {recordingStatus ? (
               <span className="rounded-full border border-[rgba(47,111,97,0.16)] bg-[rgba(247,249,246,0.95)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
                 {recordingStatus}
@@ -814,24 +814,24 @@ export function DayEntryComposer() {
             value={selectedDraft.notes}
             onChange={(event) => updateNotes(event.target.value)}
             placeholder="Что сегодня произошло, как ты себя чувствовал и что было важным?"
-            rows={6}
-            className="w-full resize-y rounded-[18px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-4 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:text-[15px]"
+            rows={8}
+            className="min-h-[46vh] w-full resize-y rounded-[16px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:min-h-[220px] sm:rounded-[18px] sm:px-4 sm:text-[15px]"
           />
         </div>
 
-        <div className="border-t border-[var(--border)] px-3 py-2.5 sm:px-4">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="border-t border-[var(--border)] px-1.5 py-2 sm:px-4 sm:py-2.5">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             <div ref={menuRef} className="relative">
               <button
                 type="button"
                 onClick={() => setIsMenuOpen((current) => !current)}
                 disabled={isProcessing || isRecording}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:w-11"
                 aria-label="Открыть меню загрузки фото"
                 aria-expanded={isMenuOpen}
                 aria-haspopup="menu"
               >
-                <AttachIcon />
+                <PlusIcon />
               </button>
 
               {isMenuOpen ? (
@@ -890,15 +890,34 @@ export function DayEntryComposer() {
 
             <button
               type="button"
-              onClick={() => void handleBuildFromText()}
-              disabled={isProcessing || isRecording}
-              className="inline-flex min-h-10 items-center rounded-full border border-[var(--border)] bg-white px-3.5 text-xs font-medium text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.24)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:text-sm"
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={!isVoiceSupported || isProcessing}
+              aria-label={isRecording ? "Остановить запись" : "Голосовой ввод"}
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:w-auto sm:justify-start sm:gap-2 sm:px-4 ${
+                isRecording
+                  ? "bg-[rgb(145,41,58)] shadow-[0_16px_28px_rgba(145,41,58,0.24)]"
+                  : "bg-[var(--accent)] shadow-[0_16px_28px_rgba(47,111,97,0.22)] hover:brightness-105"
+              }`}
             >
-              Построить метрики из текста
+              {isRecording ? <StopCircleIcon /> : <MicIcon />}
+              <span className="hidden sm:inline">{isRecording ? "Остановить" : "Голосовой ввод"}</span>
             </button>
 
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 py-1.5">
-              <span className="text-xs text-[var(--muted)]">Заполнять метрики</span>
+            <button
+              type="button"
+              onClick={() => void handleBuildFromText()}
+              disabled={isProcessing || isRecording}
+              className="inline-flex min-h-10 items-center rounded-full bg-[var(--accent)] px-3.5 text-xs font-medium text-white shadow-[0_14px_26px_rgba(47,111,97,0.2)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:px-4 sm:text-sm"
+            >
+              <span className="sm:hidden">Метрики</span>
+              <span className="hidden sm:inline">Построить метрики из текста</span>
+            </button>
+
+            <div className="ml-auto inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white px-2.5 py-1.5 sm:px-3">
+              <span className="text-[11px] text-[var(--muted)] sm:text-xs">
+                <span className="sm:hidden">Авто</span>
+                <span className="hidden sm:inline">Заполнять метрики</span>
+              </span>
               <button
                 type="button"
                 onClick={() => setFillMetricsFromVoice((current) => !current)}
@@ -913,22 +932,6 @@ export function DayEntryComposer() {
                     fillMetricsFromVoice ? "translate-x-5" : "translate-x-0.5"
                   }`}
                 />
-              </button>
-            </div>
-
-            <div className="ml-auto">
-              <button
-                type="button"
-                onClick={isRecording ? stopRecording : startRecording}
-                disabled={!isVoiceSupported || isProcessing}
-                className={`inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                  isRecording
-                    ? "bg-[rgb(145,41,58)] shadow-[0_16px_28px_rgba(145,41,58,0.24)]"
-                    : "bg-[var(--accent)] shadow-[0_16px_28px_rgba(47,111,97,0.22)] hover:brightness-105"
-                }`}
-              >
-                {isRecording ? <StopCircleIcon /> : <MicIcon />}
-                {isRecording ? "Остановить" : "Голосовой ввод"}
               </button>
             </div>
           </div>
@@ -1135,10 +1138,11 @@ function ProposedMetricRow({
   );
 }
 
-function AttachIcon() {
+function PlusIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
-      <path d="M13.8 6.2 8 12a3 3 0 1 0 4.24 4.24l6.36-6.36a5 5 0 0 0-7.07-7.07L5.17 9.17a7 7 0 1 0 9.9 9.9l4.24-4.24" />
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
     </svg>
   );
 }

@@ -622,10 +622,8 @@ export function DiarySection() {
               </div>
             </div>
 
-            <div className="mt-5 rounded-[28px] border border-[var(--border)] bg-white/88 p-5">
-              <DayEntryComposer />
-
-              <label className="mt-4 grid gap-2">
+            <div className="mt-5 rounded-[28px] border border-[var(--border)] bg-white/88 p-2 sm:p-5">
+              <label className="grid gap-2">
                 <span className="text-sm font-medium text-[var(--foreground)]">Главное за день</span>
                 <input
                   value={selectedDraft.summary}
@@ -634,6 +632,8 @@ export function DiarySection() {
                   className="min-h-12 rounded-[20px] border border-[var(--border)] bg-white/95 px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
+
+              <DayEntryComposer />
             </div>
           </div>
 
