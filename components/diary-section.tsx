@@ -274,18 +274,21 @@ export function DiarySection() {
 
   const taskCompletion = getTaskCompletionRatio(selectedTasks);
   const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
-  const saveCopy =
-    saveState === "saving"
-      ? "Сохраняем запись..."
-      : saveState === "saved"
-        ? "Запись сохранена"
+  const saveStatusTitle =
+    saveState === "error"
+      ? error ?? "Не удалось сохранить изменения."
+      : saveState === "saving" || hasUnsavedChanges
+        ? "Сохраняем изменения..."
         : saveState === "local"
-          ? "Работаем только локально"
-          : saveState === "error"
-            ? "Не удалось сохранить"
-            : hasUnsavedChanges
-              ? "Есть несохраненные изменения"
-              : "Автосохранение активно";
+          ? "Локальный режим: изменения не отправляются на сервер."
+          : "Все изменения сохранены.";
+  const isSaveStatusError = saveState === "error";
+  const isSaveStatusLoading = saveState === "saving" || hasUnsavedChanges;
+
+  const closeMobileSidebar = () => {
+    setIsMobileSidebarOpen(false);
+    setIsUserMenuOpen(false);
+  };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -393,19 +396,9 @@ export function DiarySection() {
   const sidebarContent = (
     <>
       <div className="flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 px-4 py-3">
-        <button
-          type="button"
-          onClick={() =>
-            setMetricModal({
-              mode: "create",
-              metric: createBlankMetric(metricDefinitions.length),
-            })
-          }
-          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          aria-label="Добавить метрику"
-        >
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]">
           <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_8px_18px_rgba(32,77,67,0.24)]" />
-        </button>
+        </div>
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">Diary AI</p>
           <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
@@ -428,7 +421,7 @@ export function DiarySection() {
               type="button"
               onClick={() => {
                 setSelectedDate(day.date);
-                setIsMobileSidebarOpen(false);
+                closeMobileSidebar();
               }}
               className={`grid gap-1 rounded-[20px] px-3 py-3 text-left transition ${
                 day.date === selectedDate
@@ -479,7 +472,6 @@ export function DiarySection() {
           </p>
           <p className="mt-1 text-xs text-[var(--muted)]">Профиль, приложение и выход</p>
         </div>
-        <DotsIcon />
       </button>
     </>
   );
@@ -572,9 +564,20 @@ export function DiarySection() {
           <div className="surface-card rounded-[34px] p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h1 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-4xl">
-                  {getHeadingDateLabel(selectedDate)}
-                </h1>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-4xl">
+                    {getHeadingDateLabel(selectedDate)}
+                  </h1>
+                  <span
+                    title={saveStatusTitle}
+                    className={`inline-flex h-3.5 w-3.5 shrink-0 rounded-full border ${
+                      isSaveStatusError
+                        ? "border-[rgba(208,138,149,0.36)] bg-[rgb(190,72,90)]"
+                        : "border-[rgba(47,111,97,0.22)] bg-[var(--accent)]"
+                    } ${isSaveStatusLoading ? "animate-pulse" : ""}`}
+                    aria-label={saveStatusTitle}
+                  />
+                </div>
                 <div className="mt-4 hidden items-center gap-2 sm:flex">
                   <button
                     type="button"
@@ -599,9 +602,6 @@ export function DiarySection() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <div className="rounded-full bg-[rgba(47,111,97,0.08)] px-4 py-2 text-sm font-medium text-[var(--accent)]">
-                  {saveCopy}
-                </div>
                 <Link
                   href="/analytics"
                   className="hidden min-h-11 items-center rounded-full border border-[var(--border)] bg-white/94 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] xl:inline-flex"
@@ -702,7 +702,7 @@ export function DiarySection() {
             type="button"
             className="absolute inset-0 bg-[rgba(24,33,29,0.2)]"
             aria-label="Закрыть боковую панель"
-            onClick={() => setIsMobileSidebarOpen(false)}
+            onClick={closeMobileSidebar}
           />
           <aside
             className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col rounded-r-[28px] p-4"
@@ -719,7 +719,7 @@ export function DiarySection() {
                 drawerTouchCurrent.current !== null &&
                 drawerTouchStart.current - drawerTouchCurrent.current > 54
               ) {
-                setIsMobileSidebarOpen(false);
+                closeMobileSidebar();
               }
 
               drawerTouchStart.current = null;
@@ -729,7 +729,7 @@ export function DiarySection() {
             <div className="mb-3 flex items-center justify-end">
               <button
                 type="button"
-                onClick={() => setIsMobileSidebarOpen(false)}
+                onClick={closeMobileSidebar}
                 className="flex h-10 w-10 items-center justify-center rounded-2xl text-[var(--foreground)]"
                 aria-label="Закрыть боковую панель"
               >
@@ -2014,6 +2014,29 @@ function DiaryUserMenu({
   const profileName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
   const profileHandle = accountEmail ? `@${accountEmail.split("@")[0]}` : "@diary";
   const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
+  const embeddedMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!embedded) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!(event.target instanceof Node)) {
+        return;
+      }
+
+      if (!embeddedMenuRef.current?.contains(event.target)) {
+        onClose();
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [embedded, onClose]);
 
   useEffect(() => {
     if (embedded) {
@@ -2035,7 +2058,10 @@ function DiaryUserMenu({
 
   if (embedded) {
     return (
-      <div className="mt-3 rounded-[24px] border border-[var(--border)] bg-white/92 p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] sm:rounded-[26px] sm:p-4">
+      <div
+        ref={embeddedMenuRef}
+        className="mt-3 rounded-[24px] border border-[var(--border)] bg-white/92 p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] sm:rounded-[26px] sm:p-4"
+      >
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white sm:h-11 sm:w-11">
             {initials}
@@ -2336,16 +2362,6 @@ function ChevronRightIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
       <path d="m9 6 6 6-6 6" />
-    </svg>
-  );
-}
-
-function DotsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
-      <circle cx="6" cy="12" r="1.2" fill="currentColor" />
-      <circle cx="12" cy="12" r="1.2" fill="currentColor" />
-      <circle cx="18" cy="12" r="1.2" fill="currentColor" />
     </svg>
   );
 }
