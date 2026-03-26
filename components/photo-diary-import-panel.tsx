@@ -22,6 +22,107 @@ type ProposedMetric = {
   value: MetricValue | null;
 };
 
+const MAX_OCR_IMAGE_SIDE = 2048;
+const OCR_JPEG_QUALITY = 0.86;
+const MAX_DIRECT_UPLOAD_SIZE = 4 * 1024 * 1024;
+
+function replaceFileExtension(fileName: string, nextExtension: string) {
+  const dotIndex = fileName.lastIndexOf(".");
+
+  if (dotIndex <= 0) {
+    return `${fileName}.${nextExtension}`;
+  }
+
+  return `${fileName.slice(0, dotIndex)}.${nextExtension}`;
+}
+
+async function loadImageElementFromFile(file: File) {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => {
+      reject(new Error("Failed to read the selected image."));
+    };
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.readAsDataURL(file);
+  });
+
+  return await new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => {
+      reject(new Error("Failed to decode the selected image."));
+    };
+    image.src = dataUrl;
+  });
+}
+
+async function normalizeImageForOcrUpload(file: File) {
+  const isAlreadyCompatible =
+    (file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/webp") &&
+    file.size <= MAX_DIRECT_UPLOAD_SIZE;
+
+  if (isAlreadyCompatible) {
+    return file;
+  }
+
+  try {
+    const sourceImage = await loadImageElementFromFile(file);
+    const sourceWidth = sourceImage.naturalWidth || sourceImage.width;
+    const sourceHeight = sourceImage.naturalHeight || sourceImage.height;
+
+    if (!sourceWidth || !sourceHeight) {
+      return file;
+    }
+
+    const longestSide = Math.max(sourceWidth, sourceHeight);
+    const resizeRatio =
+      longestSide > MAX_OCR_IMAGE_SIDE ? MAX_OCR_IMAGE_SIDE / longestSide : 1;
+    const targetWidth = Math.max(1, Math.round(sourceWidth * resizeRatio));
+    const targetHeight = Math.max(1, Math.round(sourceHeight * resizeRatio));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      return file;
+    }
+
+    context.drawImage(sourceImage, 0, 0, targetWidth, targetHeight);
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", OCR_JPEG_QUALITY);
+    });
+
+    if (!blob) {
+      return file;
+    }
+
+    const normalizedName = replaceFileExtension(file.name || "photo", "jpg");
+
+    return new File([blob], normalizedName, {
+      type: "image/jpeg",
+      lastModified: Date.now(),
+    });
+  } catch {
+    return file;
+  }
+}
+
+function mapPhotoOcrErrorMessage(rawMessage: string) {
+  if (rawMessage.includes("RouterAI image OCR request failed")) {
+    return "Не удалось распознать фото с телефона. Попробуйте выбрать фото в JPG/PNG или сделать скриншот и загрузить его.";
+  }
+
+  if (rawMessage.includes("Only image files are supported")) {
+    return "Поддерживаются только изображения (JPG, PNG, WEBP).";
+  }
+
+  return rawMessage;
+}
+
 function mergeImportedNotes(existing: string, incoming: string) {
   const current = existing.trim();
   const next = incoming.trim();
@@ -269,12 +370,13 @@ export function PhotoDiaryImportPanel() {
     setError(null);
     setNotice(null);
     setPhotoTranscriptTruncated(false);
-    setUploadedFileName(file.name);
+    setUploadedFileName(file.name || "photo");
     setIsUploadingPhoto(true);
 
     try {
+      const normalizedFile = await normalizeImageForOcrUpload(file);
       const formData = new FormData();
-      formData.append("image", file);
+      formData.append("image", normalizedFile);
 
       const ocrResponse = await fetch("/api/photo/ocr", {
         method: "POST",
@@ -293,6 +395,7 @@ export function PhotoDiaryImportPanel() {
       const mergedNotes = mergeImportedNotes(selectedDraft.notes, ocrResult.transcript);
       updateNotes(mergedNotes);
       setPhotoTranscriptTruncated(Boolean(ocrResult.truncated));
+      setUploadedFileName(normalizedFile.name || file.name || "photo");
       setIsUploadingPhoto(false);
       setIsBuildingSuggestions(true);
       setNotice("Текст с фото добавлен в поле «Как прошел день».");
@@ -305,7 +408,7 @@ export function PhotoDiaryImportPanel() {
 
       setError(
         requestError instanceof Error
-          ? requestError.message
+          ? mapPhotoOcrErrorMessage(requestError.message)
           : "Не удалось обработать фото дневника.",
       );
     } finally {
