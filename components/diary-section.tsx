@@ -608,17 +608,6 @@ export function DiarySection() {
                 >
                   Период и тренды
                 </Link>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMobileSidebarOpen(true);
-                    setIsUserMenuOpen(true);
-                  }}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/94 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                  aria-label="Открыть меню пользователя"
-                >
-                  <DotsIcon />
-                </button>
               </div>
             </div>
 

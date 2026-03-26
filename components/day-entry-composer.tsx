@@ -278,6 +278,7 @@ export function DayEntryComposer() {
     profile,
     selectedDate,
     selectedDraft,
+    updateProfile,
     updateMetricValue,
     updateNotes,
   } = useWorkspace();
@@ -305,6 +306,7 @@ export function DayEntryComposer() {
   const [proposedMetrics, setProposedMetrics] = useState<ProposedMetric[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [isVoiceSupported, setIsVoiceSupported] = useState(true);
 
   const activeMetricPayload = useMemo(
     () =>
@@ -327,15 +329,6 @@ export function DayEntryComposer() {
   const isProcessing = activeStage !== null;
   const progressMessage = activeStage ? PROCESSING_COPY_BY_STAGE[activeStage] : null;
   const recordingStatus = isRecording ? `Идет запись ${formatDuration(recordingSeconds)}` : null;
-  const isVoiceSupported = useMemo(
-    () =>
-      typeof window !== "undefined" &&
-      typeof MediaRecorder !== "undefined" &&
-      typeof navigator !== "undefined" &&
-      Boolean(navigator.mediaDevices?.getUserMedia),
-    [],
-  );
-
   const stopStream = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
@@ -394,6 +387,14 @@ export function DayEntryComposer() {
       document.removeEventListener("mousedown", handlePointerDown);
     };
   }, [isMenuOpen]);
+
+  useEffect(() => {
+    const canUseMediaDevices =
+      typeof navigator !== "undefined" &&
+      Boolean(navigator.mediaDevices?.getUserMedia);
+    const canUseRecorder = typeof MediaRecorder !== "undefined";
+    setIsVoiceSupported(canUseMediaDevices && canUseRecorder);
+  }, []);
 
   useEffect(() => {
     if (!activeStage) {
@@ -699,8 +700,8 @@ export function DayEntryComposer() {
       return;
     }
 
-    if (!profile.microphoneEnabled) {
-      setError("Доступ к микрофону выключен в настройках. Включите его и попробуйте снова.");
+    if (typeof MediaRecorder === "undefined") {
+      setError("В этом браузере не поддерживается запись через MediaRecorder.");
       return;
     }
 
@@ -709,6 +710,10 @@ export function DayEntryComposer() {
     setNotice(null);
 
     try {
+      if (!profile.microphoneEnabled) {
+        updateProfile("microphoneEnabled", true);
+      }
+
       const stream = await ensureStream();
       const mimeType = getSupportedAudioMimeType();
       const recorder = mimeType
@@ -814,8 +819,8 @@ export function DayEntryComposer() {
             value={selectedDraft.notes}
             onChange={(event) => updateNotes(event.target.value)}
             placeholder="Что сегодня произошло, как ты себя чувствовал и что было важным?"
-            rows={8}
-            className="min-h-[46vh] w-full resize-y rounded-[16px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:min-h-[220px] sm:rounded-[18px] sm:px-4 sm:text-[15px]"
+            rows={6}
+            className="w-full resize-y rounded-[16px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:rounded-[18px] sm:px-4 sm:text-[15px]"
           />
         </div>
 
@@ -826,8 +831,9 @@ export function DayEntryComposer() {
                 type="button"
                 onClick={() => setIsMenuOpen((current) => !current)}
                 disabled={isProcessing || isRecording}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:w-11"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:w-11"
                 aria-label="Открыть меню загрузки фото"
+                title="Добавить фото"
                 aria-expanded={isMenuOpen}
                 aria-haspopup="menu"
               >
@@ -835,7 +841,7 @@ export function DayEntryComposer() {
               </button>
 
               {isMenuOpen ? (
-                <div className="absolute left-0 top-11 z-20 min-w-[220px] overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-[0_20px_36px_rgba(24,33,29,0.12)]">
+                <div className="absolute bottom-11 left-0 z-20 min-w-[220px] overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-[0_20px_36px_rgba(24,33,29,0.12)] sm:bottom-12">
                   <input
                     ref={galleryInputRef}
                     type="file"
@@ -893,10 +899,11 @@ export function DayEntryComposer() {
               onClick={isRecording ? stopRecording : startRecording}
               disabled={!isVoiceSupported || isProcessing}
               aria-label={isRecording ? "Остановить запись" : "Голосовой ввод"}
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:w-auto sm:justify-start sm:gap-2 sm:px-4 ${
+              title={isRecording ? "Остановить запись" : "Голосовой ввод"}
+              className={`inline-flex h-9 min-w-9 items-center justify-center rounded-full border text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:min-w-[44px] sm:justify-start sm:gap-2 sm:px-4 ${
                 isRecording
-                  ? "bg-[rgb(145,41,58)] shadow-[0_16px_28px_rgba(145,41,58,0.24)]"
-                  : "bg-[var(--accent)] shadow-[0_16px_28px_rgba(47,111,97,0.22)] hover:brightness-105"
+                  ? "border-[rgb(145,41,58)] bg-[rgb(145,41,58)] text-white shadow-[0_14px_24px_rgba(145,41,58,0.22)]"
+                  : "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_14px_24px_rgba(47,111,97,0.2)] hover:brightness-105"
               }`}
             >
               {isRecording ? <StopCircleIcon /> : <MicIcon />}
@@ -907,13 +914,14 @@ export function DayEntryComposer() {
               type="button"
               onClick={() => void handleBuildFromText()}
               disabled={isProcessing || isRecording}
-              className="inline-flex min-h-10 items-center rounded-full bg-[var(--accent)] px-3.5 text-xs font-medium text-white shadow-[0_14px_26px_rgba(47,111,97,0.2)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:px-4 sm:text-sm"
+              title="Построить метрики из текста"
+              className="inline-flex h-9 items-center rounded-full border border-[var(--accent)] bg-[var(--accent)] px-3 text-xs font-medium text-white shadow-[0_14px_24px_rgba(47,111,97,0.2)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:px-4 sm:text-sm"
             >
               <span className="sm:hidden">Метрики</span>
               <span className="hidden sm:inline">Построить метрики из текста</span>
             </button>
 
-            <div className="ml-auto inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white px-2.5 py-1.5 sm:px-3">
+            <div className="ml-auto inline-flex h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-white px-2.5 sm:h-11 sm:px-3">
               <span className="text-[11px] text-[var(--muted)] sm:text-xs">
                 <span className="sm:hidden">Авто</span>
                 <span className="hidden sm:inline">Заполнять метрики</span>
@@ -923,6 +931,7 @@ export function DayEntryComposer() {
                 onClick={() => setFillMetricsFromVoice((current) => !current)}
                 disabled={isProcessing || isRecording}
                 aria-pressed={fillMetricsFromVoice}
+                title="Автозаполнение метрик из голоса"
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
                   fillMetricsFromVoice ? "bg-[var(--accent)]" : "bg-[rgba(24,33,29,0.18)]"
                 } disabled:cursor-not-allowed disabled:opacity-60`}
@@ -937,10 +946,6 @@ export function DayEntryComposer() {
           </div>
 
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-[var(--border)] bg-white/90 px-3 py-1.5 text-xs text-[var(--muted)]">
-              До 3 минут
-            </span>
-
             {uploadedFileName ? (
               <span className="rounded-full border border-[var(--border)] bg-white/90 px-3 py-1.5 text-xs text-[var(--muted)]">
                 {uploadedFileName}
