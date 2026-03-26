@@ -28,6 +28,7 @@ import { AccountSecurityPanel } from "@/components/account-security-panel";
 import { BrandGlyph } from "@/components/brand-glyph";
 import { InstallAppButton } from "@/components/install-app-button";
 import { LogoutButton } from "@/components/logout-button";
+import { PhotoDiaryImportPanel } from "@/components/photo-diary-import-panel";
 import { VoiceEntryPanel } from "@/components/voice-entry-panel";
 import { useWorkspace } from "@/components/workspace-provider";
 import type {
@@ -647,6 +648,7 @@ export function DiarySection() {
                 />
               </label>
 
+              <PhotoDiaryImportPanel />
               <VoiceEntryPanel />
             </div>
           </div>

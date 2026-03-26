@@ -20,6 +20,8 @@ const routerAiStructuredModel =
   process.env.ROUTERAI_STRUCTURED_MODEL ??
   process.env.ROUTERAI_SPEECH_MODEL ??
   "google/gemini-2.5-flash-lite";
+const routerAiVisionModel =
+  process.env.ROUTERAI_SPEECH_MODEL ?? "google/gemini-2.5-flash-lite";
 const routerAiDeepSeekModel = DEFAULT_ROUTERAI_PAID_MODEL;
 const routerAiDeepSeekMaxTokens = 2500;
 
@@ -29,6 +31,101 @@ export function getRouterAiConfigError() {
   }
 
   return null;
+}
+
+type RouterAiVisionContentPart =
+  | {
+      type?: string;
+      text?: string;
+    }
+  | {
+      type?: string;
+      [key: string]: unknown;
+    };
+
+function extractVisionTextContent(content: string | RouterAiVisionContentPart[] | undefined) {
+  if (typeof content === "string") {
+    return content.trim();
+  }
+
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  return content
+    .flatMap((part) => (part?.type === "text" && typeof part.text === "string" ? [part.text] : []))
+    .join("\n")
+    .trim();
+}
+
+export async function extractTextFromDiaryImage(file: File) {
+  const configError = getRouterAiConfigError();
+
+  if (configError) {
+    throw new Error(configError);
+  }
+
+  const buffer = await file.arrayBuffer();
+  const mimeType = file.type || "image/jpeg";
+  const imageBase64 = Buffer.from(buffer).toString("base64");
+
+  const response = await fetch(`${routerAiBaseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${routerAiApiKey}`,
+    },
+    body: JSON.stringify({
+      model: routerAiVisionModel,
+      temperature: 0,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are OCR for a personal diary app. Extract readable text from diary photo in Russian. Keep event order and details. Return only plain text without explanations, markdown, or JSON.",
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Извлеки текст с фотографии дневника. Верни только распознанный текст, без комментариев и без форматирования.",
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${mimeType};base64,${imageBase64}`,
+              },
+            },
+          ],
+        },
+      ],
+    }),
+    cache: "no-store",
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as {
+    choices?: Array<{
+      message?: {
+        content?: string | RouterAiVisionContentPart[];
+      };
+    }>;
+    error?: {
+      message?: string;
+    };
+  };
+
+  if (!response.ok) {
+    throw new Error(payload.error?.message ?? "RouterAI image OCR request failed.");
+  }
+
+  const transcript = extractVisionTextContent(payload.choices?.[0]?.message?.content);
+
+  if (!transcript) {
+    throw new Error("RouterAI returned empty OCR text.");
+  }
+
+  return transcript;
 }
 
 type AnalyzeDiaryEntryInput = {
