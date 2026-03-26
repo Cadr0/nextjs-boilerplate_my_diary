@@ -798,9 +798,9 @@ export function DayEntryComposer() {
   };
 
   return (
-    <section className="mt-3 grid gap-2 sm:mt-4 sm:gap-3">
-      <div className="overflow-hidden rounded-[22px] border border-[var(--border)] bg-white/92 shadow-[0_12px_28px_rgba(24,33,29,0.06)] sm:rounded-[28px]">
-        <div className="px-1.5 pb-1.5 pt-2.5 sm:px-5 sm:pb-2 sm:pt-4">
+    <section className="mt-2 grid gap-2.5 sm:mt-3 sm:gap-3.5">
+      <div className="grid gap-2">
+        <div>
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-base font-medium text-[var(--foreground)] sm:text-[1.05rem]">Как прошел день?</span>
             {recordingStatus ? (
@@ -814,12 +814,12 @@ export function DayEntryComposer() {
             value={selectedDraft.notes}
             onChange={(event) => updateNotes(event.target.value)}
             placeholder="Что сегодня произошло, как ты себя чувствовал и что было важным?"
-            rows={6}
-            className="w-full resize-y rounded-[14px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:rounded-[18px] sm:px-4 sm:text-[15px]"
+            rows={7}
+            className="w-full min-h-[220px] resize-y rounded-[18px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:min-h-[280px] sm:rounded-[20px] sm:px-4 sm:text-[15px]"
           />
         </div>
 
-        <div className="border-t border-[var(--border)] px-1 py-1.5 sm:px-4 sm:py-2.5">
+        <div className="border-t border-[var(--border)] pt-2 sm:pt-3">
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5">
             <div ref={menuRef} className="relative">
               <button

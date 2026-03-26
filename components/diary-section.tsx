@@ -608,22 +608,20 @@ export function DiarySection() {
               </div>
             </div>
 
-            <div className="mt-4 rounded-[24px] border border-[var(--border)] bg-white/88 p-2 sm:mt-5 sm:rounded-[28px] sm:p-5">
-              <label className="grid gap-2.5">
-                <span className="text-base leading-6 font-medium text-[var(--foreground)]">Главное за день</span>
-                <input
-                  value={selectedDraft.summary}
-                  onChange={(event) => updateSummary(event.target.value)}
-                  placeholder="Короткий заголовок дня одним предложением"
-                  className="min-h-11 rounded-[16px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-2.5 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:min-h-12 sm:rounded-[20px] sm:px-4"
-                />
-              </label>
+            <div className="mt-4 grid gap-3 sm:mt-5 sm:gap-4">
+              <input
+                value={selectedDraft.summary}
+                onChange={(event) => updateSummary(event.target.value)}
+                placeholder="Короткий заголовок дня одним предложением"
+                aria-label="Короткий заголовок дня"
+                className="min-h-11 rounded-[16px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-2.5 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:min-h-12 sm:rounded-[20px] sm:px-4"
+              />
 
               <DayEntryComposer />
             </div>
           </div>
 
-          <div className="surface-card rounded-[34px] p-5 sm:p-6">
+          <div className="surface-card rounded-[28px] p-3 sm:rounded-[34px] sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
