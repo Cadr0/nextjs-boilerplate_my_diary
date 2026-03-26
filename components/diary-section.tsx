@@ -636,6 +636,7 @@ export function DiarySection() {
                   minRows={5}
                   className="w-full rounded-[24px] border border-[var(--border)] bg-[rgba(255,255,255,0.96)] px-4 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:text-[15px]"
                 />
+                <PhotoDiaryImportPanel />
               </label>
 
               <label className="mt-4 grid gap-2">
@@ -648,7 +649,6 @@ export function DiarySection() {
                 />
               </label>
 
-              <PhotoDiaryImportPanel />
               <VoiceEntryPanel />
             </div>
           </div>
