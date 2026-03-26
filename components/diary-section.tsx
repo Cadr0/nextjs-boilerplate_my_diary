@@ -26,10 +26,9 @@ import { useEffect, useRef, useState } from "react";
 import { DiaryAssistantPanel } from "@/components/diary-assistant-panel";
 import { AccountSecurityPanel } from "@/components/account-security-panel";
 import { BrandGlyph } from "@/components/brand-glyph";
+import { DayEntryComposer } from "@/components/day-entry-composer";
 import { InstallAppButton } from "@/components/install-app-button";
 import { LogoutButton } from "@/components/logout-button";
-import { PhotoDiaryImportPanel } from "@/components/photo-diary-import-panel";
-import { VoiceEntryPanel } from "@/components/voice-entry-panel";
 import { useWorkspace } from "@/components/workspace-provider";
 import type {
   MetricDefinition,
@@ -242,7 +241,6 @@ export function DiarySection() {
     serverEntries,
     setSelectedDate,
     updateMetricValue,
-    updateNotes,
     updateProfile,
     updateSummary,
     visibleMetricDefinitions,
@@ -625,19 +623,7 @@ export function DiarySection() {
             </div>
 
             <div className="mt-5 rounded-[28px] border border-[var(--border)] bg-white/88 p-5">
-              <label className="grid gap-3">
-                <span className="text-[1.05rem] font-medium text-[var(--foreground)]">
-                  Как прошел день?
-                </span>
-                <AutoGrowTextarea
-                  value={selectedDraft.notes}
-                  onChange={updateNotes}
-                  placeholder="Что сегодня произошло, как ты себя чувствовал и что было важным?"
-                  minRows={5}
-                  className="w-full rounded-[24px] border border-[var(--border)] bg-[rgba(255,255,255,0.96)] px-4 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:text-[15px]"
-                />
-                <PhotoDiaryImportPanel />
-              </label>
+              <DayEntryComposer />
 
               <label className="mt-4 grid gap-2">
                 <span className="text-sm font-medium text-[var(--foreground)]">Главное за день</span>
@@ -648,8 +634,6 @@ export function DiarySection() {
                   className="min-h-12 rounded-[20px] border border-[var(--border)] bg-white/95 px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
-
-              <VoiceEntryPanel />
             </div>
           </div>
 
