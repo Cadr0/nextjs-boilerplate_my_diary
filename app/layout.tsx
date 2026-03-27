@@ -5,7 +5,9 @@ import { PwaRegister } from "@/components/pwa-register";
 import "./globals.css";
 
 const metadataBaseUrl = (() => {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ??
+    process.env.NEXT_PUBLIC_SITE_URL?.trim();
 
   if (!appUrl) {
     return undefined;

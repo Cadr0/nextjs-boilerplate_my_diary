@@ -4,7 +4,9 @@ import { NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
 
 function getCanonicalHost() {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ??
+    process.env.NEXT_PUBLIC_SITE_URL?.trim();
 
   if (!appUrl) {
     return null;

@@ -70,3 +70,11 @@ npm run build
 - `/analytics` — аналитика
 - `/profile` — профиль
 - `/diagnostics` — диагностика auth и записи в БД
+
+## Production URL (Vercel)
+
+Set these variables in Vercel Production:
+
+- NEXT_PUBLIC_APP_URL=https://nextjs-boilerplatemydiary.vercel.app
+- NEXT_PUBLIC_SITE_URL=https://nextjs-boilerplatemydiary.vercel.app
+
