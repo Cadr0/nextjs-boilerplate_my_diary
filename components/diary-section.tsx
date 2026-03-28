@@ -2013,20 +2013,28 @@ function DiaryUserMenu({
       return;
     }
 
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!(event.target instanceof Node)) {
+    const handlePointerDown = (event: PointerEvent) => {
+      const root = embeddedMenuRef.current;
+
+      if (!root) {
         return;
       }
 
-      if (!embeddedMenuRef.current?.contains(event.target)) {
+      const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+      const clickedInside =
+        path.length > 0
+          ? path.includes(root)
+          : event.target instanceof Node && root.contains(event.target);
+
+      if (!clickedInside) {
         onClose();
       }
     };
 
-    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("pointerdown", handlePointerDown);
 
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("pointerdown", handlePointerDown);
     };
   }, [embedded, onClose]);
 
