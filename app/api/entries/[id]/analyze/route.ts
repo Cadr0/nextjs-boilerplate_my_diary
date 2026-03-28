@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import { resolveAiProvider } from "@/lib/ai/models";
 import { getAuthState } from "@/lib/auth";
 import {
@@ -36,8 +37,10 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   try {
+    const usageGuard = await createUsageGuard(user.id);
     const body = (await request.json().catch(() => ({}))) as { model?: string };
-    const provider = resolveAiProvider(body.model);
+    const model = usageGuard.resolveTextModel(body.model);
+    const provider = resolveAiProvider(model);
     const providerConfigError =
       provider === "openrouter" ? getOpenRouterConfigError() : getRouterAiConfigError();
 
@@ -51,6 +54,8 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Entry id is required." }, { status: 400 });
     }
 
+    await usageGuard.consume("ai");
+
     const { entry, metrics } = await getDiaryEntryAnalysisContext(id);
     const aiAnalysis =
       provider === "openrouter"
@@ -58,7 +63,7 @@ export async function POST(request: Request, context: RouteContext) {
             entryDate: entry.entry_date,
             summary: entry.summary ?? "",
             notes: entry.notes ?? "",
-            model: body.model,
+            model,
             metrics: metrics.map((metric) => ({
               name: metric.name,
               type: metric.type,
@@ -70,7 +75,7 @@ export async function POST(request: Request, context: RouteContext) {
             entryDate: entry.entry_date,
             summary: entry.summary ?? "",
             notes: entry.notes ?? "",
-            model: body.model,
+            model,
             metrics: metrics.map((metric) => ({
               name: metric.name,
               type: metric.type,
@@ -82,6 +87,12 @@ export async function POST(request: Request, context: RouteContext) {
 
     return NextResponse.json({ entry: updatedEntry }, { status: 200 });
   } catch (error) {
+    const usageGuardError = getUsageGuardErrorResponse(error);
+
+    if (usageGuardError) {
+      return NextResponse.json(usageGuardError.body, { status: usageGuardError.status });
+    }
+
     return NextResponse.json(
       {
         error:

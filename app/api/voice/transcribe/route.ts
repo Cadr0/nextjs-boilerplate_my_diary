@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import { getAuthState } from "@/lib/auth";
 import {
   getSpeechToTextConfigError,
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const usageGuard = await createUsageGuard(user.id);
     const formData = await request.formData();
     const file = formData.get("audio");
 
@@ -31,10 +33,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Audio file is empty." }, { status: 400 });
     }
 
+    await usageGuard.consume("audio");
+
     const transcript = await transcribeAudio(file);
 
     return NextResponse.json({ transcript }, { status: 200 });
   } catch (error) {
+    const usageGuardError = getUsageGuardErrorResponse(error);
+
+    if (usageGuardError) {
+      return NextResponse.json(usageGuardError.body, { status: usageGuardError.status });
+    }
+
     return NextResponse.json(
       {
         error:

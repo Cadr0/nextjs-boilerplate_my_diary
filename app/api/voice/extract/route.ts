@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import { getAuthState } from "@/lib/auth";
 import { parseTranscriptInput } from "@/lib/ai/contracts";
 import {
@@ -311,8 +312,12 @@ export async function POST(request: Request) {
   }
 
   try {
+    const usageGuard = await createUsageGuard(user.id);
     const payload = parseTranscriptInput(await request.json());
     const normalizedTranscript = normalizeReference(payload.transcript);
+
+    await usageGuard.consume("ai");
+
     const { extraction, debug } = await extractDiaryDataFromTranscriptWithDebug({
       transcript: payload.transcript,
       metricDefinitions: payload.metricDefinitions,
@@ -459,6 +464,12 @@ export async function POST(request: Request) {
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
+
+    const usageGuardError = getUsageGuardErrorResponse(error);
+
+    if (usageGuardError) {
+      return NextResponse.json(usageGuardError.body, { status: usageGuardError.status });
+    }
 
     return NextResponse.json(
       {

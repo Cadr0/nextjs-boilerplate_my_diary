@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import { getAuthState } from "@/lib/auth";
 import { extractTextFromDiaryImage, getRouterAiConfigError } from "@/lib/routerai";
 
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const usageGuard = await createUsageGuard(user.id);
     const formData = await request.formData();
     const image = formData.get("image");
 
@@ -42,6 +44,8 @@ export async function POST(request: Request) {
       );
     }
 
+    await usageGuard.consume("photo");
+
     const extracted = await extractTextFromDiaryImage(image);
     const normalized = extracted.trim();
 
@@ -59,6 +63,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ transcript, truncated }, { status: 200 });
   } catch (error) {
+    const usageGuardError = getUsageGuardErrorResponse(error);
+
+    if (usageGuardError) {
+      return NextResponse.json(usageGuardError.body, { status: usageGuardError.status });
+    }
+
     return NextResponse.json(
       {
         error:

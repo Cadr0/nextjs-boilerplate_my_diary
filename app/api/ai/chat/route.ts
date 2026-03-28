@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import { resolveAiProvider } from "@/lib/ai/models";
 import { getAuthState } from "@/lib/auth";
 import { getOpenRouterConfigError, streamChatWithOpenRouter } from "@/lib/openrouter";
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const usageGuard = await createUsageGuard(user.id);
     const payload = (await request.json()) as RequestPayload;
     const messages =
       payload.messages
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
     const draft = payload.context?.draft;
     const metricDefinitions = payload.context?.metricDefinitions ?? [];
     const tasks = payload.context?.tasks ?? [];
-    const model = payload.context?.model;
+    const model = usageGuard.resolveTextModel(payload.context?.model);
     const requestTimestamp = payload.context?.requestTimestamp ?? new Date().toISOString();
     const timezone = payload.context?.timezone ?? "UTC";
     const provider = resolveAiProvider(model);
@@ -64,6 +66,8 @@ export async function POST(request: Request) {
     if (messages.length === 0) {
       return NextResponse.json({ error: "At least one message is required." }, { status: 400 });
     }
+
+    await usageGuard.consume("ai");
 
     const stream =
       provider === "openrouter"
@@ -96,6 +100,12 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    const usageGuardError = getUsageGuardErrorResponse(error);
+
+    if (usageGuardError) {
+      return NextResponse.json(usageGuardError.body, { status: usageGuardError.status });
+    }
+
     return NextResponse.json(
       {
         error:

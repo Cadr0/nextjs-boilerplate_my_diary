@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import { resolveAiProvider } from "@/lib/ai/models";
 import { getAuthState } from "@/lib/auth";
 import { parsePeriodAnalysisInput } from "@/lib/ai/contracts";
@@ -20,8 +21,10 @@ export async function POST(request: Request) {
   }
 
   try {
+    const usageGuard = await createUsageGuard(user.id);
     const payload = parsePeriodAnalysisInput(await request.json());
-    const provider = resolveAiProvider(payload.model);
+    const model = usageGuard.resolveTextModel(payload.model);
+    const provider = resolveAiProvider(model);
     const providerConfigError =
       provider === "openrouter" ? getOpenRouterConfigError() : getRouterAiConfigError();
 
@@ -29,13 +32,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: providerConfigError }, { status: 500 });
     }
 
+    await usageGuard.consume("ai");
+
+    const normalizedPayload = {
+      ...payload,
+      model,
+    };
+
     const analysis =
       provider === "openrouter"
-        ? await analyzeDiaryPeriodOpenRouter(payload)
-        : await analyzeDiaryPeriodRouterAi(payload);
+        ? await analyzeDiaryPeriodOpenRouter(normalizedPayload)
+        : await analyzeDiaryPeriodRouterAi(normalizedPayload);
 
     return NextResponse.json({ analysis }, { status: 200 });
   } catch (error) {
+    const usageGuardError = getUsageGuardErrorResponse(error);
+
+    if (usageGuardError) {
+      return NextResponse.json(usageGuardError.body, { status: usageGuardError.status });
+    }
+
     return NextResponse.json(
       {
         error:

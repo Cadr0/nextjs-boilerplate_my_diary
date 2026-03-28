@@ -1,4 +1,4 @@
-import { aiModelOptions as aiModelCatalog, DEFAULT_ROUTERAI_PAID_MODEL } from "@/lib/ai/models";
+import { aiModelOptions as aiModelCatalog, DEFAULT_OPENROUTER_FREE_MODEL } from "@/lib/ai/models";
 
 export type MetricInputType = "scale" | "number" | "boolean" | "text";
 export type MetricSemanticKey = "mood" | "energy" | "stress" | "sleep";
@@ -357,7 +357,7 @@ export const defaultProfile: WorkspaceProfile = {
   microphoneEnabled: true,
   notificationsEnabled: false,
   chatTone: "supportive",
-  aiModel: DEFAULT_ROUTERAI_PAID_MODEL,
+  aiModel: DEFAULT_OPENROUTER_FREE_MODEL,
 };
 
 function generateId(prefix: string) {

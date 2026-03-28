@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import { getAuthState } from "@/lib/auth";
 import { getRouterAiConfigError, streamChatWithRouterAi } from "@/lib/routerai";
 import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
@@ -34,6 +35,19 @@ export async function POST(request: Request) {
   }
 
   try {
+    const usageGuard = await createUsageGuard(user.id);
+
+    if (usageGuard.plan === "free") {
+      return NextResponse.json(
+        {
+          error:
+            "Бесплатный план поддерживает только бесплатные модели OpenRouter. Переключите модель в настройках ассистента.",
+          code: "plan_restriction",
+        },
+        { status: 403 },
+      );
+    }
+
     const payload = (await request.json()) as RequestPayload;
     const messages =
       payload.messages
@@ -61,6 +75,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "At least one message is required." }, { status: 400 });
     }
 
+    await usageGuard.consume("ai");
+
     const stream = await streamChatWithRouterAi(messages, {
       date,
       draft,
@@ -81,6 +97,12 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    const usageGuardError = getUsageGuardErrorResponse(error);
+
+    if (usageGuardError) {
+      return NextResponse.json(usageGuardError.body, { status: usageGuardError.status });
+    }
+
     return NextResponse.json(
       {
         error:
