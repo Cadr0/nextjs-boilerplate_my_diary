@@ -2011,35 +2011,8 @@ function DiaryUserMenu({
   const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
   const embeddedMenuRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (!embedded) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const root = embeddedMenuRef.current;
-
-      if (!root) {
-        return;
-      }
-
-      const path = typeof event.composedPath === "function" ? event.composedPath() : [];
-      const clickedInside =
-        path.length > 0
-          ? path.includes(root)
-          : event.target instanceof Node && root.contains(event.target);
-
-      if (!clickedInside) {
-        onClose();
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-    };
-  }, [embedded, onClose]);
+  // For embedded mobile/desktop sidebar menu we intentionally avoid global "outside click"
+  // handlers because they can swallow tap/click on menu actions in some browsers.
 
   useEffect(() => {
     if (embedded) {
