@@ -407,6 +407,24 @@ export function DiarySection() {
         </div>
       </div>
 
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--accent)] px-3 text-sm font-medium text-white">
+          Дневник
+        </div>
+        <Link
+          href="/workouts"
+          className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+        >
+          Тренировки
+        </Link>
+        <Link
+          href="/analytics"
+          className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+        >
+          Период
+        </Link>
+      </div>
+
       <div className="mt-4 min-h-0 flex-1 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
         <div className="mb-2 flex items-center justify-between px-1">
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
@@ -550,7 +568,14 @@ export function DiarySection() {
               </button>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <Link
+                href="/workouts"
+                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                aria-label="Открыть тренировки"
+              >
+                <WorkoutLogIcon />
+              </Link>
               <Link
                 href="/analytics"
                 className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
@@ -602,6 +627,12 @@ export function DiarySection() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href="/workouts"
+                  className="hidden min-h-11 items-center rounded-full border border-[var(--border)] bg-white/94 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] xl:inline-flex"
+                >
+                  Тренировки
+                </Link>
                 <Link
                   href="/analytics"
                   className="hidden min-h-11 items-center rounded-full border border-[var(--border)] bg-white/94 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] xl:inline-flex"
@@ -2651,6 +2682,18 @@ function ChatIcon() {
       <path d="M6.5 6h11A3.5 3.5 0 0 1 21 9.5v4a3.5 3.5 0 0 1-3.5 3.5H11l-4.5 3v-3h0A3.5 3.5 0 0 1 3 13.5v-4A3.5 3.5 0 0 1 6.5 6Z" />
       <path d="M8 11h8" />
       <path d="M8 14h5" />
+    </svg>
+  );
+}
+
+function WorkoutLogIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M8 4.5h8.8c1.5 0 2.7 1.2 2.7 2.7V18c0 .8-.7 1.5-1.5 1.5H9.2c-1.5 0-2.7-1.2-2.7-2.7V6.5C6.5 5.4 7.4 4.5 8 4.5Z" />
+      <path d="M9.2 4.8V19" strokeLinecap="round" />
+      <path d="M9 11h6" strokeLinecap="round" />
+      <path d="m11 9-2 2 2 2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m13 15 2-2-2-2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -22,6 +22,9 @@ import type {
   PersistedWorkspaceState,
   SaveState,
   TaskItem,
+  WorkoutExercise,
+  WorkoutSession,
+  WorkoutSet,
   WorkspaceDraft,
   WorkspaceProfile,
   WorkspaceReminder,
@@ -35,6 +38,9 @@ import {
   createDefaultWorkspaceState,
   createDraftFromEntry,
   createMetricFromTemplate,
+  createWorkoutExercise,
+  createWorkoutSession,
+  createWorkoutSet,
   formatCompactDate,
   findMetricDefinitionBySemantic,
   getAnalyticsMetricDefinitions,
@@ -59,6 +65,15 @@ type WorkspaceDay = {
   tasksTotal: number;
   completionRate: number;
   hasServerEntry: boolean;
+};
+
+type WorkoutDay = {
+  date: string;
+  compactDate: string;
+  title: string;
+  exerciseCount: number;
+  setCount: number;
+  previewLines: string[];
 };
 
 type MetricDefinitionPatch = Partial<
@@ -116,6 +131,39 @@ type WorkspaceContextValue = {
     transcript: string,
     extraction: DiaryExtractionResult,
   ) => void;
+  workouts: WorkoutSession[];
+  selectedWorkoutSession: WorkoutSession | null;
+  workoutDays: WorkoutDay[];
+  updateWorkoutSession: (
+    patch: Partial<Pick<WorkoutSession, "title" | "focus">>,
+  ) => void;
+  addWorkoutExercise: (
+    name: string,
+    options?: {
+      note?: string;
+      initialSets?: Array<Partial<Pick<WorkoutSet, "load" | "reps" | "note">>>;
+    },
+  ) => string;
+  updateWorkoutExercise: (
+    exerciseId: string,
+    patch: Partial<Pick<WorkoutExercise, "name" | "note">>,
+  ) => void;
+  removeWorkoutExercise: (exerciseId: string) => void;
+  addWorkoutSet: (
+    exerciseId: string,
+    preset?: Partial<Pick<WorkoutSet, "load" | "reps" | "note">>,
+  ) => string;
+  updateWorkoutSet: (
+    exerciseId: string,
+    setId: string,
+    patch: Partial<Pick<WorkoutSet, "load" | "reps" | "note">>,
+  ) => void;
+  duplicateWorkoutSet: (
+    exerciseId: string,
+    setId?: string,
+    patch?: Partial<Pick<WorkoutSet, "load" | "reps" | "note">>,
+  ) => string | null;
+  removeWorkoutSet: (exerciseId: string, setId: string) => void;
   tasks: TaskItem[];
   selectedTasks: TaskItem[];
   overdueTasks: TaskItem[];
@@ -183,6 +231,14 @@ function mergeWorkspaceState(
       ...persistedState.drafts,
       ...baseState.drafts,
     },
+    workouts:
+      Array.isArray(persistedState.workouts) && persistedState.workouts.length > 0
+        ? sortWorkoutSessions(
+            persistedState.workouts
+              .map((session) => sanitizeWorkoutSession(session))
+              .filter((session): session is WorkoutSession => session !== null),
+          )
+        : baseState.workouts,
     tasks: Array.isArray(persistedState.tasks) ? persistedState.tasks : baseState.tasks,
     reminders:
       Array.isArray(persistedState.reminders) && persistedState.reminders.length > 0
@@ -319,6 +375,101 @@ function sanitizeReminder(value: unknown): WorkspaceReminder | null {
     sourceDate: candidate.sourceDate,
     status: candidate.status === "sent" ? "sent" : "pending",
   };
+}
+
+function sanitizeWorkoutSet(value: unknown): WorkoutSet | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Partial<WorkoutSet>;
+
+  if (typeof candidate.id !== "string") {
+    return null;
+  }
+
+  return {
+    id: candidate.id,
+    load: typeof candidate.load === "string" ? candidate.load : "",
+    reps: typeof candidate.reps === "string" ? candidate.reps : "",
+    note: typeof candidate.note === "string" ? candidate.note : "",
+  };
+}
+
+function sanitizeWorkoutExercise(value: unknown): WorkoutExercise | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Partial<WorkoutExercise>;
+
+  if (typeof candidate.id !== "string" || typeof candidate.name !== "string") {
+    return null;
+  }
+
+  const sets = Array.isArray(candidate.sets)
+    ? candidate.sets
+        .map((set) => sanitizeWorkoutSet(set))
+        .filter((set): set is WorkoutSet => set !== null)
+    : [];
+
+  return {
+    id: candidate.id,
+    name: candidate.name.trim() || "Новое упражнение",
+    note: typeof candidate.note === "string" ? candidate.note : "",
+    sets: sets.length > 0 ? sets : [createWorkoutSet()],
+  };
+}
+
+function sanitizeWorkoutSession(value: unknown): WorkoutSession | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Partial<WorkoutSession>;
+
+  if (
+    typeof candidate.id !== "string" ||
+    typeof candidate.date !== "string" ||
+    typeof candidate.createdAt !== "string" ||
+    typeof candidate.updatedAt !== "string"
+  ) {
+    return null;
+  }
+
+  const createdAt = Date.parse(candidate.createdAt);
+  const updatedAt = Date.parse(candidate.updatedAt);
+
+  if (!Number.isFinite(createdAt) || !Number.isFinite(updatedAt)) {
+    return null;
+  }
+
+  return {
+    id: candidate.id,
+    date: candidate.date,
+    title:
+      typeof candidate.title === "string" && candidate.title.trim().length > 0
+        ? candidate.title.trim()
+        : "Силовая тренировка",
+    focus: typeof candidate.focus === "string" ? candidate.focus : "",
+    exercises: Array.isArray(candidate.exercises)
+      ? candidate.exercises
+          .map((exercise) => sanitizeWorkoutExercise(exercise))
+          .filter((exercise): exercise is WorkoutExercise => exercise !== null)
+      : [],
+    createdAt: new Date(createdAt).toISOString(),
+    updatedAt: new Date(updatedAt).toISOString(),
+  };
+}
+
+function sortWorkoutSessions(sessions: WorkoutSession[]) {
+  return [...sessions].sort((left, right) => {
+    if (left.date === right.date) {
+      return right.updatedAt.localeCompare(left.updatedAt);
+    }
+
+    return right.date.localeCompare(left.date);
+  });
 }
 
 export function WorkspaceProvider({
@@ -537,6 +688,43 @@ export function WorkspaceProvider({
       ),
     [metricDefinitions, selectedDate, selectedEntry, workspaceState.drafts],
   );
+  const selectedWorkoutSession = useMemo(
+    () =>
+      workspaceState.workouts.find((session) => session.date === selectedDate) ?? null,
+    [selectedDate, workspaceState.workouts],
+  );
+
+  const updateSelectedWorkoutSession = (
+    updater: (session: WorkoutSession) => WorkoutSession,
+  ) => {
+    let nextSessionId: string | null = null;
+
+    setWorkspaceState((current) => {
+      const existingSession =
+        current.workouts.find((session) => session.date === selectedDate) ?? null;
+      const baseSession = existingSession ?? createWorkoutSession(selectedDate);
+      const updatedSession = {
+        ...updater(baseSession),
+        date: selectedDate,
+        updatedAt: new Date().toISOString(),
+      };
+
+      nextSessionId = updatedSession.id;
+
+      return {
+        ...current,
+        workouts: sortWorkoutSessions(
+          existingSession
+            ? current.workouts.map((session) =>
+                session.date === selectedDate ? updatedSession : session,
+              )
+            : [updatedSession, ...current.workouts],
+        ),
+      };
+    });
+
+    return nextSessionId;
+  };
 
   useEffect(() => {
     setWorkspaceState((current) => {
@@ -1094,6 +1282,181 @@ export function WorkspaceProvider({
     return reminder;
   };
 
+  const updateWorkoutSession = (
+    patch: Partial<Pick<WorkoutSession, "title" | "focus">>,
+  ) => {
+    updateSelectedWorkoutSession((session) => ({
+      ...session,
+      title:
+        patch.title !== undefined
+          ? patch.title
+          : session.title,
+      focus:
+        patch.focus !== undefined
+          ? patch.focus
+          : session.focus,
+    }));
+  };
+
+  const addWorkoutExercise = (
+    name: string,
+    options: {
+      note?: string;
+      initialSets?: Array<Partial<Pick<WorkoutSet, "load" | "reps" | "note">>>;
+    } = {},
+  ) => {
+    const nextExercise = createWorkoutExercise(name, options);
+
+    updateSelectedWorkoutSession((session) => ({
+      ...session,
+      exercises: [...session.exercises, nextExercise],
+    }));
+
+    return nextExercise.id;
+  };
+
+  const updateWorkoutExercise = (
+    exerciseId: string,
+    patch: Partial<Pick<WorkoutExercise, "name" | "note">>,
+  ) => {
+    updateSelectedWorkoutSession((session) => ({
+      ...session,
+      exercises: session.exercises.map((exercise) =>
+        exercise.id === exerciseId
+          ? {
+              ...exercise,
+              ...patch,
+            }
+          : exercise,
+      ),
+    }));
+  };
+
+  const removeWorkoutExercise = (exerciseId: string) => {
+    setWorkspaceState((current) => {
+      const existingSession =
+        current.workouts.find((session) => session.date === selectedDate) ?? null;
+
+      if (!existingSession) {
+        return current;
+      }
+
+      const nextExercises = existingSession.exercises.filter(
+        (exercise) => exercise.id !== exerciseId,
+      );
+
+      if (nextExercises.length === 0) {
+        return {
+          ...current,
+          workouts: current.workouts.filter((session) => session.date !== selectedDate),
+        };
+      }
+
+      return {
+        ...current,
+        workouts: sortWorkoutSessions(
+          current.workouts.map((session) =>
+            session.date === selectedDate
+              ? {
+                  ...session,
+                  exercises: nextExercises,
+                  updatedAt: new Date().toISOString(),
+                }
+              : session,
+          ),
+        ),
+      };
+    });
+  };
+
+  const addWorkoutSet = (
+    exerciseId: string,
+    preset: Partial<Pick<WorkoutSet, "load" | "reps" | "note">> = {},
+  ) => {
+    const nextSet = createWorkoutSet(preset);
+
+    updateSelectedWorkoutSession((session) => ({
+      ...session,
+      exercises: session.exercises.map((exercise) =>
+        exercise.id === exerciseId
+          ? {
+              ...exercise,
+              sets: [...exercise.sets, nextSet],
+            }
+          : exercise,
+      ),
+    }));
+
+    return nextSet.id;
+  };
+
+  const updateWorkoutSet = (
+    exerciseId: string,
+    setId: string,
+    patch: Partial<Pick<WorkoutSet, "load" | "reps" | "note">>,
+  ) => {
+    updateSelectedWorkoutSession((session) => ({
+      ...session,
+      exercises: session.exercises.map((exercise) =>
+        exercise.id === exerciseId
+          ? {
+              ...exercise,
+              sets: exercise.sets.map((set) =>
+                set.id === setId
+                  ? {
+                      ...set,
+                      ...patch,
+                    }
+                  : set,
+              ),
+            }
+          : exercise,
+      ),
+    }));
+  };
+
+  const duplicateWorkoutSet = (
+    exerciseId: string,
+    setId?: string,
+    patch: Partial<Pick<WorkoutSet, "load" | "reps" | "note">> = {},
+  ) => {
+    const sourceExercise =
+      selectedWorkoutSession?.exercises.find((exercise) => exercise.id === exerciseId) ?? null;
+    const sourceSet = sourceExercise
+      ? setId
+        ? sourceExercise.sets.find((set) => set.id === setId) ?? null
+        : sourceExercise.sets[sourceExercise.sets.length - 1] ?? null
+      : null;
+
+    if (!sourceExercise || !sourceSet) {
+      return null;
+    }
+
+    return addWorkoutSet(exerciseId, {
+      load: patch.load ?? sourceSet.load,
+      reps: patch.reps ?? sourceSet.reps,
+      note: patch.note ?? sourceSet.note,
+    });
+  };
+
+  const removeWorkoutSet = (exerciseId: string, setId: string) => {
+    updateSelectedWorkoutSession((session) => ({
+      ...session,
+      exercises: session.exercises.map((exercise) => {
+        if (exercise.id !== exerciseId) {
+          return exercise;
+        }
+
+        const nextSets = exercise.sets.filter((set) => set.id !== setId);
+
+        return {
+          ...exercise,
+          sets: nextSets.length > 0 ? nextSets : [createWorkoutSet()],
+        };
+      }),
+    }));
+  };
+
   const requestEntryAnalysis = async () => {
     setAnalysisState("loading");
     setAnalysisError(null);
@@ -1248,12 +1611,36 @@ export function WorkspaceProvider({
         .sort((left, right) => left.scheduledDate.localeCompare(right.scheduledDate)),
     [workspaceState.tasks],
   );
+  const workoutDays = useMemo(
+    () =>
+      workspaceState.workouts.map((session) => ({
+        date: session.date,
+        compactDate: formatCompactDate(session.date),
+        title: session.title.trim() || "Силовая тренировка",
+        exerciseCount: session.exercises.length,
+        setCount: session.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0),
+        previewLines: session.exercises.slice(0, 2).map((exercise) => {
+          const sets = exercise.sets
+            .slice(0, 3)
+            .map((set) => {
+              const load = set.load.trim() || "вес";
+              const reps = set.reps.trim() || "повт.";
+              return `${load} × ${reps}`;
+            })
+            .join(" · ");
+
+          return sets ? `${exercise.name} · ${sets}` : exercise.name;
+        }),
+      })),
+    [workspaceState.workouts],
+  );
 
   const days = useMemo(() => {
     const knownDates = new Set<string>([
       selectedDate,
       ...Object.keys(entriesByDate),
       ...Object.keys(workspaceState.drafts),
+      ...workspaceState.workouts.map((workout) => workout.date),
       ...workspaceState.tasks.map((task) => task.scheduledDate),
     ]);
 
@@ -1268,8 +1655,10 @@ export function WorkspaceProvider({
           return typeof value === "string" ? value.trim().length > 0 : value !== undefined;
         });
         const completedTasks = tasks.filter((task) => task.completedAt).length;
+        const workout = workspaceState.workouts.find((session) => session.date === date);
         const summary =
           draft.summary.trim() ||
+          workout?.title.trim() ||
           draft.notes.trim().split("\n").find(Boolean) ||
           "День ещё не оформлен";
 
@@ -1277,7 +1666,10 @@ export function WorkspaceProvider({
           date,
           compactDate: formatCompactDate(date),
           summary,
-          notesPreview: draft.notes.trim() || "Запись пока пустая.",
+          notesPreview:
+            draft.notes.trim() ||
+            workout?.focus.trim() ||
+            "Запись пока пустая.",
           metricsFilled: visibleMetrics.length,
           tasksCompleted: completedTasks,
           tasksTotal: tasks.length,
@@ -1286,7 +1678,14 @@ export function WorkspaceProvider({
         } satisfies WorkspaceDay;
       })
       .sort((left, right) => right.date.localeCompare(left.date));
-  }, [entriesByDate, metricDefinitions, selectedDate, workspaceState.drafts, workspaceState.tasks]);
+  }, [
+    entriesByDate,
+    metricDefinitions,
+    selectedDate,
+    workspaceState.drafts,
+    workspaceState.tasks,
+    workspaceState.workouts,
+  ]);
 
   const value = {
     isConfigured,
@@ -1320,6 +1719,17 @@ export function WorkspaceProvider({
     saveEntry,
     requestEntryAnalysis,
     applyVoiceExtraction,
+    workouts: workspaceState.workouts,
+    selectedWorkoutSession,
+    workoutDays,
+    updateWorkoutSession,
+    addWorkoutExercise,
+    updateWorkoutExercise,
+    removeWorkoutExercise,
+    addWorkoutSet,
+    updateWorkoutSet,
+    duplicateWorkoutSet,
+    removeWorkoutSet,
     tasks: workspaceState.tasks,
     selectedTasks,
     overdueTasks,

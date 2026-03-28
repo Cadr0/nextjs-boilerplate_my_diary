@@ -76,6 +76,38 @@ export type WorkspaceDraft = {
   metricValues: Record<string, MetricValue>;
 };
 
+export type WorkoutSet = {
+  id: string;
+  load: string;
+  reps: string;
+  note: string;
+};
+
+export type WorkoutExercise = {
+  id: string;
+  name: string;
+  note: string;
+  sets: WorkoutSet[];
+};
+
+export type WorkoutSession = {
+  id: string;
+  date: string;
+  title: string;
+  focus: string;
+  exercises: WorkoutExercise[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WorkoutExerciseTemplate = {
+  id: string;
+  name: string;
+  loadPlaceholder: string;
+  note: string;
+  repTargets: string[];
+};
+
 export type TaskItem = {
   id: string;
   title: string;
@@ -118,6 +150,7 @@ export type WorkspaceProfile = {
 export type PersistedWorkspaceState = {
   version: number;
   drafts: Record<string, WorkspaceDraft>;
+  workouts: WorkoutSession[];
   tasks: TaskItem[];
   reminders: WorkspaceReminder[];
   metricDefinitions: MetricDefinition[];
@@ -343,6 +376,65 @@ export const metricTemplateLibrary = metricTemplates;
 
 export const aiModelOptions = aiModelCatalog;
 
+export const workoutExerciseLibrary: WorkoutExerciseTemplate[] = [
+  {
+    id: "bench-press",
+    name: "Жим лёжа",
+    loadPlaceholder: "80",
+    note: "База на силу и плотность верха.",
+    repTargets: ["5", "6", "8", "10"],
+  },
+  {
+    id: "incline-dumbbell-press",
+    name: "Жим гантелей под углом",
+    loadPlaceholder: "32",
+    note: "Объём на верх груди без лишней суеты.",
+    repTargets: ["8", "10", "12", "15"],
+  },
+  {
+    id: "dips",
+    name: "Отжимания на брусьях",
+    loadPlaceholder: "+10 кг",
+    note: "Связка на грудь и трицепс.",
+    repTargets: ["6", "8", "10", "12"],
+  },
+  {
+    id: "squat",
+    name: "Присед",
+    loadPlaceholder: "100",
+    note: "Ноги, корпус и контроль темпа.",
+    repTargets: ["3", "5", "8", "10"],
+  },
+  {
+    id: "deadlift",
+    name: "Тяга",
+    loadPlaceholder: "120",
+    note: "Тяжёлый паттерн без лишнего объёма.",
+    repTargets: ["3", "5", "6", "8"],
+  },
+  {
+    id: "pull-up",
+    name: "Подтягивания",
+    loadPlaceholder: "+5 кг",
+    note: "Тяговый объём и контроль лопаток.",
+    repTargets: ["5", "6", "8", "10"],
+  },
+  {
+    id: "barbell-row",
+    name: "Тяга штанги в наклоне",
+    loadPlaceholder: "70",
+    note: "Спина и плотность середины корпуса.",
+    repTargets: ["6", "8", "10", "12"],
+  },
+  {
+    id: "shoulder-press",
+    name: "Жим над головой",
+    loadPlaceholder: "50",
+    note: "Вертикальный жим и стабилизация.",
+    repTargets: ["5", "6", "8", "10"],
+  },
+];
+
 export const defaultProfile: WorkspaceProfile = {
   firstName: "Diary",
   lastName: "User",
@@ -366,6 +458,52 @@ function generateId(prefix: string) {
   }
 
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function createWorkoutSet(
+  preset: Partial<Pick<WorkoutSet, "load" | "reps" | "note">> = {},
+): WorkoutSet {
+  return {
+    id: generateId("workout-set"),
+    load: preset.load ?? "",
+    reps: preset.reps ?? "",
+    note: preset.note ?? "",
+  };
+}
+
+export function createWorkoutExercise(
+  name: string,
+  options: {
+    note?: string;
+    initialSets?: Array<Partial<Pick<WorkoutSet, "load" | "reps" | "note">>>;
+  } = {},
+): WorkoutExercise {
+  return {
+    id: generateId("workout-exercise"),
+    name: name.trim() || "Новое упражнение",
+    note: options.note ?? "",
+    sets:
+      options.initialSets && options.initialSets.length > 0
+        ? options.initialSets.map((set) => createWorkoutSet(set))
+        : [createWorkoutSet()],
+  };
+}
+
+export function createWorkoutSession(
+  date: string,
+  options: Partial<Pick<WorkoutSession, "title" | "focus">> = {},
+): WorkoutSession {
+  const timestamp = new Date().toISOString();
+
+  return {
+    id: generateId("workout-session"),
+    date,
+    title: options.title?.trim() || "Силовая тренировка",
+    focus: options.focus?.trim() || "",
+    exercises: [],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
 }
 
 function getMetricTypeOption(type: MetricInputType) {
@@ -682,6 +820,7 @@ export function createDefaultWorkspaceState(
   return {
     version: WORKSPACE_STORAGE_VERSION,
     drafts,
+    workouts: [],
     tasks: [],
     reminders: [],
     metricDefinitions,
