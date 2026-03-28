@@ -3,7 +3,7 @@ import "server-only";
 import { DEFAULT_OPENROUTER_FREE_MODEL, isOpenRouterFreeModel } from "@/lib/ai/models";
 import { createClient } from "@/lib/supabase/server";
 
-export type UserPlan = "free" | "paid";
+export type UserPlan = "free" | "pro";
 export type UsageKind = "ai" | "audio" | "photo";
 
 const FREE_PLAN_LIMITS: Record<UsageKind, number> = {
@@ -25,7 +25,11 @@ type ConsumeQuotaRow = {
 };
 
 function normalizePlan(plan: unknown): UserPlan {
-  return plan === "paid" ? "paid" : "free";
+  if (plan === "pro" || plan === "paid") {
+    return "pro";
+  }
+
+  return "free";
 }
 
 function getPostgrestErrorText(error: { message?: string; details?: string | null; hint?: string | null }) {
@@ -191,7 +195,7 @@ export async function createUsageGuard(userId: string) {
       return normalizedModel;
     },
     async consume(kind: UsageKind) {
-      if (plan === "paid") {
+      if (plan !== "free") {
         return;
       }
 
