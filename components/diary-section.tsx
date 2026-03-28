@@ -1691,26 +1691,31 @@ function DiarySettingsModal({
         }
       }}
     >
-      <div className="surface-card flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-[min(100vw-1rem,640px)] flex-row overflow-hidden rounded-[24px] border border-white/80 bg-[rgba(255,250,246,0.96)] shadow-[0_30px_70px_rgba(24,33,29,0.16)] sm:h-[min(90vh,760px)] sm:max-h-[90dvh] sm:max-w-5xl sm:rounded-[34px]">
-        <div className="flex w-[116px] shrink-0 flex-col border-r border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-2.5 sm:w-[290px] sm:max-w-[290px] sm:p-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-xl text-[var(--foreground)] transition hover:bg-white sm:mb-4 sm:h-11 sm:w-11 sm:rounded-2xl"
-            aria-label="Закрыть настройки"
-          >
-            <CloseIcon />
-          </button>
+      <div className="surface-card flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-[min(100vw-1rem,640px)] flex-col overflow-hidden rounded-[24px] border border-white/80 bg-[rgba(255,250,246,0.96)] shadow-[0_30px_70px_rgba(24,33,29,0.16)] sm:h-[min(90vh,760px)] sm:max-h-[90dvh] sm:max-w-5xl sm:flex-row sm:rounded-[34px]">
+        <div className="shrink-0 border-b border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-3 sm:flex sm:w-[290px] sm:max-w-[290px] sm:flex-col sm:border-b-0 sm:border-r sm:p-4">
+          <div className="mb-2 flex items-center justify-between sm:mb-4 sm:block">
+            <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)] sm:hidden">
+              Настройки
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-[var(--foreground)] transition hover:bg-white sm:h-11 sm:w-11 sm:rounded-2xl"
+              aria-label="Закрыть настройки"
+            >
+              <CloseIcon />
+            </button>
+          </div>
 
-          <div className="grid grid-cols-1 gap-1.5 pb-1 sm:overflow-visible sm:gap-2 sm:pb-0">
+          <div className="flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-1 sm:gap-2 sm:overflow-visible sm:pb-0">
             {tabs.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setTab(item.id)}
-                className={`min-w-0 rounded-[13px] px-2.5 py-2 text-left text-[0.82rem] leading-4 transition sm:rounded-[18px] sm:px-4 sm:py-3 sm:text-base sm:leading-6 ${
+                className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-left text-[0.76rem] leading-4 transition sm:min-w-0 sm:rounded-[18px] sm:px-4 sm:py-3 sm:text-base sm:leading-6 ${
                   tab === item.id
-                    ? "bg-white text-[var(--foreground)] shadow-[0_12px_24px_rgba(24,33,29,0.08)]"
+                    ? "bg-white text-[var(--foreground)] shadow-[0_10px_20px_rgba(24,33,29,0.08)]"
                     : "text-[var(--muted)] hover:bg-white/70"
                 }`}
               >
@@ -1720,7 +1725,7 @@ function DiarySettingsModal({
           </div>
         </div>
 
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-2.5 sm:p-8">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-8">
           {tab === "general" ? (
             <div className="grid min-h-full content-start gap-3 sm:gap-6">
               <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">
@@ -1728,6 +1733,7 @@ function DiarySettingsModal({
               </h2>
               <SettingsRow
                 label="Язык"
+                hint="Влияет на подписи интерфейса и сообщения ассистента."
                 control={
                   <select
                     value={profile.locale}
@@ -1741,6 +1747,7 @@ function DiarySettingsModal({
               />
               <SettingsRow
                 label="Часовой пояс"
+                hint="Нужен для корректного времени в уведомлениях и анализе дня."
                 control={
                   <input
                     value={profile.timezone}
@@ -1751,6 +1758,7 @@ function DiarySettingsModal({
               />
               <SettingsRow
                 label="Компактные метрики"
+                hint="Уменьшает размер карточек метрик в дневнике."
                 control={
                   <ToggleSwitch
                     active={profile.compactMetrics}
@@ -1760,6 +1768,7 @@ function DiarySettingsModal({
               />
               <SettingsRow
                 label="Доступ к микрофону"
+                hint="Разрешает голосовой ввод для заполнения текста и метрик."
                 control={
                   <div className="grid w-full gap-1.5 text-left sm:justify-items-end sm:gap-2 sm:text-right">
                     <ToggleSwitch
@@ -1774,6 +1783,7 @@ function DiarySettingsModal({
               />
               <SettingsRow
                 label="Получать уведомления"
+                hint="Включает умные напоминания и системные уведомления."
                 control={
                   <ToggleSwitch
                     active={profile.notificationsEnabled}
@@ -1785,6 +1795,7 @@ function DiarySettingsModal({
               />
               <SettingsRow
                 label="Разрешение уведомлений"
+                hint="Запрашивает доступ браузера и проверяет доставку тестового уведомления."
                 control={
                   <div className="grid w-full gap-1.5 text-left sm:justify-items-end sm:gap-2 sm:text-right">
                     <div className="grid w-full gap-1.5 sm:w-auto sm:grid-cols-2">
@@ -1865,6 +1876,7 @@ function DiarySettingsModal({
               </h2>
               <SettingsRow
                 label="Модель"
+                hint="Выбор модели для AI-ответов в чате и анализах."
                 control={
                   <select
                     value={profile.aiModel}
@@ -1881,6 +1893,7 @@ function DiarySettingsModal({
               />
               <SettingsRow
                 label="Тон"
+                hint="Задает стиль ответов ассистента."
                 control={
                   <select
                     value={profile.chatTone}
@@ -1957,18 +1970,46 @@ function DiarySettingsModal({
 
 function SettingsRow({
   label,
+  hint,
   control,
 }: {
   label: string;
+  hint?: string;
   control: ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-1 items-start gap-1.5 border-b border-[var(--border)] pb-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4 sm:pb-5">
-      <p className="text-[0.76rem] leading-4 text-[var(--foreground)] sm:pt-1 sm:text-xl sm:leading-7">
-        {label}
-      </p>
+    <div className="grid grid-cols-1 items-start gap-2 rounded-[16px] border border-[var(--border)] bg-white/86 p-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4 sm:rounded-none sm:border-0 sm:border-b sm:bg-transparent sm:px-0 sm:pb-5 sm:pt-0">
+      <div className="flex items-center gap-1.5 sm:pt-1">
+        <p className="text-[0.78rem] font-medium leading-4 text-[var(--foreground)] sm:text-xl sm:leading-7">
+          {label}
+        </p>
+        {hint ? <SettingsInfoHint text={hint} /> : null}
+      </div>
       <div className="min-w-0 max-w-full justify-self-stretch sm:justify-self-end">{control}</div>
     </div>
+  );
+}
+
+function SettingsInfoHint({ text }: { text: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        onBlur={() => setIsOpen(false)}
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--muted)] transition hover:text-[var(--foreground)]"
+        aria-label="Показать подсказку"
+      >
+        <InfoIcon />
+      </button>
+      {isOpen ? (
+        <span className="absolute right-0 top-5 z-30 w-52 rounded-xl border border-[var(--border)] bg-white px-2.5 py-2 text-[10px] leading-4 text-[var(--foreground)] shadow-[0_18px_30px_rgba(24,33,29,0.16)] sm:w-60 sm:text-xs">
+          {text}
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -1982,12 +2023,12 @@ function SettingsField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="grid gap-2">
-      <span className="text-[11px] font-medium text-[var(--foreground)] sm:text-sm">{label}</span>
+    <label className="grid min-w-0 gap-1.5">
+      <span className="text-[10px] font-medium text-[var(--foreground)] sm:text-sm">{label}</span>
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-10 rounded-[14px] border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-12 sm:rounded-[18px] sm:px-4 sm:text-sm"
+        className="min-h-9 w-full min-w-0 rounded-[14px] border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-12 sm:rounded-[18px] sm:px-4 sm:text-sm"
       />
     </label>
   );
@@ -2182,12 +2223,12 @@ function SettingsReadonlyField({
   value: string;
 }) {
   return (
-    <label className="grid gap-2">
-      <span className="text-[11px] font-medium text-[var(--foreground)] sm:text-sm">{label}</span>
+    <label className="grid min-w-0 gap-1.5">
+      <span className="text-[10px] font-medium text-[var(--foreground)] sm:text-sm">{label}</span>
       <input
         value={value}
         readOnly
-        className="min-h-10 rounded-[14px] border border-[var(--border)] bg-[rgba(244,247,244,0.92)] px-3 text-[11px] text-[var(--muted)] outline-none sm:min-h-12 sm:rounded-[18px] sm:px-4 sm:text-sm"
+        className="min-h-9 w-full min-w-0 rounded-[14px] border border-[var(--border)] bg-[rgba(244,247,244,0.92)] px-3 text-[11px] text-[var(--muted)] outline-none sm:min-h-12 sm:rounded-[18px] sm:px-4 sm:text-sm"
       />
     </label>
   );
@@ -2203,13 +2244,13 @@ function SettingsTextarea({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="grid gap-2">
-      <span className="text-[11px] font-medium text-[var(--foreground)] sm:text-sm">{label}</span>
+    <label className="grid min-w-0 gap-1.5">
+      <span className="text-[10px] font-medium text-[var(--foreground)] sm:text-sm">{label}</span>
       <AutoGrowTextarea
         value={value}
         onChange={onChange}
         minRows={3}
-        className="w-full rounded-[14px] border border-[var(--border)] bg-white px-3 py-2.5 text-[11px] leading-5 text-[var(--foreground)] outline-none sm:rounded-[18px] sm:px-4 sm:py-3 sm:text-sm sm:leading-6"
+        className="w-full min-w-0 rounded-[14px] border border-[var(--border)] bg-white px-3 py-2.5 text-[11px] leading-5 text-[var(--foreground)] outline-none sm:rounded-[18px] sm:px-4 sm:py-3 sm:text-sm sm:leading-6"
       />
     </label>
   );
@@ -2291,6 +2332,16 @@ function MetricIcon({ icon }: { icon: string }) {
 
       return <SparkIcon />;
   }
+}
+
+function InfoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 10.2v5.2" />
+      <circle cx="12" cy="7.5" r="0.8" fill="currentColor" stroke="none" />
+    </svg>
+  );
 }
 
 function EditIcon() {
