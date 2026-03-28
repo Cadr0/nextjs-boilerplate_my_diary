@@ -45,13 +45,15 @@ function isMissingPlanColumnError(error: { code?: string; message?: string; deta
 }
 
 function isMissingQuotaSchemaError(error: { code?: string; message?: string; details?: string | null; hint?: string | null }) {
-  if (error.code === "42883" || error.code === "42P01") {
+  if (error.code === "42883" || error.code === "42P01" || error.code === "PGRST202") {
     return true;
   }
 
   const text = getPostgrestErrorText(error);
   return (
     (text.includes("consume_daily_quota") && text.includes("does not exist")) ||
+    text.includes("could not find the function") ||
+    text.includes("schema cache") ||
     text.includes("user_daily_usage")
   );
 }
