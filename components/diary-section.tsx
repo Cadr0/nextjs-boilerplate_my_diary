@@ -386,8 +386,11 @@ export function DiarySection() {
 
   const openSettings = (tab: SettingsTab = "general") => {
     setSettingsInitialTab(tab);
+    setIsMobileSidebarOpen(false);
     setIsUserMenuOpen(false);
-    setIsSettingsOpen(true);
+    window.setTimeout(() => {
+      setIsSettingsOpen(true);
+    }, 0);
   };
 
   const sidebarContent = (
@@ -2061,6 +2064,12 @@ function DiaryUserMenu({
       <div
         ref={embeddedMenuRef}
         className="mt-3 rounded-[24px] border border-[var(--border)] bg-white/92 p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] sm:rounded-[26px] sm:p-4"
+        onPointerDown={(event) => {
+          event.stopPropagation();
+        }}
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
       >
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white sm:h-11 sm:w-11">
