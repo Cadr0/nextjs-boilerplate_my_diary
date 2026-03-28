@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -50,10 +50,10 @@ const PROGRESS_CAP_BY_STAGE: Record<ProcessingStage, number> = {
 };
 
 const PROCESSING_COPY_BY_STAGE: Record<ProcessingStage, string> = {
-  photo_ocr: "РџРѕРґРѕР¶РґРёС‚Рµ, РјС‹ РїРµСЂРµРІРѕРґРёРј РІР°С€Рµ С„РѕС‚Рѕ РІ С‚РµРєСЃС‚.",
-  text_extract: "РџРѕРґРѕР¶РґРёС‚Рµ, РјС‹ Р°РЅР°Р»РёР·РёСЂСѓРµРј Рё Р·Р°РїРѕР»РЅСЏРµРј РІР°С€Рё РјРµС‚СЂРёРєРё Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё.",
-  voice_transcribe: "РџРѕРґРѕР¶РґРёС‚Рµ, РјС‹ РїРµСЂРµРІРѕРґРёРј РіРѕР»РѕСЃ РІ С‚РµРєСЃС‚.",
-  voice_extract: "РџРѕРґРѕР¶РґРёС‚Рµ, РјС‹ Р°РЅР°Р»РёР·РёСЂСѓРµРј Рё Р·Р°РїРѕР»РЅСЏРµРј РІР°С€Рё РјРµС‚СЂРёРєРё Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё.",
+  photo_ocr: "Подождите, мы переводим ваше фото в текст.",
+  text_extract: "Подождите, мы анализируем и заполняем ваши метрики автоматически.",
+  voice_transcribe: "Подождите, мы переводим голос в текст.",
+  voice_extract: "Подождите, мы анализируем и заполняем ваши метрики автоматически.",
 };
 
 function getSupportedAudioMimeType() {
@@ -130,11 +130,11 @@ function normalizeProposedValue(
     if (typeof value === "string") {
       const normalized = value.trim().toLowerCase();
 
-      if (["РґР°", "yes", "true", "1"].includes(normalized)) {
+      if (["да", "yes", "true", "1"].includes(normalized)) {
         return true;
       }
 
-      if (["РЅРµС‚", "no", "false", "0"].includes(normalized)) {
+      if (["нет", "no", "false", "0"].includes(normalized)) {
         return false;
       }
     }
@@ -175,11 +175,11 @@ function normalizeProposedValue(
 
 function toMetricDisplayValue(value: MetricValue | null) {
   if (value === null) {
-    return "вЂ”";
+    return "—";
   }
 
   if (typeof value === "boolean") {
-    return value ? "Р”Р°" : "РќРµС‚";
+    return value ? "Да" : "Нет";
   }
 
   return String(value);
@@ -189,7 +189,7 @@ async function loadImageElementFromFile(file: File) {
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => {
-      reject(new Error("РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕС‡РёС‚Р°С‚СЊ РІС‹Р±СЂР°РЅРЅРѕРµ РёР·РѕР±СЂР°Р¶РµРЅРёРµ."));
+      reject(new Error("Не удалось прочитать выбранное изображение."));
     };
     reader.onload = () => resolve(String(reader.result ?? ""));
     reader.readAsDataURL(file);
@@ -199,7 +199,7 @@ async function loadImageElementFromFile(file: File) {
     const image = new Image();
     image.onload = () => resolve(image);
     image.onerror = () => {
-      reject(new Error("РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±СЂР°Р±РѕС‚Р°С‚СЊ РІС‹Р±СЂР°РЅРЅРѕРµ РёР·РѕР±СЂР°Р¶РµРЅРёРµ."));
+      reject(new Error("Не удалось обработать выбранное изображение."));
     };
     image.src = dataUrl;
   });
@@ -262,11 +262,11 @@ async function normalizeImageForOcrUpload(file: File) {
 
 function mapPhotoOcrErrorMessage(rawMessage: string) {
   if (rawMessage.includes("RouterAI image OCR request failed")) {
-    return "РќРµ СѓРґР°Р»РѕСЃСЊ СЂР°СЃРїРѕР·РЅР°С‚СЊ С„РѕС‚Рѕ. РџРѕРїСЂРѕР±СѓР№С‚Рµ JPG/PNG РёР»Рё СЃРґРµР»Р°Р№С‚Рµ СЃРєСЂРёРЅС€РѕС‚ Рё Р·Р°РіСЂСѓР·РёС‚Рµ РµРіРѕ.";
+    return "Не удалось распознать фото. Попробуйте JPG/PNG или сделайте скриншот и загрузите его.";
   }
 
   if (rawMessage.includes("Only image files are supported")) {
-    return "РџРѕРґРґРµСЂР¶РёРІР°СЋС‚СЃСЏ С‚РѕР»СЊРєРѕ РёР·РѕР±СЂР°Р¶РµРЅРёСЏ (JPG, PNG, WEBP).";
+    return "Поддерживаются только изображения (JPG, PNG, WEBP).";
   }
 
   return rawMessage;
@@ -329,7 +329,7 @@ export function DayEntryComposer() {
   const suggestedMetricsCount = proposedMetrics.filter((item) => item.value !== null).length;
   const isProcessing = activeStage !== null;
   const progressMessage = activeStage ? PROCESSING_COPY_BY_STAGE[activeStage] : null;
-  const recordingStatus = isRecording ? `РРґРµС‚ Р·Р°РїРёСЃСЊ ${formatDuration(recordingSeconds)}` : null;
+  const recordingStatus = isRecording ? `Идет запись ${formatDuration(recordingSeconds)}` : null;
   const stopStream = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
@@ -509,11 +509,11 @@ export function DayEntryComposer() {
 
     setProposedMetrics(nextProposals);
     if (nextProposals.length > 0) {
-      setNotice("РџСЂРµРґР»РѕР¶РµРЅРёСЏ РїРѕ РјРµС‚СЂРёРєР°Рј РіРѕС‚РѕРІС‹. РџСЂРѕРІРµСЂСЊС‚Рµ Рё РїСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё РїРѕРїСЂР°РІСЊС‚Рµ.");
+      setNotice("Предложения по метрикам готовы. Проверьте и при необходимости поправьте.");
       return;
     }
 
-    setNotice("РўРµРєСЃС‚ РѕР±СЂР°Р±РѕС‚Р°РЅ, РЅРѕ СѓРІРµСЂРµРЅРЅС‹С… Р·РЅР°С‡РµРЅРёР№ РјРµС‚СЂРёРє РЅРµ РЅР°Р№РґРµРЅРѕ.");
+    setNotice("Текст обработан, но уверенных значений метрик не найдено.");
   };
 
   const requestMetricExtraction = async (sourceText: string) => {
@@ -531,7 +531,7 @@ export function DayEntryComposer() {
     const result = (await response.json()) as ExtractionResponse;
 
     if (!response.ok || !result.extraction) {
-      throw new Error(result.error ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕСЃС‚СЂРѕРёС‚СЊ РїСЂРµРґР»РѕР¶РµРЅРёСЏ РїРѕ РјРµС‚СЂРёРєР°Рј.");
+      throw new Error(result.error ?? "Не удалось построить предложения по метрикам.");
     }
 
     return result.extraction;
@@ -541,7 +541,7 @@ export function DayEntryComposer() {
     const sourceText = selectedDraft.notes.trim();
 
     if (!sourceText) {
-      setError("РЎРЅР°С‡Р°Р»Р° РґРѕР±Р°РІСЊС‚Рµ С‚РµРєСЃС‚ РІ РїРѕР»Рµ В«РљР°Рє РїСЂРѕС€РµР» РґРµРЅСЊВ».");
+      setError("Сначала добавьте текст в поле «Как прошел день».");
       return;
     }
 
@@ -567,7 +567,7 @@ export function DayEntryComposer() {
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕСЃС‚СЂРѕРёС‚СЊ РјРµС‚СЂРёРєРё РёР· С‚РµРєСЃС‚Р°.",
+          : "Не удалось построить метрики из текста.",
       );
       failProcessingFlow();
     }
@@ -595,7 +595,7 @@ export function DayEntryComposer() {
       const ocrResult = (await ocrResponse.json()) as OcrResponse;
 
       if (!ocrResponse.ok || !ocrResult.transcript) {
-        throw new Error(ocrResult.error ?? "РќРµ СѓРґР°Р»РѕСЃСЊ СЂР°СЃРїРѕР·РЅР°С‚СЊ С‚РµРєСЃС‚ СЃ С„РѕС‚Рѕ.");
+        throw new Error(ocrResult.error ?? "Не удалось распознать текст с фото.");
       }
 
       if (contextVersion !== contextVersionRef.current) {
@@ -624,7 +624,7 @@ export function DayEntryComposer() {
       setError(
         requestError instanceof Error
           ? mapPhotoOcrErrorMessage(requestError.message)
-          : "РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±СЂР°Р±РѕС‚Р°С‚СЊ С„РѕС‚Рѕ РґРЅРµРІРЅРёРєР°.",
+          : "Не удалось обработать фото дневника.",
       );
       failProcessingFlow();
     }
@@ -654,7 +654,7 @@ export function DayEntryComposer() {
       const result = (await response.json()) as TranscribeResponse;
 
       if (!response.ok || !result.transcript) {
-        throw new Error(result.error ?? "РќРµ СѓРґР°Р»РѕСЃСЊ СЂР°СЃРїРѕР·РЅР°С‚СЊ СЂРµС‡СЊ.");
+        throw new Error(result.error ?? "Не удалось распознать речь.");
       }
 
       if (contextVersion !== contextVersionRef.current) {
@@ -670,11 +670,11 @@ export function DayEntryComposer() {
         }
 
         applyVoiceExtraction(result.transcript, extraction);
-        setNotice("Р“РѕР»РѕСЃРѕРІР°СЏ Р·Р°РїРёСЃСЊ РѕР±СЂР°Р±РѕС‚Р°РЅР°. РўРµРєСЃС‚ Рё РјРµС‚СЂРёРєРё РѕР±РЅРѕРІР»РµРЅС‹.");
+        setNotice("Голосовая запись обработана. Текст и метрики обновлены.");
       } else {
         const mergedNotes = mergeImportedNotes(selectedDraft.notes, result.transcript);
         updateNotes(mergedNotes);
-        setNotice("РўРµРєСЃС‚ РёР· РіРѕР»РѕСЃР° РґРѕР±Р°РІР»РµРЅ РІ РїРѕР»Рµ В«РљР°Рє РїСЂРѕС€РµР» РґРµРЅСЊВ». РњРµС‚СЂРёРєРё РЅРµ Р·Р°РїРѕР»РЅСЏР»РёСЃСЊ.");
+        setNotice("Текст из голоса добавлен в поле «Как прошел день». Метрики не заполнялись.");
       }
 
       finishProcessingFlow();
@@ -686,7 +686,7 @@ export function DayEntryComposer() {
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±СЂР°Р±РѕС‚Р°С‚СЊ РіРѕР»РѕСЃРѕРІСѓСЋ Р·Р°РїРёСЃСЊ.",
+          : "Не удалось обработать голосовую запись.",
       );
       failProcessingFlow();
     }
@@ -702,7 +702,7 @@ export function DayEntryComposer() {
       !navigator.mediaDevices?.getUserMedia ||
       typeof MediaRecorder === "undefined"
     ) {
-      setError("Р’ СЌС‚РѕРј Р±СЂР°СѓР·РµСЂРµ РЅРµ РїРѕРґРґРµСЂР¶РёРІР°РµС‚СЃСЏ РіРѕР»РѕСЃРѕРІРѕР№ РІРІРѕРґ.");
+      setError("В этом браузере не поддерживается голосовой ввод.");
       return;
     }
 
@@ -768,7 +768,7 @@ export function DayEntryComposer() {
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РґРѕСЃС‚СѓРї Рє РјРёРєСЂРѕС„РѕРЅСѓ.",
+          : "Не удалось получить доступ к микрофону.",
       );
     } finally {
       isStartingRef.current = false;
@@ -791,7 +791,7 @@ export function DayEntryComposer() {
       applied += 1;
     }
 
-    setNotice(applied > 0 ? `Р’РЅРµСЃРµРЅРѕ РјРµС‚СЂРёРє: ${applied}.` : "РќРµС‚ Р·РЅР°С‡РµРЅРёР№ РґР»СЏ РїСЂРёРјРµРЅРµРЅРёСЏ.");
+    setNotice(applied > 0 ? `Внесено метрик: ${applied}.` : "Нет значений для применения.");
     setProposedMetrics([]);
   };
 
@@ -808,7 +808,7 @@ export function DayEntryComposer() {
       <div className="grid gap-2">
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-base font-medium text-[var(--foreground)] sm:text-[1.05rem]">РљР°Рє РїСЂРѕС€РµР» РґРµРЅСЊ?</span>
+            <span className="text-base font-medium text-[var(--foreground)] sm:text-[1.05rem]">Как прошел день?</span>
             {recordingStatus ? (
               <span className="rounded-full border border-[rgba(47,111,97,0.16)] bg-[rgba(247,249,246,0.95)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
                 {recordingStatus}
@@ -819,7 +819,7 @@ export function DayEntryComposer() {
           <textarea
             value={selectedDraft.notes}
             onChange={(event) => updateNotes(event.target.value)}
-            placeholder="Р§С‚Рѕ СЃРµРіРѕРґРЅСЏ РїСЂРѕРёР·РѕС€Р»Рѕ, РєР°Рє С‚С‹ СЃРµР±СЏ С‡СѓРІСЃС‚РІРѕРІР°Р» Рё С‡С‚Рѕ Р±С‹Р»Рѕ РІР°Р¶РЅС‹Рј?"
+            placeholder="Что сегодня произошло, как ты себя чувствовал и что было важным?"
             rows={7}
             className="w-full min-h-[220px] resize-y rounded-[18px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:min-h-[280px] sm:rounded-[20px] sm:px-4 sm:text-[15px]"
           />
@@ -833,8 +833,8 @@ export function DayEntryComposer() {
                 onClick={() => setIsMenuOpen((current) => !current)}
                 disabled={isProcessing || isRecording}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:w-11"
-                aria-label="РћС‚РєСЂС‹С‚СЊ РјРµРЅСЋ Р·Р°РіСЂСѓР·РєРё С„РѕС‚Рѕ"
-                title="Р”РѕР±Р°РІРёС‚СЊ С„РѕС‚Рѕ"
+                aria-label="Открыть меню загрузки фото"
+                title="Добавить фото"
                 aria-expanded={isMenuOpen}
                 aria-haspopup="menu"
               >
@@ -881,7 +881,7 @@ export function DayEntryComposer() {
                     className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-[var(--foreground)] transition hover:bg-[rgba(247,249,246,0.96)]"
                   >
                     <GalleryIcon />
-                    Р—Р°РіСЂСѓР·РёС‚СЊ РёР· РіР°Р»РµСЂРµРё
+                    Загрузить из галереи
                   </button>
                   <button
                     type="button"
@@ -889,7 +889,7 @@ export function DayEntryComposer() {
                     className="flex w-full items-center gap-2 border-t border-[var(--border)] px-3 py-2.5 text-left text-sm text-[var(--foreground)] transition hover:bg-[rgba(247,249,246,0.96)]"
                   >
                     <CameraIcon />
-                    РЎРґРµР»Р°С‚СЊ С„РѕС‚Рѕ
+                    Сделать фото
                   </button>
                 </div>
               ) : null}
@@ -930,25 +930,25 @@ export function DayEntryComposer() {
               type="button"
               onClick={() => void handleBuildFromText()}
               disabled={isProcessing || isRecording}
-              title="РџРѕСЃС‚СЂРѕРёС‚СЊ РјРµС‚СЂРёРєРё РёР· С‚РµРєСЃС‚Р°"
+              title="Построить метрики из текста"
               className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[var(--accent)] bg-[var(--accent)] px-3 text-xs font-medium text-white shadow-[0_14px_24px_rgba(47,111,97,0.2)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:px-4 sm:text-sm"
             >
               <MetricsIcon />
-              <span className="sm:hidden">РњРµС‚СЂРёРєРё</span>
-              <span className="hidden sm:inline">РџРѕСЃС‚СЂРѕРёС‚СЊ РјРµС‚СЂРёРєРё РёР· С‚РµРєСЃС‚Р°</span>
+              <span className="sm:hidden">Метрики</span>
+              <span className="hidden sm:inline">Построить метрики из текста</span>
             </button>
 
             <div className="ml-auto inline-flex h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-white px-2.5 sm:h-11 sm:px-3">
               <span className="text-[11px] text-[var(--muted)] sm:text-xs">
-                <span className="sm:hidden">РђРІС‚Рѕ</span>
-                <span className="hidden sm:inline">Р—Р°РїРѕР»РЅСЏС‚СЊ РјРµС‚СЂРёРєРё</span>
+                <span className="sm:hidden">Авто</span>
+                <span className="hidden sm:inline">Заполнять метрики</span>
               </span>
               <button
                 type="button"
                 onClick={() => setFillMetricsFromVoice((current) => !current)}
                 disabled={isProcessing || isRecording}
                 aria-pressed={fillMetricsFromVoice}
-                title="РђРІС‚РѕР·Р°РїРѕР»РЅРµРЅРёРµ РјРµС‚СЂРёРє РёР· РіРѕР»РѕСЃР°"
+                title="Автозаполнение метрик из голоса"
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
                   fillMetricsFromVoice ? "bg-[var(--accent)]" : "bg-[rgba(24,33,29,0.18)]"
                 } disabled:cursor-not-allowed disabled:opacity-60`}
@@ -974,13 +974,13 @@ export function DayEntryComposer() {
         {showProgress ? (
           <UnifiedProgressBar
             progress={progress}
-            message={progressMessage ?? "РџРѕРґРѕР¶РґРёС‚Рµ, РёРґРµС‚ РѕР±СЂР°Р±РѕС‚РєР°."}
+            message={progressMessage ?? "Подождите, идет обработка."}
           />
         ) : null}
 
         {photoTranscriptTruncated ? (
           <p className="border-t border-[var(--border)] px-4 py-2 text-xs text-[var(--muted)] sm:px-5">
-            Р Р°СЃРїРѕР·РЅР°РЅРЅС‹Р№ С‚РµРєСЃС‚ СЃ С„РѕС‚Рѕ Р±С‹Р» РѕР±СЂРµР·Р°РЅ РґРѕ 12000 СЃРёРјРІРѕР»РѕРІ.
+            Распознанный текст с фото был обрезан до 12000 символов.
           </p>
         ) : null}
 
@@ -999,9 +999,9 @@ export function DayEntryComposer() {
         {proposedMetrics.length > 0 ? (
           <div className="border-t border-[var(--border)] px-4 py-3 sm:px-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-[var(--foreground)]">РџСЂРµРґР»РѕР¶РµРЅРЅС‹Рµ РјРµС‚СЂРёРєРё</p>
+              <p className="text-sm font-semibold text-[var(--foreground)]">Предложенные метрики</p>
               <span className="rounded-full border border-[rgba(47,111,97,0.14)] bg-[rgba(247,249,246,0.92)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--accent)]">
-                {suggestedMetricsCount} С€С‚.
+                {suggestedMetricsCount} шт.
               </span>
             </div>
 
@@ -1024,17 +1024,17 @@ export function DayEntryComposer() {
                 disabled={suggestedMetricsCount === 0}
                 className="inline-flex min-h-10 items-center rounded-full bg-[var(--accent)] px-3.5 text-xs font-medium text-white shadow-[0_14px_26px_rgba(47,111,97,0.2)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:px-4 sm:text-sm"
               >
-                Р’РЅРµСЃС‚Рё РїСЂРµРґР»РѕР¶РµРЅРЅС‹Рµ РјРµС‚СЂРёРєРё
+                Внести предложенные метрики
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setProposedMetrics([]);
-                  setNotice("РџСЂРµРґР»РѕР¶РµРЅРёСЏ РѕС‚РєР»РѕРЅРµРЅС‹.");
+                  setNotice("Предложения отклонены.");
                 }}
                 className="inline-flex min-h-10 items-center rounded-full border border-[var(--border)] bg-white px-3.5 text-xs font-medium text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.24)] hover:text-[var(--accent)] sm:min-h-11 sm:px-4 sm:text-sm"
               >
-                РћС‚РєР°Р·Р°С‚СЊСЃСЏ
+                Отказаться
               </button>
             </div>
           </div>
@@ -1114,7 +1114,7 @@ function ProposedMetricRow({
                 : "border-[var(--border)] bg-white text-[var(--foreground)]"
             }`}
           >
-            Р”Р°
+            Да
           </button>
           <button
             type="button"
@@ -1125,14 +1125,14 @@ function ProposedMetricRow({
                 : "border-[var(--border)] bg-white text-[var(--foreground)]"
             }`}
           >
-            РќРµС‚
+            Нет
           </button>
           <button
             type="button"
             onClick={() => onChangeValue(null)}
             className="rounded-full border border-[var(--border)] bg-white px-2.5 py-1 text-xs text-[var(--muted)] transition hover:text-[var(--foreground)]"
           >
-            РќРµ РІРЅРѕСЃРёС‚СЊ
+            Не вносить
           </button>
         </div>
       ) : metric.type === "text" ? (
@@ -1140,7 +1140,7 @@ function ProposedMetricRow({
           type="text"
           value={typeof value === "string" ? value : ""}
           onChange={(event) => onChangeValue(event.target.value.trim() || null)}
-          placeholder="РўРµРєСЃС‚РѕРІРѕРµ Р·РЅР°С‡РµРЅРёРµ"
+          placeholder="Текстовое значение"
           className="min-h-9 rounded-xl border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
         />
       ) : (
@@ -1169,7 +1169,7 @@ function ProposedMetricRow({
             onClick={() => onChangeValue(null)}
             className="rounded-full border border-[var(--border)] bg-white px-2.5 py-1 text-xs text-[var(--muted)] transition hover:text-[var(--foreground)]"
           >
-            РќРµ РІРЅРѕСЃРёС‚СЊ
+            Не вносить
           </button>
         </div>
       )}
