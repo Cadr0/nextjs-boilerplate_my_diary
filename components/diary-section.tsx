@@ -2005,7 +2005,7 @@ function SettingsInfoHint({ text }: { text: string }) {
         <InfoIcon />
       </button>
       {isOpen ? (
-        <span className="absolute right-0 top-5 z-30 w-52 rounded-xl border border-[var(--border)] bg-white px-2.5 py-2 text-[10px] leading-4 text-[var(--foreground)] shadow-[0_18px_30px_rgba(24,33,29,0.16)] sm:w-60 sm:text-xs">
+        <span className="absolute left-full top-1/2 z-30 ml-2 w-52 -translate-y-1/2 rounded-xl border border-[var(--border)] bg-white px-2.5 py-2 text-[10px] leading-4 text-[var(--foreground)] shadow-[0_18px_30px_rgba(24,33,29,0.16)] sm:w-60 sm:text-xs">
           {text}
         </span>
       ) : null}
