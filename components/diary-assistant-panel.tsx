@@ -580,6 +580,154 @@ function extractSleepReminderSuggestion(content: string | null) {
   };
 }
 
+type ChatContentBlock =
+  | {
+      kind: "line";
+      line: string;
+      index: number;
+    }
+  | {
+      kind: "table";
+      rows: string[][];
+      start: number;
+      end: number;
+    };
+
+function isMarkdownTableRow(value: string) {
+  const trimmed = value.trim();
+  return /^\|.+\|$/.test(trimmed);
+}
+
+function parseMarkdownTableRow(value: string) {
+  return value
+    .split("|")
+    .map((cell) => cell.trim())
+    .filter(Boolean);
+}
+
+function isMarkdownTableDividerRow(row: string[]) {
+  if (row.length === 0) {
+    return false;
+  }
+
+  return row.every((cell) => /^:?-{2,}:?$/.test(cell.replace(/\s+/g, "")));
+}
+
+function normalizeTableRows(rows: string[][], columnCount: number) {
+  return rows.map((row) => {
+    if (row.length >= columnCount) {
+      return row.slice(0, columnCount);
+    }
+
+    return [...row, ...Array.from({ length: columnCount - row.length }, () => "")];
+  });
+}
+
+function buildChatContentBlocks(lines: string[]) {
+  const blocks: ChatContentBlock[] = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!isMarkdownTableRow(lines[index] ?? "")) {
+      blocks.push({
+        kind: "line",
+        line: lines[index] ?? "",
+        index,
+      });
+      continue;
+    }
+
+    const tableLines: string[] = [lines[index] ?? ""];
+    let end = index;
+
+    while (end + 1 < lines.length && isMarkdownTableRow(lines[end + 1] ?? "")) {
+      end += 1;
+      tableLines.push(lines[end] ?? "");
+    }
+
+    const rows = tableLines
+      .map((line) => parseMarkdownTableRow(line))
+      .filter((row) => row.length > 0);
+
+    if (rows.length === 0) {
+      blocks.push({
+        kind: "line",
+        line: lines[index] ?? "",
+        index,
+      });
+      continue;
+    }
+
+    blocks.push({
+      kind: "table",
+      rows,
+      start: index,
+      end,
+    });
+
+    index = end;
+  }
+
+  return blocks;
+}
+
+function renderMarkdownTable(
+  key: string,
+  rows: string[][],
+  variant: "chat" | "analysis",
+) {
+  const dividerRowIndex = rows.findIndex((row) => isMarkdownTableDividerRow(row));
+  const hasHeader = dividerRowIndex === 1;
+
+  const sourceRows = hasHeader ? [rows[0] ?? [], ...rows.slice(2)] : rows.filter((row) => !isMarkdownTableDividerRow(row));
+  const columnCount = sourceRows.reduce((max, row) => Math.max(max, row.length), 0);
+
+  if (columnCount === 0) {
+    return null;
+  }
+
+  const headerRow = hasHeader ? normalizeTableRows([rows[0] ?? []], columnCount)[0] : null;
+  const bodyRows = normalizeTableRows(hasHeader ? rows.slice(2) : rows.filter((row) => !isMarkdownTableDividerRow(row)), columnCount);
+
+  return (
+    <div key={key} className="overflow-x-auto rounded-[16px] border border-[var(--border)] bg-white/95">
+      <table className="min-w-[480px] w-full border-collapse text-left">
+        {headerRow ? (
+          <thead className="bg-[rgba(47,111,97,0.08)]">
+            <tr>
+              {headerRow.map((cell, cellIndex) => (
+                <th
+                  key={`${key}-head-${cellIndex}`}
+                  className={`border-b border-[var(--border)] px-3 py-2 font-semibold text-[var(--foreground)] ${
+                    variant === "analysis" ? "text-sm" : "text-xs sm:text-sm"
+                  }`}
+                >
+                  {renderInlineSegments(cell)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+        ) : null}
+        <tbody>
+          {bodyRows.map((row, rowIndex) => (
+            <tr key={`${key}-row-${rowIndex}`} className="align-top">
+              {row.map((cell, cellIndex) => (
+                <td
+                  key={`${key}-cell-${rowIndex}-${cellIndex}`}
+                  className={`border-b border-[var(--border)] px-3 py-2 text-[var(--foreground)] ${
+                    variant === "analysis" ? "text-sm" : "text-xs sm:text-sm"
+                  }`}
+                >
+                  {renderInlineSegments(cell)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function ChatMessageContent({
   content,
   streaming,
@@ -590,6 +738,7 @@ function ChatMessageContent({
   variant?: "chat" | "analysis";
 }) {
   const lines = normalizeAiText(content).split("\n");
+  const blocks = buildChatContentBlocks(lines);
 
   return (
     <div
@@ -597,7 +746,13 @@ function ChatMessageContent({
         variant === "analysis" ? "gap-3 text-[15px] leading-7" : "gap-2 text-sm leading-7"
       }`}
     >
-      {lines.map((line, index) => {
+      {blocks.map((block) => {
+        if (block.kind === "table") {
+          return renderMarkdownTable(`table-${block.start}-${block.end}`, block.rows, variant);
+        }
+
+        const line = block.line;
+        const index = block.index;
         const trimmed = line.trim();
 
         if (!trimmed) {
@@ -628,30 +783,6 @@ function ChatMessageContent({
               className="rounded-[14px] border border-[rgba(47,111,97,0.16)] bg-[rgba(47,111,97,0.06)] px-3 py-2 text-[var(--foreground)]/90"
             >
               {renderInlineSegments(trimmed.replace(/^>\s+/, ""))}
-            </div>
-          );
-        }
-
-        if (/^\|.+\|$/.test(trimmed)) {
-          const cells = trimmed
-            .split("|")
-            .map((cell) => cell.trim())
-            .filter(Boolean);
-
-          if (cells.every((cell) => /^:?-{2,}:?$/.test(cell))) {
-            return null;
-          }
-
-          return (
-            <div key={`table-${index}`} className="flex flex-wrap gap-2">
-              {cells.map((cell, cellIndex) => (
-                <span
-                  key={`${cell}-${cellIndex}`}
-                  className="rounded-full border border-[rgba(47,111,97,0.18)] bg-[rgba(47,111,97,0.08)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)]"
-                >
-                  {renderInlineSegments(cell)}
-                </span>
-              ))}
             </div>
           );
         }
