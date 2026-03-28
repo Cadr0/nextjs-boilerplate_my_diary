@@ -1,9 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
-
-import type { PeriodAnalysisResult } from "@/lib/ai/contracts";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspace } from "@/components/workspace-provider";
 import {
   EmptyState,
@@ -68,16 +66,24 @@ export function AnalyticsSection() {
   const [view, setView] = useState<AnalyticsView>("trends");
   const [analysisState, setAnalysisState] = useState<"idle" | "loading" | "error">("idle");
   const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [analysis, setAnalysis] = useState<PeriodAnalysisResult | null>(null);
+  const [analysisText, setAnalysisText] = useState("");
+  const analysisAbortRef = useRef<AbortController | null>(null);
 
   const rangeStart = fromDate <= toDate ? fromDate : toDate;
   const rangeEnd = fromDate <= toDate ? toDate : fromDate;
 
   useEffect(() => {
-    setAnalysis(null);
+    analysisAbortRef.current?.abort();
+    setAnalysisText("");
     setAnalysisError(null);
     setAnalysisState("idle");
   }, [rangeEnd, rangeStart]);
+
+  useEffect(() => {
+    return () => {
+      analysisAbortRef.current?.abort();
+    };
+  }, []);
 
   const rangeEntries = useMemo(
     () =>
@@ -160,15 +166,21 @@ export function AnalyticsSection() {
       return;
     }
 
+    analysisAbortRef.current?.abort();
+    const abortController = new AbortController();
+    analysisAbortRef.current = abortController;
+
     try {
       setAnalysisState("loading");
       setAnalysisError(null);
+      setAnalysisText("");
 
       const response = await fetch("/api/analytics/analyze-period", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        signal: abortController.signal,
         body: JSON.stringify({
           from: rangeStart,
           to: rangeEnd,
@@ -176,24 +188,54 @@ export function AnalyticsSection() {
           model: profile.aiModel,
         }),
       });
-      const result = (await response.json()) as {
-        analysis?: PeriodAnalysisResult;
-        error?: string;
-      };
 
-      if (!response.ok || !result.analysis) {
-        throw new Error(result.error ?? "Не удалось проанализировать выбранный период.");
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(payload?.error ?? "Не удалось проанализировать выбранный период.");
       }
 
-      setAnalysis(result.analysis);
+      if (!response.body) {
+        const fallbackText = await response.text();
+        setAnalysisText(fallbackText.trim());
+        setAnalysisState("idle");
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        accumulated += decoder.decode(value, { stream: true });
+        setAnalysisText(accumulated);
+      }
+
+      accumulated += decoder.decode();
+      setAnalysisText(accumulated.trim());
       setAnalysisState("idle");
     } catch (requestError) {
+      if (abortController.signal.aborted) {
+        return;
+      }
+
       setAnalysisState("error");
       setAnalysisError(
         requestError instanceof Error
           ? requestError.message
           : "Не удалось проанализировать выбранный период.",
       );
+    } finally {
+      if (analysisAbortRef.current === abortController) {
+        analysisAbortRef.current = null;
+      }
     }
   };
 
@@ -448,18 +490,12 @@ export function AnalyticsSection() {
             </div>
           ) : null}
 
-          {analysis ? (
-            <div className="mt-4 grid gap-4">
-              <div className="rounded-[22px] border border-[var(--border)] bg-white/85 p-4">
-                <p className="text-sm leading-7 text-[var(--foreground)]">
-                  {analysis.period_summary}
-                </p>
-              </div>
-
-              <MetricTrendSummary analysis={analysis} />
-              <BulletCard title="Паттерны" items={analysis.patterns} />
-              <BulletCard title="Возможные факторы" items={analysis.possible_factors} />
-              <BulletCard title="Рекомендации" items={analysis.recommendations} />
+          {analysisText || analysisState === "loading" ? (
+            <div className="mt-4 rounded-[22px] border border-[var(--border)] bg-white/90 p-4">
+              <AiMarkdownContent
+                content={analysisText || "Анализируем период..."}
+                streaming={analysisState === "loading"}
+              />
             </div>
           ) : (
             <div className="mt-4">
@@ -490,54 +526,251 @@ function DiaryPanelIcon() {
   );
 }
 
-function BulletCard({ title, items }: { title: string; items: string[] }) {
+type AnalysisContentBlock =
+  | {
+      kind: "line";
+      line: string;
+      index: number;
+    }
+  | {
+      kind: "table";
+      rows: string[][];
+      start: number;
+      end: number;
+    };
+
+function renderInlineSegments(line: string) {
+  const segments = line.split(/(\*\*[^*]+\*\*)/g);
+
+  return segments.map((segment, index) => {
+    if (segment.startsWith("**") && segment.endsWith("**")) {
+      return (
+        <strong key={`${segment}-${index}`} className="font-semibold text-[var(--foreground)]">
+          {segment.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    return <span key={`${segment}-${index}`}>{segment}</span>;
+  });
+}
+
+function normalizeAiText(content: string) {
+  return content
+    .replace(/\r\n?/g, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function isMarkdownTableRow(value: string) {
+  const trimmed = value.trim();
+  return /^\|.+\|$/.test(trimmed);
+}
+
+function parseMarkdownTableRow(value: string) {
+  return value
+    .split("|")
+    .map((cell) => cell.trim())
+    .filter(Boolean);
+}
+
+function isMarkdownTableDividerRow(row: string[]) {
+  if (row.length === 0) {
+    return false;
+  }
+
+  return row.every((cell) => /^:?-{2,}:?$/.test(cell.replace(/\s+/g, "")));
+}
+
+function normalizeTableRows(rows: string[][], columnCount: number) {
+  return rows.map((row) => {
+    if (row.length >= columnCount) {
+      return row.slice(0, columnCount);
+    }
+
+    return [...row, ...Array.from({ length: columnCount - row.length }, () => "")];
+  });
+}
+
+function buildAnalysisContentBlocks(lines: string[]) {
+  const blocks: AnalysisContentBlock[] = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!isMarkdownTableRow(lines[index] ?? "")) {
+      blocks.push({
+        kind: "line",
+        line: lines[index] ?? "",
+        index,
+      });
+      continue;
+    }
+
+    const tableLines: string[] = [lines[index] ?? ""];
+    let end = index;
+
+    while (end + 1 < lines.length && isMarkdownTableRow(lines[end + 1] ?? "")) {
+      end += 1;
+      tableLines.push(lines[end] ?? "");
+    }
+
+    const rows = tableLines
+      .map((line) => parseMarkdownTableRow(line))
+      .filter((row) => row.length > 0);
+
+    if (rows.length === 0) {
+      blocks.push({
+        kind: "line",
+        line: lines[index] ?? "",
+        index,
+      });
+      continue;
+    }
+
+    blocks.push({
+      kind: "table",
+      rows,
+      start: index,
+      end,
+    });
+
+    index = end;
+  }
+
+  return blocks;
+}
+
+function renderMarkdownTable(key: string, rows: string[][]) {
+  const dividerRowIndex = rows.findIndex((row) => isMarkdownTableDividerRow(row));
+  const hasHeader = dividerRowIndex === 1;
+
+  const sourceRows = hasHeader
+    ? [rows[0] ?? [], ...rows.slice(2)]
+    : rows.filter((row) => !isMarkdownTableDividerRow(row));
+  const columnCount = sourceRows.reduce((max, row) => Math.max(max, row.length), 0);
+
+  if (columnCount === 0) {
+    return null;
+  }
+
+  const headerRow = hasHeader ? normalizeTableRows([rows[0] ?? []], columnCount)[0] : null;
+  const bodyRows = normalizeTableRows(
+    hasHeader ? rows.slice(2) : rows.filter((row) => !isMarkdownTableDividerRow(row)),
+    columnCount,
+  );
+
   return (
-    <div className="rounded-[22px] border border-[var(--border)] bg-white/85 p-4">
-      <p className="text-sm font-medium text-[var(--foreground)]">{title}</p>
-      {items.length > 0 ? (
-        <div className="mt-3 grid gap-2">
-          {items.map((item) => (
-            <div
-              key={item}
-              className="rounded-[18px] bg-[rgba(47,111,97,0.06)] px-3 py-2 text-sm leading-6 text-[var(--foreground)]"
-            >
-              {item}
-            </div>
+    <div key={key} className="overflow-x-auto rounded-[16px] border border-[var(--border)] bg-white/95">
+      <table className="min-w-[480px] w-full border-collapse text-left">
+        {headerRow ? (
+          <thead className="bg-[rgba(47,111,97,0.08)]">
+            <tr>
+              {headerRow.map((cell, cellIndex) => (
+                <th
+                  key={`${key}-head-${cellIndex}`}
+                  className="border-b border-[var(--border)] px-3 py-2 text-sm font-semibold text-[var(--foreground)]"
+                >
+                  {renderInlineSegments(cell)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+        ) : null}
+        <tbody>
+          {bodyRows.map((row, rowIndex) => (
+            <tr key={`${key}-row-${rowIndex}`} className="align-top">
+              {row.map((cell, cellIndex) => (
+                <td
+                  key={`${key}-cell-${rowIndex}-${cellIndex}`}
+                  className="border-b border-[var(--border)] px-3 py-2 text-sm text-[var(--foreground)]"
+                >
+                  {renderInlineSegments(cell)}
+                </td>
+              ))}
+            </tr>
           ))}
-        </div>
-      ) : (
-        <p className="mt-3 text-sm text-[var(--muted)]">Пока нет пунктов.</p>
-      )}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-function MetricTrendSummary({ analysis }: { analysis: PeriodAnalysisResult }) {
-  const items = [
-    { label: "Настроение", value: analysis.metric_trends.mood },
-    { label: "Энергия", value: analysis.metric_trends.energy },
-    { label: "Стресс", value: analysis.metric_trends.stress },
-    { label: "Сон", value: analysis.metric_trends.sleep },
-  ];
+function AiMarkdownContent({
+  content,
+  streaming,
+}: {
+  content: string;
+  streaming: boolean;
+}) {
+  const lines = normalizeAiText(content).split("\n");
+  const blocks = buildAnalysisContentBlocks(lines);
 
   return (
-    <div className="rounded-[22px] border border-[var(--border)] bg-white/85 p-4">
-      <p className="text-sm font-medium text-[var(--foreground)]">Динамика метрик</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        {items.map((item) => (
-          <div
-            key={item.label}
-            className="rounded-[18px] bg-[rgba(21,52,43,0.05)] px-3 py-3"
-          >
-            <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
-              {item.label}
+    <div className="grid gap-3 text-[15px] leading-7 text-[var(--foreground)]">
+      {blocks.map((block) => {
+        if (block.kind === "table") {
+          return renderMarkdownTable(`table-${block.start}-${block.end}`, block.rows);
+        }
+
+        const line = block.line;
+        const index = block.index;
+        const trimmed = line.trim();
+
+        if (!trimmed) {
+          return <div key={`space-${index}`} className="h-2" />;
+        }
+
+        if (/^[-]{2,}$/.test(trimmed)) {
+          return <div key={`divider-${index}`} className="my-1 h-px w-full bg-[var(--border)]/85" />;
+        }
+
+        if (/^#{1,3}\s+/.test(trimmed)) {
+          return (
+            <p key={`heading-${index}`} className="text-lg font-semibold tracking-[-0.02em] leading-8">
+              {renderInlineSegments(trimmed.replace(/^#{1,3}\s+/, ""))}
             </p>
-            <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">
-              {item.value ?? "Недостаточно данных."}
-            </p>
-          </div>
-        ))}
-      </div>
+          );
+        }
+
+        if (/^>\s+/.test(trimmed)) {
+          return (
+            <div
+              key={`quote-${index}`}
+              className="rounded-[14px] border border-[rgba(47,111,97,0.16)] bg-[rgba(47,111,97,0.06)] px-3 py-2 text-[var(--foreground)]/90"
+            >
+              {renderInlineSegments(trimmed.replace(/^>\s+/, ""))}
+            </div>
+          );
+        }
+
+        if (/^[-*]\s+/.test(trimmed)) {
+          return (
+            <div key={`bullet-${index}`} className="flex items-start gap-2.5">
+              <span className="mt-[10px] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]/70" />
+              <p>{renderInlineSegments(trimmed.replace(/^[-*]\s+/, ""))}</p>
+            </div>
+          );
+        }
+
+        const numbered = trimmed.match(/^(\d+)\.\s+(.*)$/);
+
+        if (numbered) {
+          return (
+            <div key={`numbered-${index}`} className="flex items-start gap-2">
+              <span className="min-w-4 font-medium text-[var(--muted)]">{numbered[1]}.</span>
+              <p>{renderInlineSegments(numbered[2] ?? "")}</p>
+            </div>
+          );
+        }
+
+        return <p key={`line-${index}`}>{renderInlineSegments(line)}</p>;
+      })}
+
+      {streaming ? (
+        <span className="inline-flex h-5 items-center">
+          <span className="h-4 w-1 animate-pulse rounded bg-[var(--accent)]/60" />
+        </span>
+      ) : null}
     </div>
   );
 }

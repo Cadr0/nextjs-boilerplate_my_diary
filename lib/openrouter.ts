@@ -413,6 +413,11 @@ function buildDiaryChatMessages(
     {
       role: "system" as const,
       content:
+        "Do not force rigid templates. Build a thoughtful analysis, compare facts across days, and include non-obvious patterns when supported by evidence.",
+    },
+    {
+      role: "system" as const,
+      content:
         "Use Request time from context when recommending exact clock time. Never suggest a time that is already in the past for the user's local timezone. If the time has passed, explicitly suggest the next possible slot (usually tomorrow) and say that clearly.",
     },
     ...messages,
@@ -512,6 +517,123 @@ export async function streamChatWithOpenRouter(
           const lines = buffer.split("\n");
           buffer = lines.pop() ?? "";
 
+          lines.forEach(pushSseChunk);
+        }
+
+        buffer += decoder.decode();
+        const tail = buffer.trim();
+
+        if (tail.length > 0) {
+          pushSseChunk(tail);
+        }
+
+        controller.close();
+      } catch (streamError) {
+        controller.error(streamError);
+      } finally {
+        sourceReader.releaseLock();
+      }
+    },
+  });
+}
+
+export async function streamPeriodAnalysisWithOpenRouter(
+  input: AnalyzeDiaryPeriodInput,
+) {
+  const configError = getOpenRouterConfigError();
+
+  if (configError) {
+    throw new Error(configError);
+  }
+
+  const response = await fetch(`${openRouterBaseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${openRouterApiKey}`,
+      "HTTP-Referer": siteUrl,
+      "X-Title": appTitle,
+    },
+    body: JSON.stringify(
+      buildOpenRouterRequestBody(
+        [
+          {
+            role: "system",
+            content:
+              "Ты делаешь глубокий разбор периода дневника. Пиши по-русски, в markdown, без JSON, с акцентом на неочевидные паттерны и практичные шаги.",
+          },
+          {
+            role: "user",
+            content: buildPeriodAnalysisPrompt({
+              from: input.from,
+              to: input.to,
+              entries: input.entries,
+            }),
+          },
+        ],
+        input.model ?? openRouterModel,
+        {
+          temperature: 0.72,
+          stream: true,
+        },
+      ),
+    ),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as OpenRouterPayload;
+    throw new Error(payload.error?.message ?? "OpenRouter request failed.");
+  }
+
+  if (!response.body) {
+    throw new Error("OpenRouter did not provide a stream body.");
+  }
+
+  const sourceReader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let buffer = "";
+
+      const pushSseChunk = (line: string) => {
+        const trimmed = line.trim();
+
+        if (!trimmed.startsWith("data:")) {
+          return;
+        }
+
+        const data = trimmed.slice(5).trim();
+
+        if (!data || data === "[DONE]") {
+          return;
+        }
+
+        try {
+          const chunk = JSON.parse(data) as OpenRouterStreamPayload;
+          const token = chunk.choices?.[0]?.delta?.content;
+
+          if (token) {
+            controller.enqueue(encoder.encode(token));
+          }
+        } catch {
+          // Ignore malformed partial SSE chunks.
+        }
+      };
+
+      try {
+        while (true) {
+          const { value, done } = await sourceReader.read();
+
+          if (done) {
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
           lines.forEach(pushSseChunk);
         }
 

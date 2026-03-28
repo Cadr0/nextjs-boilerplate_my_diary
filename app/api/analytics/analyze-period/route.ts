@@ -5,12 +5,12 @@ import { resolveAiProvider } from "@/lib/ai/models";
 import { getAuthState } from "@/lib/auth";
 import { parsePeriodAnalysisInput } from "@/lib/ai/contracts";
 import {
-  analyzeDiaryPeriod as analyzeDiaryPeriodOpenRouter,
   getOpenRouterConfigError,
+  streamPeriodAnalysisWithOpenRouter,
 } from "@/lib/openrouter";
 import {
-  analyzeDiaryPeriod as analyzeDiaryPeriodRouterAi,
   getRouterAiConfigError,
+  streamPeriodAnalysisWithRouterAi,
 } from "@/lib/routerai";
 
 export async function POST(request: Request) {
@@ -39,12 +39,20 @@ export async function POST(request: Request) {
       model,
     };
 
-    const analysis =
+    const stream =
       provider === "openrouter"
-        ? await analyzeDiaryPeriodOpenRouter(normalizedPayload)
-        : await analyzeDiaryPeriodRouterAi(normalizedPayload);
+        ? await streamPeriodAnalysisWithOpenRouter(normalizedPayload)
+        : await streamPeriodAnalysisWithRouterAi(normalizedPayload);
 
-    return NextResponse.json({ analysis }, { status: 200 });
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      },
+    });
   } catch (error) {
     const usageGuardError = getUsageGuardErrorResponse(error);
 
