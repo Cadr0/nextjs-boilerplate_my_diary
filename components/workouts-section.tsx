@@ -108,6 +108,34 @@ function getSessionStats(session: WorkoutSession | null) {
   };
 }
 
+function getTemplatePreview(template: WorkoutExerciseTemplate) {
+  const load = template.loadPlaceholder?.trim();
+  const reps = template.repTargets.slice(0, 3);
+
+  if (!reps.length) {
+    return load || "Быстрый старт";
+  }
+
+  if (!load) {
+    return reps.map((rep) => `× ${rep}`).join(" · ");
+  }
+
+  return reps.map((rep) => `${load} × ${rep}`).join(" · ");
+}
+
+function getTemplateAccent(index: number) {
+  const accents = [
+    "from-[#173930] via-[#204d43] to-[#2f6f61]",
+    "from-[#274a65] via-[#326b8f] to-[#5aa0c6]",
+    "from-[#5c4027] via-[#8f6734] to-[#c9965c]",
+    "from-[#314d2e] via-[#487246] to-[#73a16d]",
+    "from-[#4c3458] via-[#72508a] to-[#a685bf]",
+    "from-[#5f343b] via-[#8f5460] to-[#c78390]",
+  ];
+
+  return accents[index % accents.length];
+}
+
 function WorkoutExerciseCard({
   exercise,
   template,
@@ -141,11 +169,25 @@ function WorkoutExerciseCard({
       value: adjustLoadValue(quickLoadBase, delta),
     }))
     .filter((option): option is { delta: number; value: string } => Boolean(option.value));
+  const templatePreview = template ? getTemplatePreview(template) : null;
 
   return (
     <section className="surface-card rounded-[28px] p-4 sm:rounded-[30px] sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            {templatePreview ? (
+              <span className="rounded-full bg-[rgba(47,111,97,0.08)] px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--accent)]">
+                {templatePreview}
+              </span>
+            ) : null}
+            {exercise.note.trim() ? (
+              <span className="rounded-full bg-[rgba(24,33,29,0.05)] px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
+                В процессе
+              </span>
+            ) : null}
+          </div>
+
           <div className="flex flex-wrap items-center gap-2">
             <input
               value={exercise.name}
@@ -218,65 +260,100 @@ function WorkoutExerciseCard({
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() =>
-            lastSet
-              ? onDuplicateSet(lastSet.id)
-              : onAddSet({
-                  load: template?.loadPlaceholder ?? "",
-                  reps: template?.repTargets[0] ?? "",
-                })
-          }
-          className="inline-flex min-h-11 items-center rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white shadow-[0_14px_24px_rgba(47,111,97,0.18)] transition hover:brightness-105"
-        >
-          Повторить прошлый
-        </button>
+      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
+        <div className="rounded-[22px] border border-[rgba(47,111,97,0.12)] bg-[rgba(47,111,97,0.06)] p-3">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="rounded-full bg-[rgba(47,111,97,0.12)] px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--accent)]">
+              Ритм
+            </span>
+            <span className="text-xs text-[var(--muted)]">для следующего подхода</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                lastSet
+                  ? onDuplicateSet(lastSet.id)
+                  : onAddSet({
+                      load: template?.loadPlaceholder ?? "",
+                      reps: template?.repTargets[0] ?? "",
+                    })
+              }
+              className="inline-flex min-h-11 items-center rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white shadow-[0_14px_24px_rgba(47,111,97,0.18)] transition hover:brightness-105"
+            >
+              Повторить прошлый
+            </button>
+            <button
+              type="button"
+              onClick={() => onAddSet()}
+              className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/90 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            >
+              + Пустой сет
+            </button>
+          </div>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => onAddSet()}
-          className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/90 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-        >
-          + Пустой сет
-        </button>
+        <div className="rounded-[22px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.84)] p-3">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="rounded-full bg-[rgba(24,33,29,0.06)] px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+              Повторы
+            </span>
+            <span className="text-xs text-[var(--muted)]">если меняется только объём</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {repTargets.map((reps) => (
+              <button
+                key={reps}
+                type="button"
+                onClick={() =>
+                  lastSet
+                    ? onDuplicateSet(lastSet.id, { reps })
+                    : onAddSet({
+                        load: template?.loadPlaceholder ?? "",
+                        reps,
+                      })
+                }
+                className="rounded-full border border-[rgba(24,33,29,0.1)] bg-white px-3 py-2 text-xs font-medium text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              >
+                × {reps}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        {repTargets.map((reps) => (
-          <button
-            key={reps}
-            type="button"
-            onClick={() =>
-              lastSet
-                ? onDuplicateSet(lastSet.id, { reps })
-                : onAddSet({
-                    load: template?.loadPlaceholder ?? "",
-                    reps,
-                  })
-            }
-            className="rounded-full border border-[rgba(24,33,29,0.1)] bg-[rgba(247,249,246,0.84)] px-3 py-2 text-xs font-medium text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          >
-            × {reps}
-          </button>
-        ))}
-
-        {quickLoadOptions.map((option) => (
-          <button
-            key={`${exercise.id}-${option.delta}`}
-            type="button"
-            onClick={() =>
-              lastSet
-                ? onDuplicateSet(lastSet.id, { load: option.value })
-                : onAddSet({
-                    load: option.value,
-                    reps: template?.repTargets[0] ?? "",
-                  })
-            }
-            className="rounded-full border border-[rgba(24,33,29,0.1)] bg-[rgba(255,255,255,0.92)] px-3 py-2 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          >
-            {option.delta > 0 ? `+${formatLoadValue(option.delta)}` : formatLoadValue(option.delta)}
-          </button>
-        ))}
+        <div className="rounded-[22px] border border-[rgba(211,173,98,0.18)] bg-[rgba(211,173,98,0.12)] p-3">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="rounded-full bg-[rgba(211,173,98,0.18)] px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--warm)]">
+              Вес
+            </span>
+            <span className="text-xs text-[var(--muted)]">когда прогрессируешь по нагрузке</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {quickLoadOptions.length > 0 ? (
+              quickLoadOptions.map((option) => (
+                <button
+                  key={`${exercise.id}-${option.delta}`}
+                  type="button"
+                  onClick={() =>
+                    lastSet
+                      ? onDuplicateSet(lastSet.id, { load: option.value })
+                      : onAddSet({
+                          load: option.value,
+                          reps: template?.repTargets[0] ?? "",
+                        })
+                  }
+                  className="rounded-full border border-[rgba(24,33,29,0.1)] bg-white px-3 py-2 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  {option.delta > 0 ? `+${formatLoadValue(option.delta)}` : formatLoadValue(option.delta)}
+                </button>
+              ))
+            ) : (
+              <span className="text-xs leading-6 text-[var(--muted)]">
+                Появится автоматически, когда в последнем сете есть числовой вес.
+              </span>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -315,6 +392,8 @@ export function WorkoutsSection() {
   }, [isMobileSidebarOpen]);
 
   const stats = getSessionStats(selectedWorkoutSession);
+  const primaryTemplates = workoutExerciseLibrary.slice(0, 6);
+  const secondaryTemplates = workoutExerciseLibrary.slice(6);
   const previousSession = useMemo(
     () => workouts.find((session) => session.date < selectedDate) ?? null,
     [selectedDate, workouts],
@@ -390,6 +469,16 @@ export function WorkoutsSection() {
       });
     }
   };
+  const sessionStateLabel =
+    stats.exercises > 0 ? "Активная сессия" : previousSession ? "Готова к старту" : "Новая сессия";
+  const sessionGuidance =
+    stats.exercises > 0
+      ? "После каждого подхода жми «Повторить прошлый», а корректировку делай только там, где реально что-то изменилось."
+      : previousSession
+        ? "Проще всего начать с прошлой сессии, чтобы не тратить внимание на ручной набор каждого упражнения."
+        : "Сначала выбери одно упражнение-карточку. Остальные добавишь уже в ритме тренировки.";
+  const titleSignal = selectedWorkoutSession?.title?.trim();
+  const focusSignal = selectedWorkoutSession?.focus?.trim();
 
   const sidebarContent = (
     <>
@@ -493,9 +582,9 @@ export function WorkoutsSection() {
           Быстрый режим
         </p>
         <ul className="mt-3 grid gap-2 text-sm leading-6 text-[var(--foreground)]">
-          <li>Повтор последнего сета в один тап.</li>
-          <li>Шаблоны упражнений прямо в шапке тренировки.</li>
-          <li>Навигация по дням без лишних экранов и модалок.</li>
+          <li>Сначала смотри на статус сессии и подсказку в шапке.</li>
+          <li>Потом выбери карточку упражнения, а не вводи всё вручную.</li>
+          <li>Во время подходов живи в блоках «Ритм», «Повторы» и «Вес».</li>
         </ul>
       </div>
     </>
@@ -562,8 +651,8 @@ export function WorkoutsSection() {
                       {getHeadingDateLabel(selectedDate)}
                     </h1>
                     <p className="mt-3 max-w-2xl text-sm leading-7 text-white/78 sm:text-base">
-                      Быстрый журнал тренировки: открыл день, ткнул шаблон, добавил подход.
-                      Всё построено под ритм зала, а не под долгий ручной ввод.
+                      Открыл день, выбрал первое упражнение, пошёл по сетам. Страница должна
+                      поддерживать темп тренировки, а не отвлекать от неё.
                     </p>
                   </div>
 
@@ -580,6 +669,46 @@ export function WorkoutsSection() {
                     >
                       Период и тренды
                     </Link>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-white/12 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.22em] text-white/82">
+                    {sessionStateLabel}
+                  </span>
+                  <span className="rounded-full bg-white/10 px-3 py-2 text-sm text-white/82">
+                    {titleSignal || "Название можно задать по ходу"}
+                  </span>
+                  {focusSignal ? (
+                    <span className="rounded-full bg-[rgba(255,255,255,0.14)] px-3 py-2 text-sm text-white/82">
+                      Фокус: {focusSignal}
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="mt-5 rounded-[24px] border border-white/12 bg-white/10 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-white/62">
+                        Что делать сейчас
+                      </p>
+                      <p className="mt-2 text-lg font-semibold tracking-[-0.03em] text-white">
+                        {sessionStateLabel}
+                      </p>
+                      <p className="mt-2 max-w-2xl text-sm leading-7 text-white/78">
+                        {sessionGuidance}
+                      </p>
+                    </div>
+
+                    {previousSession ? (
+                      <button
+                        type="button"
+                        onClick={handleClonePreviousSession}
+                        className="inline-flex min-h-12 items-center rounded-full border border-white/18 bg-white/14 px-5 text-sm font-medium text-white transition hover:bg-white/20"
+                      >
+                        Подтянуть прошлую сессию
+                      </button>
+                    ) : null}
                   </div>
                 </div>
 
@@ -651,22 +780,19 @@ export function WorkoutsSection() {
 
                   <div className="rounded-[26px] border border-[var(--border)] bg-white/88 p-4">
                     <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-                      Быстрый старт
+                      На что смотреть
                     </p>
-                    <p className="mt-3 text-sm leading-6 text-[var(--foreground)]">
-                      Вноси тренировку с минимальным количеством нажатий: шаблон, повтор
-                      последнего сета и быстрые чипы на повторения и вес.
-                    </p>
-
-                    {previousSession ? (
-                      <button
-                        type="button"
-                        onClick={handleClonePreviousSession}
-                        className="mt-4 inline-flex min-h-11 items-center rounded-full border border-[rgba(47,111,97,0.18)] bg-[rgba(47,111,97,0.08)] px-4 text-sm font-medium text-[var(--accent)] transition hover:border-[var(--accent)]"
-                      >
-                        Подтянуть прошлую сессию
-                      </button>
-                    ) : null}
+                    <div className="mt-3 grid gap-3 text-sm leading-6 text-[var(--foreground)]">
+                      <div className="rounded-[18px] bg-[rgba(47,111,97,0.06)] px-3 py-3">
+                        1. Выбери упражнение карточкой ниже.
+                      </div>
+                      <div className="rounded-[18px] bg-[rgba(24,33,29,0.04)] px-3 py-3">
+                        2. После первого подхода живи в кнопке «Повторить прошлый».
+                      </div>
+                      <div className="rounded-[18px] bg-[rgba(211,173,98,0.1)] px-3 py-3">
+                        3. Корректируй только то, что изменилось: повторы или вес.
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -677,19 +803,52 @@ export function WorkoutsSection() {
                 <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
                   Шаблоны упражнений
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {workoutExerciseLibrary.map((template) => (
+                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {primaryTemplates.map((template, index) => (
                     <button
                       key={template.id}
                       type="button"
                       onClick={() => handleAddExercise(template.name)}
-                      className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/92 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                      className={`group overflow-hidden rounded-[24px] bg-gradient-to-br ${getTemplateAccent(index)} p-[1px] text-left transition hover:-translate-y-0.5 hover:shadow-[0_18px_32px_rgba(34,39,37,0.14)]`}
                     >
-                      {template.name}
+                      <span className="flex h-full flex-col rounded-[23px] bg-[rgba(255,250,244,0.96)] p-4">
+                        <span className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">
+                          Шаблон
+                        </span>
+                        <span className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] transition group-hover:text-[var(--accent)]">
+                          {template.name}
+                        </span>
+                        <span className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                          {template.note}
+                        </span>
+                        <span className="mt-4 rounded-full bg-[rgba(47,111,97,0.08)] px-3 py-2 text-xs font-medium text-[var(--accent)]">
+                          {getTemplatePreview(template)}
+                        </span>
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
+
+              {secondaryTemplates.length > 0 ? (
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+                    Ещё варианты
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {secondaryTemplates.map((template) => (
+                      <button
+                        key={template.id}
+                        type="button"
+                        onClick={() => handleAddExercise(template.name)}
+                        className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-white/92 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                      >
+                        {template.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               {recentExerciseSuggestions.length > 0 ? (
                 <div>
@@ -751,13 +910,25 @@ export function WorkoutsSection() {
                   повторений.
                 </p>
 
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-[18px] bg-[rgba(47,111,97,0.08)] px-4 py-3 text-sm leading-6 text-[var(--foreground)]">
+                    1. Выбери шаблон упражнения.
+                  </div>
+                  <div className="rounded-[18px] bg-[rgba(24,33,29,0.05)] px-4 py-3 text-sm leading-6 text-[var(--foreground)]">
+                    2. Сделай первый сет и внеси его вручную.
+                  </div>
+                  <div className="rounded-[18px] bg-[rgba(211,173,98,0.12)] px-4 py-3 text-sm leading-6 text-[var(--foreground)]">
+                    3. Остальное добивай быстрыми кнопками.
+                  </div>
+                </div>
+
                 {previousSession ? (
                   <button
                     type="button"
                     onClick={handleClonePreviousSession}
                     className="mt-2 inline-flex min-h-12 w-fit items-center rounded-full bg-[var(--accent)] px-5 text-sm font-medium text-white shadow-[0_16px_28px_rgba(47,111,97,0.22)] transition hover:brightness-105"
                   >
-                    Подтянуть {previousSession.title.toLowerCase()}
+                    Подтянуть {(previousSession.title || "прошлую сессию").toLowerCase()}
                   </button>
                 ) : null}
               </div>
