@@ -497,7 +497,7 @@ export function WorkoutsSection() {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="mt-4 grid grid-cols-1 gap-2">
           <Link
             href="/diary"
             className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
