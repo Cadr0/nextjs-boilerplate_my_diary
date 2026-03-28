@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { BrandGlyph } from "@/components/brand-glyph";
 import { useWorkspace } from "@/components/workspace-provider";
 import {
   EmptyState,
-  MiniStat,
   SectionCard,
   SectionHeader,
   TrendChart,
@@ -18,6 +18,18 @@ import {
 } from "@/lib/workspace";
 
 type AnalyticsView = "trends" | "list";
+
+type QuickRangePreset = {
+  id: string;
+  label: string;
+  days: number;
+};
+
+const QUICK_RANGE_PRESETS: QuickRangePreset[] = [
+  { id: "week", label: "7 дней", days: 6 },
+  { id: "fortnight", label: "14 дней", days: 13 },
+  { id: "month", label: "30 дней", days: 29 },
+];
 
 function average(values: number[]) {
   if (values.length === 0) {
@@ -64,6 +76,7 @@ export function AnalyticsSection() {
   const [fromDate, setFromDate] = useState(() => shiftIsoDate(selectedDate, -13));
   const [toDate, setToDate] = useState(() => selectedDate);
   const [view, setView] = useState<AnalyticsView>("trends");
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [analysisState, setAnalysisState] = useState<"idle" | "loading" | "error">("idle");
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisText, setAnalysisText] = useState("");
@@ -84,6 +97,19 @@ export function AnalyticsSection() {
       analysisAbortRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (!isMobileSidebarOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileSidebarOpen]);
 
   const rangeEntries = useMemo(
     () =>
@@ -126,6 +152,9 @@ export function AnalyticsSection() {
   );
 
   const totalNotes = deferredEntries.reduce((sum, entry) => sum + entry.notes.trim().length, 0);
+  const activeRangePreset = QUICK_RANGE_PRESETS.find(
+    (preset) => fromDate === shiftIsoDate(toDate, -preset.days),
+  )?.id;
   const rangePayload = deferredEntries.map((entry) => ({
     entry_date: entry.entry_date,
     summary: entry.summary,
@@ -239,29 +268,163 @@ export function AnalyticsSection() {
     }
   };
 
-  return (
-    <div className="grid gap-4">
-      <div className="surface-card sticky top-3 z-20 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 rounded-[24px] px-4 py-3 xl:hidden">
-        <Link
-          href="/diary"
-          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
-          aria-label="Вернуться в дневник"
-        >
-          <ChevronLeftIcon />
-        </Link>
-        <p className="truncate text-center text-sm font-semibold text-[var(--foreground)]">
-          Аналитика периода
-        </p>
-        <Link
-          href="/diary"
-          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
-          aria-label="Открыть дневник"
-        >
-          <DiaryPanelIcon />
-        </Link>
+  const applyQuickRange = (days: number) => {
+    setToDate(selectedDate);
+    setFromDate(shiftIsoDate(selectedDate, -days));
+  };
+
+  const sidebarContent = (
+    <>
+      <div className="rounded-[24px] border border-[var(--border)] bg-white/90 p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white">
+            <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_10px_20px_rgba(32,77,67,0.24)]" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
+              Analytics
+            </p>
+            <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+              Период
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-2">
+          <Link
+            href="/diary"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          >
+            Дневник
+          </Link>
+          <Link
+            href="/workouts"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          >
+            Тренировки
+          </Link>
+          <div className="inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--accent)] px-3 text-sm font-medium text-white">
+            Период
+          </div>
+        </div>
       </div>
 
-      <SectionCard className="rounded-[32px] p-5 sm:p-6">
+      <div className="mt-4 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
+        <div className="mb-3 flex items-center justify-between px-1">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+            Быстрый диапазон
+          </p>
+          <span className="text-xs text-[var(--muted)]">{deferredEntries.length} дней</span>
+        </div>
+
+        <div className="grid gap-2">
+          {QUICK_RANGE_PRESETS.map((preset) => {
+            const isActive = activeRangePreset === preset.id;
+
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => {
+                  applyQuickRange(preset.days);
+                  setIsMobileSidebarOpen(false);
+                }}
+                className={`rounded-[20px] px-4 py-3 text-left transition ${
+                  isActive
+                    ? "bg-[var(--accent)] text-white shadow-[0_14px_30px_rgba(47,111,97,0.22)]"
+                    : "bg-white/74 text-[var(--foreground)] hover:bg-[rgba(47,111,97,0.08)]"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold">{preset.label}</span>
+                  <span
+                    className={`rounded-full px-2 py-1 text-[11px] ${
+                      isActive
+                        ? "bg-white/16 text-white"
+                        : "bg-[rgba(47,111,97,0.08)] text-[var(--accent)]"
+                    }`}
+                  >
+                    до {formatCompactDate(selectedDate)}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-[24px] border border-[rgba(47,111,97,0.12)] bg-[linear-gradient(145deg,rgba(47,111,97,0.1),rgba(255,255,255,0.9))] p-4">
+        <p className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--accent)]">
+          Режим просмотра
+        </p>
+        <div className="mt-3 grid gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setView("trends");
+              setIsMobileSidebarOpen(false);
+            }}
+            className={`rounded-[18px] px-4 py-3 text-left text-sm font-medium transition ${
+              view === "trends"
+                ? "bg-[var(--accent)] text-white"
+                : "border border-[var(--border)] bg-white/90 text-[var(--foreground)]"
+            }`}
+          >
+            Тренды и графики
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setView("list");
+              setIsMobileSidebarOpen(false);
+            }}
+            className={`rounded-[18px] px-4 py-3 text-left text-sm font-medium transition ${
+              view === "list"
+                ? "bg-[var(--accent)] text-white"
+                : "border border-[var(--border)] bg-white/90 text-[var(--foreground)]"
+            }`}
+          >
+            Список записей
+          </button>
+        </div>
+
+        <div className="mt-4 text-sm leading-6 text-[var(--foreground)]">
+          AI-разбор запускается только по кнопке. Просмотр диапазона сам по себе не тратит AI-запрос.
+        </div>
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      <div className="grid gap-4 xl:grid-cols-[290px_minmax(0,1fr)]">
+        <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
+          {sidebarContent}
+        </aside>
+
+        <div className="grid gap-4">
+          <div className="surface-card sticky top-3 z-20 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 rounded-[24px] px-4 py-3 xl:hidden">
+            <button
+              type="button"
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
+              aria-label="Открыть навигацию аналитики"
+            >
+              <MenuIcon />
+            </button>
+            <p className="truncate text-center text-sm font-semibold text-[var(--foreground)]">
+              Аналитика периода
+            </p>
+            <Link
+              href="/diary"
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
+              aria-label="Открыть дневник"
+            >
+              <DiaryPanelIcon />
+            </Link>
+          </div>
+
+          <SectionCard className="rounded-[32px] p-5 sm:p-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <SectionHeader
             eyebrow="Analytics"
@@ -339,18 +502,30 @@ export function AnalyticsSection() {
           записей и графиков не вызывает AI-запросы. Текстовые метрики участвуют в AI-разборе
           периода, но не строятся на графиках.
         </div>
-      </SectionCard>
+          </SectionCard>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <MiniStat label="Сохраненных дней" value={String(deferredEntries.length)} />
-        <MiniStat label="Среднее настроение" value={formatAverage(average(moodValues), moodMetric?.unit)} />
-        <MiniStat label="Средняя энергия" value={formatAverage(average(energyValues), energyMetric?.unit)} />
-        <MiniStat label="Средний стресс" value={formatAverage(average(stressValues), stressMetric?.unit)} />
-        <MiniStat label="Средний сон" value={formatAverage(average(sleepValues), sleepMetric?.unit)} />
-      </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <CompactMetricStat label="Сохранённых дней" value={String(deferredEntries.length)} />
+            <CompactMetricStat
+              label="Среднее настроение"
+              value={formatAverage(average(moodValues), moodMetric?.unit)}
+            />
+            <CompactMetricStat
+              label="Средняя энергия"
+              value={formatAverage(average(energyValues), energyMetric?.unit)}
+            />
+            <CompactMetricStat
+              label="Средний стресс"
+              value={formatAverage(average(stressValues), stressMetric?.unit)}
+            />
+            <CompactMetricStat
+              label="Средний сон"
+              value={formatAverage(average(sleepValues), sleepMetric?.unit)}
+            />
+          </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,0.75fr)]">
-        <SectionCard className="rounded-[30px] p-4 sm:p-5">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,0.75fr)]">
+            <SectionCard className="rounded-[30px] p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
@@ -402,12 +577,12 @@ export function AnalyticsSection() {
                   return (
                     <div
                       key={metric.id}
-                      className="rounded-[24px] border border-[var(--border)] bg-white/80 p-4"
+                      className="rounded-[22px] border border-[var(--border)] bg-white/80 p-3.5"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm text-[var(--muted)]">{metric.description}</p>
-                          <h3 className="mt-1 text-xl font-semibold text-[var(--foreground)]">
+                          <p className="text-xs leading-5 text-[var(--muted)]">{metric.description}</p>
+                          <h3 className="mt-1 text-lg font-semibold text-[var(--foreground)]">
                             {metric.name}
                           </h3>
                         </div>
@@ -424,7 +599,7 @@ export function AnalyticsSection() {
                         </span>
                       </div>
 
-                      <div className="mt-4 rounded-[20px] border border-[var(--border)] bg-white/80 p-4">
+                      <div className="mt-3 rounded-[18px] border border-[var(--border)] bg-white/80 p-3">
                         <TrendChart
                           accent={metric.accent}
                           points={points}
@@ -444,7 +619,7 @@ export function AnalyticsSection() {
                   .map((entry) => (
                     <article
                       key={entry.id}
-                      className="rounded-[24px] border border-[var(--border)] bg-white/85 p-4"
+                      className="rounded-[22px] border border-[var(--border)] bg-white/85 p-3.5"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
@@ -467,9 +642,9 @@ export function AnalyticsSection() {
               </div>
             )}
           </div>
-        </SectionCard>
+            </SectionCard>
 
-        <SectionCard className="rounded-[30px] p-4 sm:p-5">
+            <SectionCard className="rounded-[30px] p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
@@ -502,9 +677,35 @@ export function AnalyticsSection() {
               <EmptyState copy="Период пока не проанализирован. Выбери диапазон и нажми «Анализировать период»." />
             </div>
           )}
-        </SectionCard>
+            </SectionCard>
+          </div>
+        </div>
       </div>
-    </div>
+
+      {isMobileSidebarOpen ? (
+        <div className="fixed inset-0 z-40 xl:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-[rgba(24,33,29,0.2)]"
+            onClick={() => setIsMobileSidebarOpen(false)}
+            aria-label="Закрыть боковую панель"
+          />
+          <aside className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col rounded-r-[28px] p-4">
+            <div className="mb-3 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-2xl text-[var(--foreground)]"
+                aria-label="Закрыть боковую панель"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+            {sidebarContent}
+          </aside>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -516,6 +717,25 @@ function ChevronLeftIcon() {
   );
 }
 
+function MenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 7h16" strokeLinecap="round" />
+      <path d="M4 12h16" strokeLinecap="round" />
+      <path d="M4 17h16" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M6 6 18 18" strokeLinecap="round" />
+      <path d="M18 6 6 18" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function DiaryPanelIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
@@ -523,6 +743,15 @@ function DiaryPanelIcon() {
       <path d="M8 9h8" />
       <path d="M8 13h8" />
     </svg>
+  );
+}
+
+function CompactMetricStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[20px] border border-[var(--border)] bg-white/75 px-3 py-2.5">
+      <p className="text-xs text-[var(--muted)]">{label}</p>
+      <p className="mt-1 text-base font-semibold leading-6 text-[var(--foreground)]">{value}</p>
+    </div>
   );
 }
 
