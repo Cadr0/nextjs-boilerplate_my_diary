@@ -353,14 +353,14 @@ export function WorkoutAssistantPanel() {
 
   return (
     <section className="surface-card rounded-[28px] p-4 sm:rounded-[34px] sm:p-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[linear-gradient(135deg,#d565ff,#7c4dff)] text-white">
             <SparkIcon className="h-6 w-6" />
           </div>
           <div>
             <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">AI</p>
-            <h3 className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+            <h3 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-xl">
               Помощник по тренировкам
             </h3>
           </div>
@@ -369,7 +369,7 @@ export function WorkoutAssistantPanel() {
         <select
           value={profile.aiModel}
           onChange={(event) => updateProfile("aiModel", event.target.value)}
-          className="min-h-11 rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
+          className="min-h-11 w-full rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none sm:w-auto"
         >
           {aiModelOptions.map((option) => (
             <option key={option.id} value={option.id}>
@@ -390,11 +390,11 @@ export function WorkoutAssistantPanel() {
                 По текущей дате и истории
               </span>
             </div>
-            <h4 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+            <h4 className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-2xl">
               AI уже видит выбранную дату и завершённые тренировки
             </h4>
-            <p className="text-base leading-7 text-[var(--muted)]">{assistantContext.summary}</p>
-            <p className="text-sm leading-6 text-[var(--muted)] whitespace-pre-line">
+            <p className="text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">{assistantContext.summary}</p>
+            <p className="text-xs leading-5 text-[var(--muted)] whitespace-pre-line sm:text-sm sm:leading-6">
               {assistantContext.notes}
             </p>
           </div>
@@ -417,13 +417,13 @@ export function WorkoutAssistantPanel() {
         )}
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 grid gap-2 sm:flex sm:flex-wrap">
         {quickPrompts.map((prompt) => (
           <button
             key={prompt}
             type="button"
             onClick={() => void sendChatMessage(prompt)}
-            className="rounded-full border border-[var(--border)] bg-white px-4 py-2 text-sm text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            className="rounded-full border border-[var(--border)] bg-white px-4 py-2 text-center text-sm text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:text-left"
           >
             {prompt}
           </button>

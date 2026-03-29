@@ -503,14 +503,14 @@ function WorkoutSessionCard({
           : "border-[var(--border)] bg-white/88"
       }`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-[var(--accent)] text-white">
               <DumbbellIcon className="h-6 w-6" />
             </div>
             <div className="min-w-0">
-              <h3 className="truncate text-[1.6rem] font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+              <h3 className="truncate text-[1.35rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[1.6rem]">
                 {session.title || "Тренировка"}
               </h3>
               <p className="mt-1 flex items-center gap-2 text-sm text-[var(--muted)]">
@@ -532,7 +532,7 @@ function WorkoutSessionCard({
         </span>
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-3">
+      <div className="mt-5 flex flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
         <span className="inline-flex items-center rounded-full bg-[rgba(21,52,43,0.05)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]">
           {formatExerciseCount(session.exercises.length)}
         </span>
@@ -909,10 +909,10 @@ function WorkoutBuilderModal({
 
   return (
     <ModalShell onClose={onClose}>
-      <div className="border-b border-[var(--border)] px-5 pb-5 pt-6 sm:px-8 sm:pb-6 sm:pt-8">
+      <div className="border-b border-[var(--border)] px-5 pb-5 pt-5 sm:px-8 sm:pb-6 sm:pt-8">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+            <h2 className="text-[2rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
               Конструктор тренировки
             </h2>
             <p className="mt-2 text-base text-[var(--muted)]">Создай свою программу тренировок</p>
@@ -932,14 +932,14 @@ function WorkoutBuilderModal({
         <div className="grid gap-5">
           <section className="rounded-[28px] border border-[var(--border)] bg-white/92 p-5 sm:p-6">
             <label className="grid gap-3">
-              <span className="text-[1.35rem] font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+              <span className="text-[1.15rem] font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-[1.35rem]">
                 Название тренировки
               </span>
               <input
                 value={draft.name}
                 onChange={(event) => onChange({ name: event.target.value })}
                 placeholder="Например: Спина"
-                className="min-h-14 rounded-[20px] border border-[var(--border)] bg-white px-5 text-xl text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                className="min-h-14 rounded-[20px] border border-[var(--border)] bg-white px-5 text-lg text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:text-xl"
               />
             </label>
           </section>
@@ -947,7 +947,7 @@ function WorkoutBuilderModal({
           <section className="rounded-[28px] border border-[var(--border)] bg-white/92 p-5 sm:p-6">
             <div className="flex flex-col gap-4">
               <div>
-                <h3 className="text-[1.35rem] font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                <h3 className="text-[1.15rem] font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-[1.35rem]">
                   Упражнения
                 </h3>
               </div>
@@ -1048,10 +1048,10 @@ function WorkoutPlayer({
       <section className="surface-card overflow-hidden rounded-[30px]">
         <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 pb-4 pt-5 sm:px-7 sm:pb-5 sm:pt-6">
           <div>
-            <h2 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+            <h2 className="text-[1.8rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
               {session.title}
             </h2>
-            <p className="mt-1 text-base text-[var(--muted)]">
+            <p className="mt-1 text-sm text-[var(--muted)] sm:text-base">
               Упражнение {exerciseIndex + 1} из {session.exercises.length}
             </p>
           </div>
@@ -1074,14 +1074,14 @@ function WorkoutPlayer({
 
       <section className="surface-card rounded-[30px] p-5 sm:p-7">
         <div className="text-center">
-          <h3 className="text-[2rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[2.35rem]">
+          <h3 className="text-[1.65rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[2.35rem]">
             {exercise.name}
           </h3>
         </div>
 
         <div className="mt-8 grid gap-8">
           <div>
-            <p className="text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+            <p className="text-[1.35rem] font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-2xl">
               Выполненные подходы
             </p>
 
@@ -1090,12 +1090,12 @@ function WorkoutPlayer({
                 completedSets.map((set, index) => (
                   <div
                     key={set.id}
-                    className="flex items-center gap-4 rounded-[22px] border border-[rgba(89,218,130,0.3)] bg-[rgba(239,251,242,0.95)] px-5 py-4"
+                    className="flex flex-col gap-3 rounded-[22px] border border-[rgba(89,218,130,0.3)] bg-[rgba(239,251,242,0.95)] px-4 py-4 sm:flex-row sm:items-center sm:gap-4 sm:px-5"
                   >
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[rgb(18,196,83)] text-white">
                       <CheckIcon className="h-6 w-6" />
                     </div>
-                    <div className="min-w-0 flex-1 text-lg text-[var(--foreground)]">
+                    <div className="min-w-0 flex-1 text-base text-[var(--foreground)] sm:text-lg">
                       Подход {index + 1}:{" "}
                       <strong>
                         {set.load || "0"} кг × {set.reps || "0"} раз
@@ -1118,7 +1118,7 @@ function WorkoutPlayer({
           </div>
 
           <div className="grid gap-4">
-            <p className="text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+            <p className="text-[1.35rem] font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-2xl">
               Подход {completedSets.length + 1}
             </p>
 
@@ -1131,7 +1131,7 @@ function WorkoutPlayer({
                   step="0.5"
                   value={draftSet?.load ?? ""}
                   onChange={(event) => onUpdateDraft("load", event.target.value)}
-                  className="min-h-16 rounded-[22px] border border-[var(--border)] bg-white px-6 text-center text-4xl tracking-[-0.03em] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  className="min-h-16 rounded-[22px] border border-[var(--border)] bg-white px-6 text-center text-3xl tracking-[-0.03em] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:text-4xl"
                 />
               </label>
 
@@ -1143,7 +1143,7 @@ function WorkoutPlayer({
                   step="1"
                   value={draftSet?.reps ?? ""}
                   onChange={(event) => onUpdateDraft("reps", event.target.value)}
-                  className="min-h-16 rounded-[22px] border border-[var(--accent)] bg-white px-6 text-center text-4xl tracking-[-0.03em] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  className="min-h-16 rounded-[22px] border border-[var(--accent)] bg-white px-6 text-center text-3xl tracking-[-0.03em] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:text-4xl"
                 />
               </label>
             </div>
@@ -1199,16 +1199,16 @@ function WorkoutSummary({
         К списку тренировок
       </button>
 
-      <section className="overflow-hidden rounded-[34px] bg-[linear-gradient(135deg,#236b67,#318580)] px-6 py-7 text-white shadow-[0_24px_50px_rgba(28,91,89,0.22)] sm:px-9 sm:py-8">
-        <div className="flex items-start gap-5">
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-white/14">
-            <MedalIcon className="h-10 w-10" />
+      <section className="overflow-hidden rounded-[34px] bg-[linear-gradient(135deg,#236b67,#318580)] px-5 py-6 text-white shadow-[0_24px_50px_rgba(28,91,89,0.22)] sm:px-9 sm:py-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white/14 sm:h-20 sm:w-20">
+            <MedalIcon className="h-8 w-8 sm:h-10 sm:w-10" />
           </div>
           <div>
-            <h2 className="text-[2rem] font-semibold tracking-[-0.04em] sm:text-[2.5rem]">
+            <h2 className="text-[1.7rem] font-semibold tracking-[-0.04em] sm:text-[2.5rem]">
               Тренировка завершена!
             </h2>
-            <p className="mt-2 flex items-center gap-2 text-lg text-white/90">
+            <p className="mt-2 flex items-center gap-2 text-base text-white/90 sm:text-lg">
               <CalendarIcon className="h-5 w-5" />
               {formatLongDate(session.date)}
             </p>
@@ -1227,19 +1227,19 @@ function WorkoutSummary({
           {comparison.title}
         </h3>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-6">
-          <p className="text-5xl font-semibold tracking-[-0.05em] text-[rgb(0,176,88)]">
+          <p className="text-4xl font-semibold tracking-[-0.05em] text-[rgb(0,176,88)] sm:text-5xl">
             {comparison.percentage}
           </p>
-          <p className="max-w-3xl text-xl text-[var(--muted)]">{comparison.detail}</p>
+          <p className="max-w-3xl text-base text-[var(--muted)] sm:text-xl">{comparison.detail}</p>
         </div>
       </section>
 
       <section className="surface-card rounded-[30px] p-5 sm:p-7">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <h3 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
             Детали тренировки
           </h3>
-          <SurfaceButton variant="secondary" onClick={onOpenDetails}>
+          <SurfaceButton variant="secondary" onClick={onOpenDetails} className="w-full sm:w-auto">
             Открыть детальный отчёт
           </SurfaceButton>
         </div>
@@ -1247,10 +1247,10 @@ function WorkoutSummary({
         <div className="mt-6 grid gap-6">
           {session.exercises.map((exercise) => (
             <div key={exercise.id} className="border-l-4 border-[var(--accent)] pl-5">
-              <h4 className="text-[1.45rem] font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+              <h4 className="text-[1.2rem] font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-[1.45rem]">
                 {exercise.name}
               </h4>
-              <div className="mt-3 grid gap-2 text-lg text-[var(--foreground)]">
+              <div className="mt-3 grid gap-2 text-base text-[var(--foreground)] sm:text-lg">
                 {getCompletedSets(exercise).map((set, index) => (
                   <p key={set.id}>
                     Подход {index + 1}: <strong>{set.load} кг × {set.reps} раз</strong>
@@ -1267,16 +1267,16 @@ function WorkoutSummary({
           <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[linear-gradient(135deg,#d565ff,#7c4dff)] text-white">
             <SparkIcon className="h-6 w-6" />
           </div>
-          <h3 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+          <h3 className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-2xl">
             AI рекомендации
           </h3>
         </div>
 
         <div className="mt-6 grid gap-4">
           {recommendations.map((item) => (
-            <div key={item.title} className={`rounded-[24px] border px-5 py-5 ${getToneClasses(item.tone)}`}>
-              <p className="text-[1.45rem] font-semibold tracking-[-0.03em]">{item.title}</p>
-              <p className="mt-3 text-lg leading-8">{item.detail}</p>
+            <div key={item.title} className={`rounded-[24px] border px-4 py-4 sm:px-5 sm:py-5 ${getToneClasses(item.tone)}`}>
+              <p className="text-[1.15rem] font-semibold tracking-[-0.03em] sm:text-[1.45rem]">{item.title}</p>
+              <p className="mt-3 text-base leading-7 sm:text-lg sm:leading-8">{item.detail}</p>
             </div>
           ))}
         </div>
@@ -1305,8 +1305,8 @@ function SummaryDetailsModal({
         <div className="bg-[linear-gradient(135deg,#236b67,#318580)] px-6 pb-8 pt-6 text-white sm:px-9 sm:pb-10 sm:pt-8">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-3xl font-semibold tracking-[-0.04em]">{session.title}</h2>
-              <p className="mt-3 flex items-center gap-2 text-xl text-white/92">
+              <h2 className="text-[1.8rem] font-semibold tracking-[-0.04em] sm:text-3xl">{session.title}</h2>
+              <p className="mt-3 flex items-center gap-2 text-base text-white/92 sm:text-xl">
                 <CalendarIcon className="h-5 w-5" />
                 {dateLabel}
               </p>
@@ -1331,24 +1331,24 @@ function SummaryDetailsModal({
         <div className="px-6 py-6 sm:px-9 sm:py-8">
           <div className="grid gap-8">
             {session.exercises.map((exercise, index) => (
-              <section key={exercise.id} className="border-l-4 border-[var(--accent)] pl-6">
-                <div className="flex flex-wrap items-start justify-between gap-4">
+              <section key={exercise.id} className="border-l-4 border-[var(--accent)] pl-4 sm:pl-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                   <div className="flex items-center gap-3">
                     <DumbbellIcon className="h-7 w-7 text-[var(--accent)]" />
-                    <h3 className="text-[1.9rem] font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+                    <h3 className="text-[1.35rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[1.9rem]">
                       {index + 1}. {exercise.name}
                     </h3>
                   </div>
-                  <div className="text-right">
+                  <div className="text-left sm:text-right">
                     <p className="text-base text-[var(--muted)]">Макс вес</p>
-                    <p className="text-[2rem] font-semibold tracking-[-0.04em] text-[var(--accent)]">
+                    <p className="text-[1.5rem] font-semibold tracking-[-0.04em] text-[var(--accent)] sm:text-[2rem]">
                       {formatMetricValue(getExerciseMaxWeight(exercise))} кг
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-5 overflow-hidden rounded-[24px] bg-[rgba(246,248,246,0.9)] p-4">
-                  <div className="grid grid-cols-[88px_minmax(0,1fr)_minmax(0,1fr)] gap-4 px-4 pb-3 text-sm font-semibold text-[var(--muted)]">
+                  <div className="hidden grid-cols-[88px_minmax(0,1fr)_minmax(0,1fr)] gap-4 px-4 pb-3 text-sm font-semibold text-[var(--muted)] sm:grid">
                     <span>Подход</span>
                     <span>Вес</span>
                     <span>Повторения</span>
@@ -1357,7 +1357,7 @@ function SummaryDetailsModal({
                     {getCompletedSets(exercise).map((set, setIndex) => (
                       <div
                         key={set.id}
-                        className="grid grid-cols-[88px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-4 rounded-[18px] bg-white px-4 py-4 text-lg text-[var(--foreground)]"
+                        className="grid grid-cols-[48px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 rounded-[18px] bg-white px-4 py-4 text-sm text-[var(--foreground)] sm:grid-cols-[88px_minmax(0,1fr)_minmax(0,1fr)] sm:gap-4 sm:text-lg"
                       >
                         <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-white">
                           {setIndex + 1}
@@ -1371,7 +1371,7 @@ function SummaryDetailsModal({
                   </div>
                 </div>
 
-                <p className="mt-4 flex items-center gap-3 text-xl text-[var(--foreground)]">
+                <p className="mt-4 flex items-center gap-3 text-base text-[var(--foreground)] sm:text-xl">
                   <TrendUpIcon className="h-5 w-5 text-[var(--muted)]" />
                   Общий объём: <strong>{formatMetricValue(getExerciseVolume(exercise))} кг</strong>
                 </p>
@@ -1393,8 +1393,8 @@ function SummaryDetailsModal({
 function StatCard({ value, label }: { value: string; label: string }) {
   return (
     <div className="surface-card rounded-[28px] p-5 sm:p-6">
-      <p className="text-5xl font-semibold tracking-[-0.05em] text-[var(--accent)]">{value}</p>
-      <p className="mt-4 text-xl text-[var(--muted)]">{label}</p>
+      <p className="text-4xl font-semibold tracking-[-0.05em] text-[var(--accent)] sm:text-5xl">{value}</p>
+      <p className="mt-3 text-base text-[var(--muted)] sm:mt-4 sm:text-xl">{label}</p>
     </div>
   );
 }
@@ -1402,8 +1402,8 @@ function StatCard({ value, label }: { value: string; label: string }) {
 function MetricPill({ value, label }: { value: string; label: string }) {
   return (
     <div className="rounded-[24px] bg-white/12 px-5 py-5">
-      <p className="text-5xl font-semibold tracking-[-0.05em]">{value}</p>
-      <p className="mt-3 text-xl text-white/84">{label}</p>
+      <p className="text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">{value}</p>
+      <p className="mt-2 text-base text-white/84 sm:mt-3 sm:text-xl">{label}</p>
     </div>
   );
 }
@@ -1624,19 +1624,19 @@ export function WorkoutExperience() {
 
       <div className="grid min-w-0 gap-5 overflow-x-hidden">
         {resolvedScreen === "list" ? (
-        <div className="surface-card sticky top-3 z-20 grid min-w-0 max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[24px] px-4 py-3 xl:hidden">
+        <div className="surface-card sticky top-3 z-20 grid min-w-0 max-w-full grid-cols-[40px_minmax(0,1fr)_88px] items-center gap-2 rounded-[24px] px-3 py-3 xl:hidden">
           <div className="flex justify-start">
             <button
               type="button"
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
+              className="flex h-10 w-10 items-center justify-center rounded-[18px] border border-[var(--border)] bg-white text-[var(--foreground)]"
               aria-label="Открыть боковую панель"
             >
               <MenuIcon className="h-5 w-5" />
             </button>
           </div>
 
-          <div className="flex min-w-0 items-center justify-center gap-3">
+          <div className="flex min-w-0 items-center justify-center gap-2">
             <button
               type="button"
               onClick={() => {
@@ -1646,14 +1646,14 @@ export function WorkoutExperience() {
                 setScreen("list");
                 setExerciseIndex(0);
               }}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
               aria-label="Предыдущая дата"
             >
               <ChevronLeftIcon className="h-5 w-5" />
             </button>
 
             <div className="min-w-0 text-center">
-              <p className="truncate text-[1.15rem] font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+              <p className="truncate text-lg font-semibold tracking-[-0.04em] text-[var(--foreground)]">
                 {getSidebarDateLabel(selectedDate)}
               </p>
             </div>
@@ -1667,18 +1667,18 @@ export function WorkoutExperience() {
                 setScreen("list");
                 setExerciseIndex(0);
               }}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
               aria-label="Следующая дата"
             >
               <ChevronRightIcon className="h-5 w-5" />
             </button>
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-1.5">
             <button
               type="button"
               onClick={() => setIsBuilderOpen(true)}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              className="flex h-10 w-10 items-center justify-center rounded-[18px] border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
               aria-label="Создать тренировку"
             >
               <PlusIcon className="h-5 w-5" />
@@ -1691,7 +1691,7 @@ export function WorkoutExperience() {
                 }
               }}
               disabled={!latestCompletedSession}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-10 w-10 items-center justify-center rounded-[18px] border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="Открыть последнюю завершённую тренировку"
             >
               <TrendUpIcon className="h-5 w-5" />
@@ -1796,10 +1796,10 @@ export function WorkoutExperience() {
 
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <h2 className="text-[2.3rem] font-semibold tracking-[-0.05em] text-[var(--foreground)] sm:text-[2.7rem]">
+                  <h2 className="text-[2rem] font-semibold leading-none tracking-[-0.05em] text-[var(--foreground)] sm:text-[2.7rem]">
                     Мои тренировки
                   </h2>
-                  <p className="mt-3 max-w-2xl text-lg leading-8 text-[var(--muted)]">
+                  <p className="mt-3 max-w-2xl text-base leading-7 text-[var(--muted)] sm:text-lg sm:leading-8">
                     Выбери тренировку или создай новую.
                   </p>
                   <p className="mt-3 text-sm font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
