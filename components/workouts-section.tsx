@@ -1024,6 +1024,9 @@ export function WorkoutsSection() {
   const sessionStateMessage = getSessionStateMessage(selectedWorkoutSession, workoutRoutines);
   const canStartRoutine =
     !selectedWorkoutSession?.exercises.length || Boolean(selectedWorkoutSession?.completedAt);
+  const goToRelativeDay = (offset: number) => {
+    setSelectedDate(shiftIsoDate(selectedDate, offset));
+  };
 
   const handleAddExercise = (name: string) => {
     const trimmedName = name.trim();
@@ -1113,21 +1116,21 @@ export function WorkoutsSection() {
   };
 
   const sidebarContent = (
-    <div className="grid gap-4">
-      <div className="rounded-[28px] border border-[var(--border)] bg-white/90 p-4">
-        <div className="flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/92 p-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-[20px] border border-[var(--border)] bg-white shadow-[0_18px_30px_rgba(24,33,29,0.08)]">
-            <BrandGlyph className="h-10 w-10 rounded-[14px]" />
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="rounded-[24px] border border-[var(--border)] bg-white/90 p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white">
+            <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_10px_20px_rgba(32,77,67,0.24)]" />
           </div>
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">Training log</p>
-            <h1 className="mt-1 text-[2rem] font-semibold tracking-[-0.05em] text-[var(--foreground)]">
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">Diary AI</p>
+            <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
               Тренировки
-            </h1>
+            </p>
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3">
+        <div className="mt-4 grid grid-cols-1 gap-2">
           <SidebarNavButton href="/diary">Дневник</SidebarNavButton>
           <SidebarNavButton href="/workouts" isActive>
             Тренировки
@@ -1136,38 +1139,41 @@ export function WorkoutsSection() {
         </div>
       </div>
 
-      <div className="surface-card rounded-[28px] p-4 sm:p-5">
-        <div className="flex items-center justify-between gap-3">
+      <div className="mt-4 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
+        <div className="mb-3 flex items-center justify-between px-1">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">Быстрый доступ</p>
-            <h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+              Быстрый доступ
+            </p>
+            <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">
               Сохраненные шаблоны
-            </h2>
+            </p>
           </div>
-          <span className="rounded-full bg-[rgba(24,33,29,0.05)] px-3 py-2 text-xs font-medium text-[var(--muted)]">
-            {workoutRoutines.length}
-          </span>
+          <span className="text-xs text-[var(--muted)]">{workoutRoutines.length}</span>
         </div>
 
         {workoutRoutines.length > 0 ? (
-          <div className="mt-4 grid gap-2">
-            {workoutRoutines.slice(0, 5).map((routine) => (
+          <div className="grid gap-1.5">
+            {workoutRoutines.slice(0, 4).map((routine) => (
               <button
                 key={routine.id}
                 type="button"
                 onClick={() => handleStartRoutine(routine.id)}
                 disabled={!canStartRoutine}
-                className="rounded-[20px] border border-[var(--border)] bg-white/88 px-4 py-3 text-left transition hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
+                className="rounded-[20px] bg-white/74 px-4 py-3 text-left transition hover:bg-[rgba(47,111,97,0.08)] disabled:cursor-not-allowed disabled:opacity-45"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[var(--foreground)]">{routine.name}</p>
+                    <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                      {routine.name}
+                    </p>
                     <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
                       {routine.exercises.length} упражнений ·{" "}
-                      {routine.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)} подходов
+                      {routine.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)}{" "}
+                      подходов
                     </p>
                   </div>
-                  <span className="rounded-full bg-[rgba(47,111,97,0.08)] px-3 py-2 text-xs font-medium text-[var(--accent)]">
+                  <span className="rounded-full bg-[rgba(47,111,97,0.08)] px-2.5 py-1 text-[11px] font-medium text-[var(--accent)]">
                     Старт
                   </span>
                 </div>
@@ -1175,27 +1181,22 @@ export function WorkoutsSection() {
             ))}
           </div>
         ) : (
-          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
-            Как только сохранишь первую тренировку как шаблон, она появится здесь и будет доступна в один тап.
+          <p className="px-1 text-sm leading-6 text-[var(--muted)]">
+            Шаблоны появятся после первой сохраненной тренировки.
           </p>
         )}
       </div>
 
-      <div className="surface-card rounded-[28px] p-4 sm:p-5">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">История</p>
-            <h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)]">
-              Дни тренировки
-            </h2>
-          </div>
-          <span className="rounded-full bg-[rgba(24,33,29,0.05)] px-3 py-2 text-xs font-medium text-[var(--muted)]">
-            {workoutDays.length}
-          </span>
+      <div className="mt-4 min-h-0 flex-1 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
+        <div className="mb-2 flex items-center justify-between px-1">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+            Дни тренировки
+          </p>
+          <span className="text-xs text-[var(--muted)]">{workoutDays.length}</span>
         </div>
 
         {workoutDays.length > 0 ? (
-          <div className="mt-4 grid gap-2">
+          <div className="grid max-h-[52vh] gap-1.5 overflow-y-auto pr-1">
             {workoutDays.map((day) => {
               const isActive = day.date === selectedDate;
 
@@ -1207,35 +1208,37 @@ export function WorkoutsSection() {
                     setSelectedDate(day.date);
                     setIsMobileSidebarOpen(false);
                   }}
-                  className={`rounded-[20px] border px-4 py-3 text-left transition ${
+                  className={`grid gap-1 rounded-[20px] px-3 py-3 text-left transition ${
                     isActive
-                      ? "border-transparent bg-[var(--accent)] text-white shadow-[0_18px_30px_rgba(47,111,97,0.2)]"
-                      : "border-[var(--border)] bg-white/88 text-[var(--foreground)] hover:border-[var(--accent)]"
+                      ? "bg-[var(--accent)] text-white shadow-[0_14px_30px_rgba(47,111,97,0.22)]"
+                      : "text-[var(--foreground)] hover:bg-[rgba(47,111,97,0.08)]"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className={`text-sm font-semibold ${isActive ? "text-white" : "text-[var(--foreground)]"}`}>
-                        {getSidebarDateLabel(day.date)}
-                      </p>
-                      <p className={`mt-1 truncate text-xs ${isActive ? "text-white/78" : "text-[var(--muted)]"}`}>
-                        {day.title}
-                      </p>
-                    </div>
+                    <span className="text-sm font-medium">{getSidebarDateLabel(day.date)}</span>
                     <span
-                      className={`rounded-full px-3 py-2 text-xs font-medium ${
-                        isActive ? "bg-white/14 text-white" : "bg-[rgba(24,33,29,0.05)] text-[var(--muted)]"
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                        isActive
+                          ? "bg-white/16 text-white"
+                          : "bg-[rgba(47,111,97,0.08)] text-[var(--accent)]"
                       }`}
                     >
                       {day.setCount}
                     </span>
                   </div>
+                  <span
+                    className={`truncate text-xs ${
+                      isActive ? "text-white/80" : "text-[var(--muted)]"
+                    }`}
+                  >
+                    {day.title || "Тренировка без названия"}
+                  </span>
                 </button>
               );
             })}
           </div>
         ) : (
-          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+          <p className="px-1 text-sm leading-6 text-[var(--muted)]">
             История появится после первой сохраненной тренировки.
           </p>
         )}
@@ -1245,44 +1248,95 @@ export function WorkoutsSection() {
 
   return (
     <>
-      <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
-        <aside className="hidden xl:block">{sidebarContent}</aside>
+      <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
+          {sidebarContent}
+        </aside>
 
-        <div className="grid gap-5">
-          <section className="surface-card rounded-[28px] p-4 sm:rounded-[30px] sm:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsMobileSidebarOpen(true)}
-                  className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] xl:hidden"
-                  aria-label="Открыть боковую панель"
-                >
-                  <MenuIcon />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedDate(shiftIsoDate(selectedDate, -1))}
-                  className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                  aria-label="Предыдущий день"
-                >
-                  <ChevronLeftIcon />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedDate(shiftIsoDate(selectedDate, 1))}
-                  className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                  aria-label="Следующий день"
-                >
-                  <ChevronRightIcon />
-                </button>
+        <div className="grid gap-4">
+          <div className="surface-card sticky top-3 z-20 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-[24px] px-4 py-3 xl:hidden">
+            <div className="flex justify-start">
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(true)}
+                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
+                aria-label="Открыть боковую панель"
+              >
+                <MenuIcon />
+              </button>
+            </div>
+
+            <div className="flex min-w-0 items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => goToRelativeDay(-1)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
+                aria-label="Предыдущий день"
+              >
+                <ChevronLeftIcon />
+              </button>
+
+              <div className="min-w-0 text-center">
+                <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                  {getSidebarDateLabel(selectedDate)}
+                </p>
               </div>
 
-              <div className="min-w-0 flex-1 text-left sm:text-right">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)] sm:text-[11px] sm:tracking-[0.26em]">{getHeadingDateLabel(selectedDate)}</p>
-                <h1 className="mt-2 text-[clamp(1.8rem,8vw,3.3rem)] font-semibold tracking-[-0.08em] text-[var(--foreground)]">
-                  {selectedWorkoutSession?.title?.trim() || "Собери тренировку под себя"}
+              <button
+                type="button"
+                onClick={() => goToRelativeDay(1)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
+                aria-label="Следующий день"
+              >
+                <ChevronRightIcon />
+              </button>
+            </div>
+
+            <div className="flex justify-end" aria-hidden="true" />
+          </div>
+
+          <section className="surface-card rounded-[28px] p-3 sm:rounded-[34px] sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-4xl">
+                  {getHeadingDateLabel(selectedDate)}
                 </h1>
+                <div className="mt-4 hidden items-center gap-2 sm:flex">
+                  <button
+                    type="button"
+                    onClick={() => goToRelativeDay(-1)}
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                    aria-label="Предыдущий день"
+                  >
+                    <ChevronLeftIcon />
+                  </button>
+                  <div className="rounded-full border border-[var(--border)] bg-white/92 px-4 py-2 text-sm font-medium text-[var(--foreground)]">
+                    {getSidebarDateLabel(selectedDate)}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => goToRelativeDay(1)}
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                    aria-label="Следующий день"
+                  >
+                    <ChevronRightIcon />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href="/diary"
+                  className="hidden min-h-11 items-center rounded-full border border-[var(--border)] bg-white/94 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] xl:inline-flex"
+                >
+                  Дневник
+                </Link>
+                <Link
+                  href="/analytics"
+                  className="hidden min-h-11 items-center rounded-full border border-[var(--border)] bg-white/94 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] xl:inline-flex"
+                >
+                  Период
+                </Link>
               </div>
             </div>
 
@@ -1293,11 +1347,19 @@ export function WorkoutsSection() {
                     {sessionStateLabel}
                   </span>
                   <span className="rounded-full bg-white/10 px-3 py-2 text-sm text-white/82">
-                    {selectedWorkoutSession?.completedAt ? "Можно разбирать результат" : "Экран под один следующий шаг"}
+                    {selectedWorkoutSession?.completedAt
+                      ? "Можно разбирать результат"
+                      : "Экран под один следующий шаг"}
                   </span>
                 </div>
 
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-white/84 sm:mt-4 sm:text-base sm:leading-7">{sessionStateMessage}</p>
+                <h2 className="mt-4 text-[clamp(1.8rem,5vw,3rem)] font-semibold tracking-[-0.08em] text-white">
+                  {selectedWorkoutSession?.title?.trim() || "Собери тренировку под себя"}
+                </h2>
+
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-white/84 sm:mt-4 sm:text-base sm:leading-7">
+                  {sessionStateMessage}
+                </p>
 
                 <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:gap-3 lg:grid-cols-4">
                   <MetricBadge label="Упражнений" value={String(sessionMetrics.exercises)} tone="accent" />
@@ -1307,18 +1369,18 @@ export function WorkoutsSection() {
                 </div>
               </div>
 
-              <div className="grid gap-2.5 sm:gap-3">
+              <div className="grid gap-3 sm:gap-4">
                 <input
                   value={selectedWorkoutSession?.title ?? ""}
                   onChange={(event) => updateWorkoutSession({ title: event.target.value })}
                   placeholder="Название тренировки: грудь / ноги / full body"
-                  className="min-h-12 rounded-[20px] border border-[var(--border)] bg-white/92 px-4 text-sm font-medium text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  className="min-h-11 rounded-[16px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-2.5 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:min-h-12 sm:rounded-[20px] sm:px-4"
                 />
                 <input
                   value={selectedWorkoutSession?.focus ?? ""}
                   onChange={(event) => updateWorkoutSession({ focus: event.target.value })}
                   placeholder="Фокус: техника, объем, тяжелый верх, короткая сессия"
-                  className="min-h-12 rounded-[20px] border border-[var(--border)] bg-white/92 px-4 text-sm font-medium text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  className="min-h-11 rounded-[16px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-2.5 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:min-h-12 sm:rounded-[20px] sm:px-4"
                 />
 
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
