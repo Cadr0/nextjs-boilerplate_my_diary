@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { BrandGlyph } from "@/components/brand-glyph";
 import { WorkoutAssistantPanel } from "@/components/workout-assistant-panel";
@@ -750,7 +750,7 @@ function SidebarNavButton({
   );
 }
 
-function DiaryWorkoutSidebar({
+function WorkoutSidebarContent({
   days,
   selectedDate,
   workouts,
@@ -792,7 +792,7 @@ function DiaryWorkoutSidebar({
   };
 
   return (
-    <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
+    <>
       <div className="rounded-[24px] border border-[var(--border)] bg-white/90 p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]">
@@ -829,7 +829,7 @@ function DiaryWorkoutSidebar({
           <span className="text-xs text-[var(--muted)]">{days.length}</span>
         </div>
 
-        <div className="grid max-h-[52vh] gap-1.5 overflow-y-auto pr-1">
+        <div className="grid max-h-[52vh] gap-1.5 overflow-y-auto pr-1 xl:max-h-none">
           {days.slice(0, 40).map((day) => (
             <button
               key={day.date}
@@ -866,6 +866,26 @@ function DiaryWorkoutSidebar({
           <p className="mt-1 text-xs text-[var(--muted)]">{profileSubtitle}</p>
         </div>
       </div>
+    </>
+  );
+}
+
+function DiaryWorkoutSidebar(props: {
+  days: Array<{
+    date: string;
+    summary: string;
+    notesPreview: string;
+  }>;
+  selectedDate: string;
+  workouts: WorkoutSession[];
+  profileName: string;
+  profileSubtitle: string;
+  initials: string;
+  onSelectDate: (date: string) => void;
+}) {
+  return (
+    <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
+      <WorkoutSidebarContent {...props} />
     </aside>
   );
 }
@@ -1414,6 +1434,7 @@ export function WorkoutExperience() {
     exercises: [],
   });
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [detailSessionId, setDetailSessionId] = useState<string | null>(null);
   const [expandedRoutineId, setExpandedRoutineId] = useState<string | null>(null);
   const [exerciseIndex, setExerciseIndex] = useState(0);
@@ -1560,6 +1581,30 @@ export function WorkoutExperience() {
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("") || "A";
   const selectedDateCompletedCount = sessionsForSelectedDate.filter((session) => session.completedAt).length;
+  const latestCompletedSession = useMemo(
+    () =>
+      [...workouts]
+        .filter((session) => Boolean(session.completedAt))
+        .sort((left, right) => {
+          const leftStamp = left.completedAt ?? left.date;
+          const rightStamp = right.completedAt ?? right.date;
+          return rightStamp.localeCompare(leftStamp);
+        })[0] ?? null,
+    [workouts],
+  );
+
+  useEffect(() => {
+    if (!isMobileSidebarOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileSidebarOpen]);
 
   return (
     <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
@@ -1578,6 +1623,83 @@ export function WorkoutExperience() {
       />
 
       <div className="grid gap-5">
+        {resolvedScreen === "list" ? (
+        <div className="surface-card sticky top-3 z-20 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[24px] px-4 py-3 xl:hidden">
+          <div className="flex justify-start">
+            <button
+              type="button"
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
+              aria-label="Открыть боковую панель"
+            >
+              <MenuIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex min-w-0 items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                const previous = new Date(`${selectedDate}T12:00:00`);
+                previous.setDate(previous.getDate() - 1);
+                setSelectedDate(previous.toISOString().slice(0, 10));
+                setScreen("list");
+                setExerciseIndex(0);
+              }}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
+              aria-label="Предыдущая дата"
+            >
+              <ChevronLeftIcon className="h-5 w-5" />
+            </button>
+
+            <div className="min-w-0 text-center">
+              <p className="truncate text-[1.15rem] font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+                {getSidebarDateLabel(selectedDate)}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const next = new Date(`${selectedDate}T12:00:00`);
+                next.setDate(next.getDate() + 1);
+                setSelectedDate(next.toISOString().slice(0, 10));
+                setScreen("list");
+                setExerciseIndex(0);
+              }}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
+              aria-label="Следующая дата"
+            >
+              <ChevronRightIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setIsBuilderOpen(true)}
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              aria-label="Создать тренировку"
+            >
+              <PlusIcon className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (latestCompletedSession) {
+                  setDetailSessionId(latestCompletedSession.id);
+                }
+              }}
+              disabled={!latestCompletedSession}
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Открыть последнюю завершённую тренировку"
+            >
+              <TrendUpIcon className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+        ) : null}
+
         {resolvedScreen === "player" && activeSession ? (
           <WorkoutPlayer
             session={activeSession}
@@ -1635,7 +1757,7 @@ export function WorkoutExperience() {
         {resolvedScreen === "list" ? (
           <section className="surface-card rounded-[32px] p-5 sm:p-7">
             <div className="grid gap-8">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="hidden flex-wrap items-center justify-between gap-3 sm:flex">
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
@@ -1852,6 +1974,44 @@ export function WorkoutExperience() {
       {detailSession ? (
         <SummaryDetailsModal session={detailSession} onClose={() => setDetailSessionId(null)} />
       ) : null}
+
+      {isMobileSidebarOpen ? (
+        <div className="fixed inset-0 z-40 xl:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-[rgba(24,33,29,0.2)]"
+            aria-label="Закрыть боковую панель"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+          <aside className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col rounded-r-[28px] p-4">
+            <div className="mb-3 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
+                aria-label="Закрыть боковую панель"
+              >
+                <CloseIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <WorkoutSidebarContent
+              days={days}
+              selectedDate={selectedDate}
+              workouts={workouts}
+              profileName={profileName}
+              profileSubtitle={profileSubtitle}
+              initials={initials}
+              onSelectDate={(date) => {
+                setSelectedDate(date);
+                setScreen("list");
+                setExerciseIndex(0);
+                setIsMobileSidebarOpen(false);
+              }}
+            />
+          </aside>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2003,6 +2163,16 @@ function TrendUpIcon({ className }: { className?: string }) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
       <path d="m4 16 6-6 4 4 6-6" />
       <path d="M20 8v6h-6" />
+    </svg>
+  );
+}
+
+function MenuIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
     </svg>
   );
 }
