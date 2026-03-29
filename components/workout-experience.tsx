@@ -1607,7 +1607,7 @@ export function WorkoutExperience() {
   }, [isMobileSidebarOpen]);
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
+    <div className="grid overflow-x-hidden gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
       <DiaryWorkoutSidebar
         days={days}
         selectedDate={selectedDate}
@@ -1622,9 +1622,9 @@ export function WorkoutExperience() {
         }}
       />
 
-      <div className="grid gap-5">
+      <div className="grid min-w-0 gap-5 overflow-x-hidden">
         {resolvedScreen === "list" ? (
-        <div className="surface-card sticky top-3 z-20 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[24px] px-4 py-3 xl:hidden">
+        <div className="surface-card sticky top-3 z-20 grid min-w-0 max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[24px] px-4 py-3 xl:hidden">
           <div className="flex justify-start">
             <button
               type="button"
@@ -1755,7 +1755,7 @@ export function WorkoutExperience() {
         ) : null}
 
         {resolvedScreen === "list" ? (
-          <section className="surface-card rounded-[32px] p-5 sm:p-7">
+          <section className="surface-card min-w-0 max-w-full overflow-x-hidden rounded-[32px] p-5 sm:p-7">
             <div className="grid gap-8">
               <div className="hidden flex-wrap items-center justify-between gap-3 sm:flex">
                 <div className="flex items-center gap-3">
