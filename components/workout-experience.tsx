@@ -45,6 +45,11 @@ const longDateFormatter = new Intl.DateTimeFormat("ru-RU", {
   year: "numeric",
 });
 
+const compactHistoryDateFormatter = new Intl.DateTimeFormat("ru-RU", {
+  day: "numeric",
+  month: "short",
+});
+
 function parseNumericValue(value: string) {
   const trimmed = value.trim();
 
@@ -68,6 +73,23 @@ function formatShortDate(value: string) {
 
 function formatLongDate(value: string) {
   return longDateFormatter.format(new Date(`${value}T12:00:00`));
+}
+
+function formatHistoryDateLabel(value: string) {
+  const today = getTodayIsoDate();
+  const yesterday = new Date(`${today}T12:00:00`);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayIso = yesterday.toISOString().slice(0, 10);
+
+  if (value === today) {
+    return "Сегодня";
+  }
+
+  if (value === yesterdayIso) {
+    return "Вчера";
+  }
+
+  return compactHistoryDateFormatter.format(new Date(`${value}T12:00:00`)).replace(".", "");
 }
 
 function formatMetricValue(value: number, fractionDigits = 0) {
@@ -422,6 +444,140 @@ function WorkoutRoutineCard({
         {isActive ? "Продолжить тренировку" : "Начать тренировку"}
       </SurfaceButton>
     </article>
+  );
+}
+
+function WorkoutSidebar({
+  screen,
+  activeSession,
+  completedSession,
+  history,
+  onShowList,
+  onShowActive,
+  onShowSummary,
+  onOpenHistorySession,
+}: {
+  screen: ScreenState;
+  activeSession: WorkoutSession | null;
+  completedSession: WorkoutSession | null;
+  history: WorkoutSession[];
+  onShowList: () => void;
+  onShowActive: () => void;
+  onShowSummary: () => void;
+  onOpenHistorySession: (sessionId: string) => void;
+}) {
+  return (
+    <aside className="grid gap-5 xl:sticky xl:top-4 xl:h-fit">
+      <section className="surface-card rounded-[30px] p-5">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
+            Навигация
+          </p>
+          <h2 className="mt-3 text-[1.6rem] font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+            Тренировки
+          </h2>
+        </div>
+
+        <div className="mt-5 grid gap-2">
+          <SidebarNavButton
+            title="Программы"
+            caption="Список и конструктор"
+            active={screen === "list"}
+            onClick={onShowList}
+          />
+          {activeSession ? (
+            <SidebarNavButton
+              title={activeSession.title || "Текущая тренировка"}
+              caption="Продолжить текущую сессию"
+              active={screen === "player"}
+              onClick={onShowActive}
+            />
+          ) : null}
+          {completedSession ? (
+            <SidebarNavButton
+              title={completedSession.title || "Итог тренировки"}
+              caption="Открыть итог за выбранную дату"
+              active={screen === "summary"}
+              onClick={onShowSummary}
+            />
+          ) : null}
+        </div>
+      </section>
+
+      <section className="surface-card rounded-[30px] p-5">
+        <div className="border-t border-[rgba(21,52,43,0.08)] pt-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--foreground)]">
+            История
+          </p>
+          <p className="mt-2 text-lg text-[var(--muted)]">Дни тренировки</p>
+        </div>
+
+        {history.length > 0 ? (
+          <div className="mt-5 grid gap-3">
+            {history.map((session) => {
+              const metrics = getSessionMetrics(session);
+
+              return (
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() => onOpenHistorySession(session.id)}
+                  className={`grid gap-3 rounded-[24px] border px-4 py-4 text-left transition ${
+                    completedSession?.id === session.id
+                      ? "border-[rgba(47,111,97,0.18)] bg-[rgba(247,250,248,0.96)]"
+                      : "border-[var(--border)] bg-[rgba(251,252,251,0.96)] hover:border-[rgba(47,111,97,0.18)] hover:bg-white"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                      {session.title || "Тренировка"}
+                    </p>
+                    <span className="flex h-10 min-w-10 items-center justify-center rounded-full bg-[rgba(21,52,43,0.08)] px-3 text-lg font-semibold text-[var(--muted)]">
+                      {metrics.totalSets}
+                    </span>
+                  </div>
+                  <p className="flex items-center gap-2 text-lg text-[var(--muted)]">
+                    <ClockIcon className="h-5 w-5" />
+                    {formatHistoryDateLabel(session.date)}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mt-5">
+            <EmptyState copy="Заверши первую тренировку, и здесь появится история с быстрым доступом к деталям." />
+          </div>
+        )}
+      </section>
+    </aside>
+  );
+}
+
+function SidebarNavButton({
+  title,
+  caption,
+  active,
+  onClick,
+}: {
+  title: string;
+  caption: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-[22px] border px-4 py-4 text-left transition ${
+        active
+          ? "border-[rgba(47,111,97,0.2)] bg-[rgba(47,111,97,0.08)]"
+          : "border-[var(--border)] bg-white/92 hover:border-[rgba(47,111,97,0.16)] hover:bg-white"
+      }`}
+    >
+      <p className="text-base font-semibold text-[var(--foreground)]">{title}</p>
+      <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{caption}</p>
+    </button>
   );
 }
 
@@ -964,7 +1120,7 @@ export function WorkoutExperience() {
     exercises: [],
   });
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [detailSessionId, setDetailSessionId] = useState<string | null>(null);
   const [expandedRoutineId, setExpandedRoutineId] = useState<string | null>(null);
   const [exerciseIndex, setExerciseIndex] = useState(0);
 
@@ -972,6 +1128,14 @@ export function WorkoutExperience() {
     selectedWorkoutSession && !selectedWorkoutSession.completedAt ? selectedWorkoutSession : null;
   const completedSession =
     selectedWorkoutSession && selectedWorkoutSession.completedAt ? selectedWorkoutSession : null;
+  const detailSession = useMemo(
+    () => workouts.find((session) => session.id === detailSessionId) ?? null,
+    [detailSessionId, workouts],
+  );
+  const historySessions = useMemo(
+    () => workouts.filter((session) => Boolean(session.completedAt)),
+    [workouts],
+  );
   const previousSession = useMemo(
     () => getPreviousComparableSession(completedSession, workouts),
     [completedSession, workouts],
@@ -1094,128 +1258,141 @@ export function WorkoutExperience() {
   const canShowFinishedBanner = resolvedScreen === "list" && completedSession;
 
   return (
-    <div className="grid gap-5">
-      {resolvedScreen === "player" && activeSession ? (
-        <WorkoutPlayer
-          session={activeSession}
-          exerciseIndex={safeExerciseIndex}
-          onClose={() => {
-            pruneOpenSets(currentExercise);
-            setScreen("list");
-          }}
-          onBack={() => {
-            const nextIndex = Math.max(safeExerciseIndex - 1, 0);
-            pruneOpenSets(currentExercise);
-            ensureDraftSet(activeSession, nextIndex);
-            setExerciseIndex(nextIndex);
-          }}
-          onNext={() => {
-            if (!activeSession) {
-              return;
-            }
+    <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
+      <WorkoutSidebar
+        screen={resolvedScreen}
+        activeSession={activeSession}
+        completedSession={completedSession}
+        history={historySessions}
+        onShowList={() => setScreen("list")}
+        onShowActive={() => setScreen("player")}
+        onShowSummary={() => setScreen("summary")}
+        onOpenHistorySession={setDetailSessionId}
+      />
 
-            if (safeExerciseIndex === activeSession.exercises.length - 1) {
+      <div className="grid gap-5">
+        {resolvedScreen === "player" && activeSession ? (
+          <WorkoutPlayer
+            session={activeSession}
+            exerciseIndex={safeExerciseIndex}
+            onClose={() => {
               pruneOpenSets(currentExercise);
-              window.setTimeout(() => {
-                finishWorkoutSession();
-                setScreen("summary");
-              }, 0);
-              return;
-            }
+              setScreen("list");
+            }}
+            onBack={() => {
+              const nextIndex = Math.max(safeExerciseIndex - 1, 0);
+              pruneOpenSets(currentExercise);
+              ensureDraftSet(activeSession, nextIndex);
+              setExerciseIndex(nextIndex);
+            }}
+            onNext={() => {
+              if (!activeSession) {
+                return;
+              }
 
-            const nextIndex = safeExerciseIndex + 1;
-            pruneOpenSets(currentExercise);
-            ensureDraftSet(activeSession, nextIndex);
-            setExerciseIndex(nextIndex);
-          }}
-          onUpdateDraft={handleUpdateDraft}
-          onCompleteSet={handleCompleteSet}
-          onRemoveSet={(setId) => {
-            if (!currentExercise) {
-              return;
-            }
+              if (safeExerciseIndex === activeSession.exercises.length - 1) {
+                pruneOpenSets(currentExercise);
+                window.setTimeout(() => {
+                  finishWorkoutSession();
+                  setScreen("summary");
+                }, 0);
+                return;
+              }
 
-            removeWorkoutSet(currentExercise.id, setId);
-          }}
-        />
-      ) : null}
+              const nextIndex = safeExerciseIndex + 1;
+              pruneOpenSets(currentExercise);
+              ensureDraftSet(activeSession, nextIndex);
+              setExerciseIndex(nextIndex);
+            }}
+            onUpdateDraft={handleUpdateDraft}
+            onCompleteSet={handleCompleteSet}
+            onRemoveSet={(setId) => {
+              if (!currentExercise) {
+                return;
+              }
 
-      {resolvedScreen === "summary" && completedSession ? (
-        <WorkoutSummary
-          session={completedSession}
-          previousSession={previousSession}
-          onBackToList={() => setScreen("list")}
-          onOpenDetails={() => setIsDetailsOpen(true)}
-        />
-      ) : null}
+              removeWorkoutSet(currentExercise.id, setId);
+            }}
+          />
+        ) : null}
 
-      {resolvedScreen === "list" ? (
-        <>
-          <section className="surface-card rounded-[32px] p-5 sm:p-7">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <h2 className="text-[2.3rem] font-semibold tracking-[-0.05em] text-[var(--foreground)] sm:text-[2.7rem]">
-                  Мои тренировки
-                </h2>
-                <p className="mt-3 max-w-2xl text-lg leading-8 text-[var(--muted)]">
-                  Выбери тренировку или создай новую.
-                </p>
-              </div>
+        {resolvedScreen === "summary" && completedSession ? (
+          <WorkoutSummary
+            session={completedSession}
+            previousSession={previousSession}
+            onBackToList={() => setScreen("list")}
+            onOpenDetails={() => setDetailSessionId(completedSession.id)}
+          />
+        ) : null}
 
-              <SurfaceButton onClick={() => setIsBuilderOpen(true)} className="w-full lg:w-auto">
-                <PlusIcon className="h-5 w-5" />
-                Создать тренировку
-              </SurfaceButton>
-            </div>
-          </section>
-
-          {canShowFinishedBanner ? (
-            <section className="surface-card rounded-[30px] border border-[rgba(47,111,97,0.18)] p-5 sm:p-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        {resolvedScreen === "list" ? (
+          <>
+            <section className="surface-card rounded-[32px] p-5 sm:p-7">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
-                    Выбранная дата
+                  <h2 className="text-[2.3rem] font-semibold tracking-[-0.05em] text-[var(--foreground)] sm:text-[2.7rem]">
+                    Мои тренировки
+                  </h2>
+                  <p className="mt-3 max-w-2xl text-lg leading-8 text-[var(--muted)]">
+                    Выбери тренировку или создай новую.
                   </p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
-                    На {formatLongDate(selectedDate)} тренировка уже завершена
-                  </h3>
                 </div>
-                <SurfaceButton onClick={() => setScreen("summary")} className="w-full sm:w-auto">
-                  Открыть итог
+
+                <SurfaceButton onClick={() => setIsBuilderOpen(true)} className="w-full lg:w-auto">
+                  <PlusIcon className="h-5 w-5" />
+                  Создать тренировку
                 </SurfaceButton>
               </div>
             </section>
-          ) : null}
 
-          {workoutRoutines.length > 0 ? (
-            <section className="grid gap-5 xl:grid-cols-2">
-              {workoutRoutines.map((routine) => {
-                const isActive = activeSession?.routineId === routine.id;
-                const isBlocked = Boolean(activeSession && activeSession.routineId !== routine.id);
+            {canShowFinishedBanner ? (
+              <section className="surface-card rounded-[30px] border border-[rgba(47,111,97,0.18)] p-5 sm:p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
+                      Выбранная дата
+                    </p>
+                    <h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                      На {formatLongDate(selectedDate)} тренировка уже завершена
+                    </h3>
+                  </div>
+                  <SurfaceButton onClick={() => setScreen("summary")} className="w-full sm:w-auto">
+                    Открыть итог
+                  </SurfaceButton>
+                </div>
+              </section>
+            ) : null}
 
-                return (
-                  <WorkoutRoutineCard
-                    key={routine.id}
-                    routine={routine}
-                    isExpanded={expandedRoutineId === routine.id}
-                    isActive={isActive}
-                    isBlocked={isBlocked}
-                    isCompletedForDay={Boolean(completedSession)}
-                    onToggleExpand={() =>
-                      setExpandedRoutineId((current) => (current === routine.id ? null : routine.id))
-                    }
-                    onStart={() => handleStartRoutine(routine.id)}
-                  />
-                );
-              })}
-            </section>
-          ) : (
-            <section className="surface-card rounded-[30px] p-5 sm:p-7">
-              <EmptyState copy="Пока нет сохраненных программ. Создай первую тренировку и собери чистый список упражнений под свой сплит." />
-            </section>
-          )}
-        </>
-      ) : null}
+            {workoutRoutines.length > 0 ? (
+              <section className="grid gap-5 xl:grid-cols-2">
+                {workoutRoutines.map((routine) => {
+                  const isActive = activeSession?.routineId === routine.id;
+                  const isBlocked = Boolean(activeSession && activeSession.routineId !== routine.id);
+
+                  return (
+                    <WorkoutRoutineCard
+                      key={routine.id}
+                      routine={routine}
+                      isExpanded={expandedRoutineId === routine.id}
+                      isActive={isActive}
+                      isBlocked={isBlocked}
+                      isCompletedForDay={Boolean(completedSession)}
+                      onToggleExpand={() =>
+                        setExpandedRoutineId((current) => (current === routine.id ? null : routine.id))
+                      }
+                      onStart={() => handleStartRoutine(routine.id)}
+                    />
+                  );
+                })}
+              </section>
+            ) : (
+              <section className="surface-card rounded-[30px] p-5 sm:p-7">
+                <EmptyState copy="Пока нет сохраненных программ. Создай первую тренировку и собери чистый список упражнений под свой сплит." />
+              </section>
+            )}
+          </>
+        ) : null}
+      </div>
 
       {isBuilderOpen ? (
         <WorkoutBuilderModal
@@ -1233,8 +1410,8 @@ export function WorkoutExperience() {
         />
       ) : null}
 
-      {isDetailsOpen && completedSession ? (
-        <SummaryDetailsModal session={completedSession} onClose={() => setIsDetailsOpen(false)} />
+      {detailSession ? (
+        <SummaryDetailsModal session={detailSession} onClose={() => setDetailSessionId(null)} />
       ) : null}
     </div>
   );
@@ -1286,6 +1463,15 @@ function CalendarIcon({ className }: { className?: string }) {
       <path d="M8 3v4" />
       <path d="M16 3v4" />
       <path d="M3 9.5h18" />
+    </svg>
+  );
+}
+
+function ClockIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5v5l3 2" />
     </svg>
   );
 }
