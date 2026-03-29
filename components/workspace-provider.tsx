@@ -40,7 +40,7 @@ import {
   createDraftFromEntry,
   createMetricFromTemplate,
   createWorkoutExercise,
-  createWorkoutRoutine,
+  createWorkoutRoutine as createWorkoutRoutineRecord,
   createWorkoutSession,
   createWorkoutSet,
   formatCompactDate,
@@ -169,6 +169,14 @@ type WorkspaceContextValue = {
   removeWorkoutSet: (exerciseId: string, setId: string) => void;
   toggleWorkoutSetCompleted: (exerciseId: string, setId: string) => void;
   toggleWorkoutExerciseCompleted: (exerciseId: string) => void;
+  createWorkoutRoutine: (input: {
+    name: string;
+    focus?: string;
+    exercises: Array<{
+      name: string;
+      note?: string;
+    }>;
+  }) => string | null;
   saveWorkoutAsRoutine: (name?: string) => string | null;
   startWorkoutFromRoutine: (routineId: string) => string | null;
   finishWorkoutSession: () => void;
@@ -1618,6 +1626,42 @@ export function WorkspaceProvider({
     }));
   };
 
+  const createWorkoutRoutine = (input: {
+    name: string;
+    focus?: string;
+    exercises: Array<{
+      name: string;
+      note?: string;
+    }>;
+  }) => {
+    const routineName = input.name.trim();
+    const exercises = input.exercises
+      .map((exercise) => ({
+        name: exercise.name.trim(),
+        note: exercise.note ?? "",
+      }))
+      .filter((exercise) => exercise.name.length > 0);
+
+    if (!routineName || exercises.length === 0) {
+      return null;
+    }
+
+    const nextRoutine = createWorkoutRoutineRecord(routineName, {
+      focus: input.focus,
+      exercises: exercises.map((exercise) => ({
+        ...exercise,
+        sets: [{ load: "", reps: "", note: "" }],
+      })),
+    });
+
+    setWorkspaceState((current) => ({
+      ...current,
+      workoutRoutines: sortWorkoutRoutines([nextRoutine, ...current.workoutRoutines]),
+    }));
+
+    return nextRoutine.id;
+  };
+
   const saveWorkoutAsRoutine = (name?: string) => {
     const sourceSession = selectedWorkoutSession;
 
@@ -1646,7 +1690,7 @@ export function WorkspaceProvider({
       sourceSession.routineId
         ? workspaceState.workoutRoutines.find((routine) => routine.id === sourceSession.routineId) ?? null
         : null;
-    const nextRoutineId = existingRoutine?.id ?? createWorkoutRoutine(routineName).id;
+    const nextRoutineId = existingRoutine?.id ?? createWorkoutRoutineRecord(routineName).id;
 
     setWorkspaceState((current) => {
       const nextRoutine: WorkoutRoutine = existingRoutine
@@ -2090,6 +2134,7 @@ export function WorkspaceProvider({
     removeWorkoutSet,
     toggleWorkoutSetCompleted,
     toggleWorkoutExerciseCompleted,
+    createWorkoutRoutine,
     saveWorkoutAsRoutine,
     startWorkoutFromRoutine,
     finishWorkoutSession,
