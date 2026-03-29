@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { BrandGlyph } from "@/components/brand-glyph";
+import { WorkoutAssistantPanel } from "@/components/workout-assistant-panel";
 import { EmptyState } from "@/components/workspace-ui";
 import { useWorkspace } from "@/components/workspace-provider";
 import { getTodayIsoDate } from "@/lib/workspace";
@@ -77,6 +78,33 @@ function formatLongDate(value: string) {
   return longDateFormatter.format(new Date(`${value}T12:00:00`));
 }
 
+function getSidebarDateLabel(value: string) {
+  const today = getTodayIsoDate();
+  const yesterday = new Date(`${today}T12:00:00`);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayIso = yesterday.toISOString().slice(0, 10);
+
+  if (value === today) {
+    return "Сегодня";
+  }
+
+  if (value === yesterdayIso) {
+    return "Вчера";
+  }
+
+  return formatLongDate(value);
+}
+
+function getHeadingDateLabel(value: string) {
+  const today = getTodayIsoDate();
+
+  if (value === today) {
+    return `Сегодня, ${formatLongDate(value)}`;
+  }
+
+  return formatLongDate(value);
+}
+
 function formatHistoryDateLabel(value: string) {
   const today = getTodayIsoDate();
   const yesterday = new Date(`${today}T12:00:00`);
@@ -120,6 +148,10 @@ function getPluralForm(value: number, one: string, few: string, many: string) {
 
 function formatExerciseCount(value: number) {
   return `${value} ${getPluralForm(value, "упражнение", "упражнения", "упражнений")}`;
+}
+
+function formatWorkoutCount(value: number) {
+  return `${value} ${getPluralForm(value, "тренировка", "тренировки", "тренировок")}`;
 }
 
 function getCompletedSets(exercise: WorkoutExercise) {
@@ -449,7 +481,79 @@ function WorkoutRoutineCard({
   );
 }
 
-function WorkoutSidebar({
+function WorkoutSessionCard({
+  session,
+  selected,
+  onOpen,
+  onOpenDetails,
+}: {
+  session: WorkoutSession;
+  selected: boolean;
+  onOpen: () => void;
+  onOpenDetails: () => void;
+}) {
+  const metrics = getSessionMetrics(session);
+  const isCompleted = Boolean(session.completedAt);
+
+  return (
+    <article
+      className={`rounded-[28px] border p-5 transition sm:p-6 ${
+        selected
+          ? "border-[rgba(47,111,97,0.75)] bg-[rgba(255,255,255,0.96)] shadow-[0_18px_36px_rgba(47,111,97,0.12)]"
+          : "border-[var(--border)] bg-white/88"
+      }`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-[var(--accent)] text-white">
+              <DumbbellIcon className="h-6 w-6" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="truncate text-[1.6rem] font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+                {session.title || "Тренировка"}
+              </h3>
+              <p className="mt-1 flex items-center gap-2 text-sm text-[var(--muted)]">
+                <CalendarIcon className="h-4 w-4" />
+                {formatShortDate(session.date)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <span
+          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+            isCompleted
+              ? "bg-[rgba(47,111,97,0.12)] text-[var(--accent)]"
+              : "bg-[rgba(217,163,86,0.12)] text-[rgb(164,111,31)]"
+          }`}
+        >
+          {isCompleted ? "Завершена" : "В процессе"}
+        </span>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <span className="inline-flex items-center rounded-full bg-[rgba(21,52,43,0.05)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]">
+          {formatExerciseCount(session.exercises.length)}
+        </span>
+        <span className="text-sm text-[var(--muted)]">
+          {metrics.totalSets} подходов · {formatMetricValue(metrics.totalVolume / 1000, 1)} т
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <SurfaceButton onClick={onOpen} className="w-full">
+          {isCompleted ? "Открыть итог" : "Продолжить"}
+        </SurfaceButton>
+        <SurfaceButton variant="secondary" onClick={onOpenDetails} className="w-full">
+          Детали
+        </SurfaceButton>
+      </div>
+    </article>
+  );
+}
+
+export function WorkoutSidebar({
   screen,
   activeSession,
   completedSession,
@@ -643,6 +747,126 @@ function SidebarNavButton({
       <p className="text-base font-semibold text-[var(--foreground)]">{title}</p>
       <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{caption}</p>
     </button>
+  );
+}
+
+function DiaryWorkoutSidebar({
+  days,
+  selectedDate,
+  workouts,
+  profileName,
+  profileSubtitle,
+  initials,
+  onSelectDate,
+}: {
+  days: Array<{
+    date: string;
+    summary: string;
+    notesPreview: string;
+  }>;
+  selectedDate: string;
+  workouts: WorkoutSession[];
+  profileName: string;
+  profileSubtitle: string;
+  initials: string;
+  onSelectDate: (date: string) => void;
+}) {
+  const getPreview = (date: string, fallbackSummary: string, fallbackNotes: string) => {
+    const daySessions = workouts.filter((session) => session.date === date);
+
+    if (daySessions.length === 0) {
+      return fallbackSummary || fallbackNotes || "Без тренировок";
+    }
+
+    if (daySessions.length === 1) {
+      const [session] = daySessions;
+      const metrics = getSessionMetrics(session);
+
+      return `${session.title || "Тренировка"} · ${metrics.totalSets} подходов`;
+    }
+
+    return `${daySessions.length} тренировки · ${daySessions
+      .slice(0, 2)
+      .map((session) => session.title || "Тренировка")
+      .join(", ")}`;
+  };
+
+  return (
+    <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
+      <div className="rounded-[24px] border border-[var(--border)] bg-white/90 p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]">
+            <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_10px_20px_rgba(32,77,67,0.24)]" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">Diary AI</p>
+            <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">Тренировки</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-2">
+          <Link
+            href="/diary"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          >
+            Дневник
+          </Link>
+          <div className="inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--accent)] px-3 text-sm font-medium text-white">
+            Тренировки
+          </div>
+          <Link
+            href="/analytics"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          >
+            Период
+          </Link>
+        </div>
+      </div>
+
+      <div className="mt-4 min-h-0 flex-1 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
+        <div className="mb-2 flex items-center justify-between px-1">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">Дни</p>
+          <span className="text-xs text-[var(--muted)]">{days.length}</span>
+        </div>
+
+        <div className="grid max-h-[52vh] gap-1.5 overflow-y-auto pr-1">
+          {days.slice(0, 40).map((day) => (
+            <button
+              key={day.date}
+              type="button"
+              onClick={() => onSelectDate(day.date)}
+              className={`grid gap-1 rounded-[20px] px-3 py-3 text-left transition ${
+                day.date === selectedDate
+                  ? "bg-[var(--accent)] text-white shadow-[0_14px_30px_rgba(47,111,97,0.22)]"
+                  : "text-[var(--foreground)] hover:bg-[rgba(47,111,97,0.08)]"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium">{getSidebarDateLabel(day.date)}</span>
+                {day.date === selectedDate ? <ChevronDownIcon className="h-4 w-4" /> : null}
+              </div>
+              <span
+                className={`truncate text-xs ${
+                  day.date === selectedDate ? "text-white/80" : "text-[var(--muted)]"
+                }`}
+              >
+                {getPreview(day.date, day.summary, day.notesPreview)}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 p-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white">
+          {initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-base font-semibold text-[var(--foreground)]">{profileName}</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">{profileSubtitle}</p>
+        </div>
+      </div>
+    </aside>
   );
 }
 
@@ -1167,9 +1391,12 @@ function MetricPill({ value, label }: { value: string; label: string }) {
 export function WorkoutExperience() {
   const {
     selectedDate,
+    setSelectedDate,
+    days,
     workouts,
     workoutRoutines,
     selectedWorkoutSession,
+    workoutSessionsForDate,
     profile,
     createWorkoutRoutine,
     startWorkoutFromRoutine,
@@ -1178,6 +1405,7 @@ export function WorkoutExperience() {
     removeWorkoutSet,
     toggleWorkoutSetCompleted,
     finishWorkoutSession,
+    setSelectedWorkoutSession,
   } = useWorkspace();
   const [screen, setScreen] = useState<ScreenState>("list");
   const [builderDraft, setBuilderDraft] = useState<BuilderDraft>({
@@ -1198,10 +1426,7 @@ export function WorkoutExperience() {
     () => workouts.find((session) => session.id === detailSessionId) ?? null,
     [detailSessionId, workouts],
   );
-  const historySessions = useMemo(
-    () => workouts.filter((session) => Boolean(session.completedAt)),
-    [workouts],
-  );
+  const sessionsForSelectedDate = workoutSessionsForDate;
   const previousSession = useMemo(
     () => getPreviousComparableSession(completedSession, workouts),
     [completedSession, workouts],
@@ -1274,16 +1499,19 @@ export function WorkoutExperience() {
   };
 
   const handleStartRoutine = (routineId: string) => {
-    if (completedSession) {
-      return;
-    }
-
     if (activeSession?.routineId === routineId) {
+      setSelectedWorkoutSession(activeSession.id);
       setScreen("player");
       return;
     }
 
-    startWorkoutFromRoutine(routineId);
+    const sessionId = startWorkoutFromRoutine(routineId);
+
+    if (!sessionId) {
+      return;
+    }
+
+    setSelectedWorkoutSession(sessionId);
     setExerciseIndex(0);
     setExpandedRoutineId(routineId);
     setScreen("player");
@@ -1331,21 +1559,22 @@ export function WorkoutExperience() {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("") || "A";
+  const selectedDateCompletedCount = sessionsForSelectedDate.filter((session) => session.completedAt).length;
 
   return (
     <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
-      <WorkoutSidebar
-        screen={resolvedScreen}
-        activeSession={activeSession}
-        completedSession={completedSession}
-        history={historySessions}
+      <DiaryWorkoutSidebar
+        days={days}
+        selectedDate={selectedDate}
+        workouts={workouts}
         profileName={profileName}
         profileSubtitle={profileSubtitle}
         initials={initials}
-        onShowList={() => setScreen("list")}
-        onShowActive={() => setScreen("player")}
-        onShowSummary={() => setScreen("summary")}
-        onOpenHistorySession={setDetailSessionId}
+        onSelectDate={(date) => {
+          setSelectedDate(date);
+          setScreen("list");
+          setExerciseIndex(0);
+        }}
       />
 
       <div className="grid gap-5">
@@ -1404,6 +1633,138 @@ export function WorkoutExperience() {
         ) : null}
 
         {resolvedScreen === "list" ? (
+          <section className="surface-card rounded-[32px] p-5 sm:p-7">
+            <div className="grid gap-8">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const previous = new Date(`${selectedDate}T12:00:00`);
+                      previous.setDate(previous.getDate() - 1);
+                      setSelectedDate(previous.toISOString().slice(0, 10));
+                      setScreen("list");
+                    }}
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                    aria-label="Предыдущая дата"
+                  >
+                    <ChevronLeftIcon className="h-5 w-5" />
+                  </button>
+                  <div className="rounded-full border border-[var(--border)] bg-white/92 px-4 py-2 text-sm font-medium text-[var(--foreground)]">
+                    {getSidebarDateLabel(selectedDate)}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = new Date(`${selectedDate}T12:00:00`);
+                      next.setDate(next.getDate() + 1);
+                      setSelectedDate(next.toISOString().slice(0, 10));
+                      setScreen("list");
+                    }}
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                    aria-label="Следующая дата"
+                  >
+                    <ChevronRightIcon className="h-5 w-5" />
+                  </button>
+                </div>
+                <span className="text-sm text-[var(--muted)]">
+                  {formatWorkoutCount(sessionsForSelectedDate.length)} · {selectedDateCompletedCount} завершено
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h2 className="text-[2.3rem] font-semibold tracking-[-0.05em] text-[var(--foreground)] sm:text-[2.7rem]">
+                    Мои тренировки
+                  </h2>
+                  <p className="mt-3 max-w-2xl text-lg leading-8 text-[var(--muted)]">
+                    Выбери тренировку или создай новую.
+                  </p>
+                  <p className="mt-3 text-sm font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+                    {getHeadingDateLabel(selectedDate)}
+                  </p>
+                </div>
+
+                <SurfaceButton onClick={() => setIsBuilderOpen(true)} className="w-full lg:w-auto">
+                  <PlusIcon className="h-5 w-5" />
+                  Создать тренировку
+                </SurfaceButton>
+              </div>
+
+              <div className="grid gap-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                    Сессии за день
+                  </h3>
+                  <span className="text-sm text-[var(--muted)]">{sessionsForSelectedDate.length}</span>
+                </div>
+
+                {sessionsForSelectedDate.length > 0 ? (
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    {sessionsForSelectedDate.map((session) => (
+                      <WorkoutSessionCard
+                        key={session.id}
+                        session={session}
+                        selected={selectedWorkoutSession?.id === session.id}
+                        onOpen={() => {
+                          setSelectedWorkoutSession(session.id);
+                          setExerciseIndex(0);
+                          setScreen(session.completedAt ? "summary" : "player");
+                        }}
+                        onOpenDetails={() => setDetailSessionId(session.id)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-[28px] border border-dashed border-[var(--border)] bg-white/72 p-5 sm:p-6">
+                    <EmptyState copy="На этой дате ещё нет тренировок. Выбери программу ниже или создай новую с нуля." />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                    Программы
+                  </h3>
+                  <span className="text-sm text-[var(--muted)]">{workoutRoutines.length}</span>
+                </div>
+
+                {workoutRoutines.length > 0 ? (
+                  <div className="grid gap-5 xl:grid-cols-2">
+                    {workoutRoutines.map((routine) => {
+                      const isActive = activeSession?.routineId === routine.id;
+                      const isBlocked = Boolean(activeSession && activeSession.routineId !== routine.id);
+
+                      return (
+                        <WorkoutRoutineCard
+                          key={routine.id}
+                          routine={routine}
+                          isExpanded={expandedRoutineId === routine.id}
+                          isActive={isActive}
+                          isBlocked={isBlocked}
+                          isCompletedForDay={false}
+                          onToggleExpand={() =>
+                            setExpandedRoutineId((current) => (current === routine.id ? null : routine.id))
+                          }
+                          onStart={() => handleStartRoutine(routine.id)}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-[28px] border border-dashed border-[var(--border)] bg-white/72 p-5 sm:p-6">
+                    <EmptyState copy="Пока нет сохранённых программ. Создай первую тренировку и собери чистый список упражнений под свой сплит." />
+                  </div>
+                )}
+              </div>
+
+              <WorkoutAssistantPanel />
+            </div>
+          </section>
+        ) : null}
+
+        {false ? (
           <>
             <section className="surface-card rounded-[32px] p-5 sm:p-7">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">

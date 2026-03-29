@@ -136,7 +136,9 @@ type WorkspaceContextValue = {
   workouts: WorkoutSession[];
   workoutRoutines: WorkoutRoutine[];
   selectedWorkoutSession: WorkoutSession | null;
+  workoutSessionsForDate: WorkoutSession[];
   workoutDays: WorkoutDay[];
+  setSelectedWorkoutSession: (sessionId: string | null) => void;
   updateWorkoutSession: (
     patch: Partial<Pick<WorkoutSession, "title" | "focus">>,
   ) => void;
@@ -605,6 +607,7 @@ export function WorkspaceProvider({
     ),
   );
   const [selectedDate, setSelectedDateState] = useState(requestedDate);
+  const [selectedWorkoutSessionId, setSelectedWorkoutSessionId] = useState<string | null>(null);
   const [serverEntries, setServerEntries] = useState(() => sortEntries(initialEntries));
   const [workspaceState, setWorkspaceState] = useState(initialStateRef.current);
   const [saveState, setSaveState] = useState<SaveState>(
@@ -796,10 +799,32 @@ export function WorkspaceProvider({
       ),
     [metricDefinitions, selectedDate, selectedEntry, workspaceState.drafts],
   );
-  const selectedWorkoutSession = useMemo(
+  const workoutSessionsForDate = useMemo(
     () =>
-      workspaceState.workouts.find((session) => session.date === selectedDate) ?? null,
+      workspaceState.workouts.filter((session) => session.date === selectedDate),
     [selectedDate, workspaceState.workouts],
+  );
+  const selectedWorkoutSession = useMemo(
+    () => {
+      if (selectedWorkoutSessionId) {
+        const matchingSession =
+          workspaceState.workouts.find(
+            (session) =>
+              session.id === selectedWorkoutSessionId && session.date === selectedDate,
+          ) ?? null;
+
+        if (matchingSession) {
+          return matchingSession;
+        }
+      }
+
+      return (
+        workoutSessionsForDate.find((session) => !session.completedAt) ??
+        workoutSessionsForDate[0] ??
+        null
+      );
+    },
+    [selectedDate, selectedWorkoutSessionId, workoutSessionsForDate, workspaceState.workouts],
   );
 
   const updateSelectedWorkoutSession = (
@@ -809,7 +834,10 @@ export function WorkspaceProvider({
 
     setWorkspaceState((current) => {
       const existingSession =
-        current.workouts.find((session) => session.date === selectedDate) ?? null;
+        current.workouts.find(
+          (session) =>
+            session.id === selectedWorkoutSessionId && session.date === selectedDate,
+        ) ?? null;
       const baseSession = existingSession ?? createWorkoutSession(selectedDate);
       const updatedSession = {
         ...updater(baseSession),
@@ -824,15 +852,35 @@ export function WorkspaceProvider({
         workouts: sortWorkoutSessions(
           existingSession
             ? current.workouts.map((session) =>
-                session.date === selectedDate ? updatedSession : session,
+                session.id === updatedSession.id ? updatedSession : session,
               )
             : [updatedSession, ...current.workouts],
         ),
       };
     });
 
+    setSelectedWorkoutSessionId(nextSessionId);
     return nextSessionId;
   };
+
+  useEffect(() => {
+    setSelectedWorkoutSessionId((current) => {
+      if (
+        current &&
+        workspaceState.workouts.some(
+          (session) => session.id === current && session.date === selectedDate,
+        )
+      ) {
+        return current;
+      }
+
+      return (
+        workoutSessionsForDate.find((session) => !session.completedAt)?.id ??
+        workoutSessionsForDate[0]?.id ??
+        null
+      );
+    });
+  }, [selectedDate, workoutSessionsForDate, workspaceState.workouts]);
 
   useEffect(() => {
     setWorkspaceState((current) => {
@@ -1444,7 +1492,7 @@ export function WorkspaceProvider({
   const removeWorkoutExercise = (exerciseId: string) => {
     setWorkspaceState((current) => {
       const existingSession =
-        current.workouts.find((session) => session.date === selectedDate) ?? null;
+        current.workouts.find((session) => session.id === selectedWorkoutSession?.id) ?? null;
 
       if (!existingSession) {
         return current;
@@ -1457,7 +1505,7 @@ export function WorkspaceProvider({
       if (nextExercises.length === 0) {
         return {
           ...current,
-          workouts: current.workouts.filter((session) => session.date !== selectedDate),
+          workouts: current.workouts.filter((session) => session.id !== existingSession.id),
         };
       }
 
@@ -1465,7 +1513,7 @@ export function WorkspaceProvider({
         ...current,
         workouts: sortWorkoutSessions(
           current.workouts.map((session) =>
-            session.date === selectedDate
+            session.id === existingSession.id
               ? {
                   ...session,
                   exercises: nextExercises,
@@ -1722,7 +1770,7 @@ export function WorkspaceProvider({
         workoutRoutines: sortWorkoutRoutines(nextRoutines),
         workouts: sortWorkoutSessions(
           current.workouts.map((session) =>
-            session.date === selectedDate
+            session.id === sourceSession.id
               ? {
                   ...session,
                   title: routineName,
@@ -1748,8 +1796,12 @@ export function WorkspaceProvider({
     }
 
     const timestamp = new Date().toISOString();
-    const nextSessionId = updateSelectedWorkoutSession((session) => ({
-      ...session,
+    const nextSession = {
+      ...createWorkoutSession(selectedDate, {
+        title: routine.name,
+        focus: routine.focus,
+        routineId: routine.id,
+      }),
       title: routine.name,
       focus: routine.focus,
       routineId: routine.id,
@@ -1768,10 +1820,13 @@ export function WorkspaceProvider({
           completedAt: null,
         })),
       })),
-    }));
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    } satisfies WorkoutSession;
 
     setWorkspaceState((current) => ({
       ...current,
+      workouts: sortWorkoutSessions([nextSession, ...current.workouts]),
       workoutRoutines: sortWorkoutRoutines(
         current.workoutRoutines.map((entry) =>
           entry.id === routine.id
@@ -1784,7 +1839,9 @@ export function WorkspaceProvider({
       ),
     }));
 
-    return nextSessionId;
+    setSelectedWorkoutSessionId(nextSession.id);
+
+    return nextSession.id;
   };
 
   const finishWorkoutSession = () => {
@@ -1798,7 +1855,7 @@ export function WorkspaceProvider({
 
     setWorkspaceState((current) => {
       const nextWorkouts = current.workouts.map((session) => {
-        if (session.date !== selectedDate) {
+        if (session.id !== sourceSession.id) {
           return session;
         }
 
@@ -2123,7 +2180,9 @@ export function WorkspaceProvider({
     workouts: workspaceState.workouts,
     workoutRoutines: workspaceState.workoutRoutines,
     selectedWorkoutSession,
+    workoutSessionsForDate,
     workoutDays,
+    setSelectedWorkoutSession: setSelectedWorkoutSessionId,
     updateWorkoutSession,
     addWorkoutExercise,
     updateWorkoutExercise,
