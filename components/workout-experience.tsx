@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { BrandGlyph } from "@/components/brand-glyph";
 import { EmptyState } from "@/components/workspace-ui";
 import { useWorkspace } from "@/components/workspace-provider";
 import { getTodayIsoDate } from "@/lib/workspace";
@@ -452,6 +454,9 @@ function WorkoutSidebar({
   activeSession,
   completedSession,
   history,
+  profileName,
+  profileSubtitle,
+  initials,
   onShowList,
   onShowActive,
   onShowSummary,
@@ -461,24 +466,58 @@ function WorkoutSidebar({
   activeSession: WorkoutSession | null;
   completedSession: WorkoutSession | null;
   history: WorkoutSession[];
+  profileName: string;
+  profileSubtitle: string;
+  initials: string;
   onShowList: () => void;
   onShowActive: () => void;
   onShowSummary: () => void;
   onOpenHistorySession: (sessionId: string) => void;
 }) {
   return (
-    <aside className="grid gap-5 xl:sticky xl:top-4 xl:h-fit">
-      <section className="surface-card rounded-[30px] p-5">
+    <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
+      <div className="rounded-[24px] border border-[var(--border)] bg-white/90 p-4">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]">
+              <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_10px_20px_rgba(32,77,67,0.24)]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">Diary AI</p>
+              <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+                Тренировки
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-2">
+            <Link
+              href="/diary"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            >
+              Дневник
+            </Link>
+            <div className="inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--accent)] px-3 text-sm font-medium text-white">
+              Тренировки
+            </div>
+            <Link
+              href="/analytics"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            >
+              Период
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 min-h-0 flex-1 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
+        <div className="mb-2 px-1">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
             Навигация
           </p>
-          <h2 className="mt-3 text-[1.6rem] font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-            Тренировки
-          </h2>
         </div>
 
-        <div className="mt-5 grid gap-2">
+        <div className="grid gap-2">
           <SidebarNavButton
             title="Программы"
             caption="Список и конструктор"
@@ -502,18 +541,19 @@ function WorkoutSidebar({
             />
           ) : null}
         </div>
-      </section>
 
-      <section className="surface-card rounded-[30px] p-5">
-        <div className="border-t border-[rgba(21,52,43,0.08)] pt-5">
+        <div className="my-4 h-px bg-[rgba(21,52,43,0.08)]" />
+
+        <div className="mb-2 flex items-center justify-between px-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--foreground)]">
             История
           </p>
-          <p className="mt-2 text-lg text-[var(--muted)]">Дни тренировки</p>
+          <span className="text-xs text-[var(--muted)]">{history.length}</span>
         </div>
+        <p className="px-1 text-sm text-[var(--muted)]">Дни тренировки</p>
 
         {history.length > 0 ? (
-          <div className="mt-5 grid gap-3">
+          <div className="mt-4 grid max-h-[52vh] gap-1.5 overflow-y-auto pr-1">
             {history.map((session) => {
               const metrics = getSessionMetrics(session);
 
@@ -522,21 +562,31 @@ function WorkoutSidebar({
                   key={session.id}
                   type="button"
                   onClick={() => onOpenHistorySession(session.id)}
-                  className={`grid gap-3 rounded-[24px] border px-4 py-4 text-left transition ${
+                  className={`grid gap-2 rounded-[20px] px-3 py-3 text-left transition ${
                     completedSession?.id === session.id
-                      ? "border-[rgba(47,111,97,0.18)] bg-[rgba(247,250,248,0.96)]"
-                      : "border-[var(--border)] bg-[rgba(251,252,251,0.96)] hover:border-[rgba(47,111,97,0.18)] hover:bg-white"
+                      ? "bg-[var(--accent)] text-white shadow-[0_14px_30px_rgba(47,111,97,0.22)]"
+                      : "text-[var(--foreground)] hover:bg-[rgba(47,111,97,0.08)]"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <p className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                    <p className="truncate text-base font-semibold tracking-[-0.03em]">
                       {session.title || "Тренировка"}
                     </p>
-                    <span className="flex h-10 min-w-10 items-center justify-center rounded-full bg-[rgba(21,52,43,0.08)] px-3 text-lg font-semibold text-[var(--muted)]">
+                    <span
+                      className={`flex h-9 min-w-9 items-center justify-center rounded-full px-3 text-sm font-semibold ${
+                        completedSession?.id === session.id
+                          ? "bg-white/18 text-white"
+                          : "bg-[rgba(21,52,43,0.08)] text-[var(--muted)]"
+                      }`}
+                    >
                       {metrics.totalSets}
                     </span>
                   </div>
-                  <p className="flex items-center gap-2 text-lg text-[var(--muted)]">
+                  <p
+                    className={`flex items-center gap-2 text-sm ${
+                      completedSession?.id === session.id ? "text-white/80" : "text-[var(--muted)]"
+                    }`}
+                  >
                     <ClockIcon className="h-5 w-5" />
                     {formatHistoryDateLabel(session.date)}
                   </p>
@@ -549,7 +599,22 @@ function WorkoutSidebar({
             <EmptyState copy="Заверши первую тренировку, и здесь появится история с быстрым доступом к деталям." />
           </div>
         )}
-      </section>
+
+      </div>
+
+      <button
+        type="button"
+        onClick={onShowList}
+        className="mt-4 flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 p-4 text-left transition hover:border-[rgba(47,111,97,0.24)]"
+      >
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white">
+          {initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-base font-semibold text-[var(--foreground)]">{profileName}</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">{profileSubtitle}</p>
+        </div>
+      </button>
     </aside>
   );
 }
@@ -1105,6 +1170,7 @@ export function WorkoutExperience() {
     workouts,
     workoutRoutines,
     selectedWorkoutSession,
+    profile,
     createWorkoutRoutine,
     startWorkoutFromRoutine,
     addWorkoutSet,
@@ -1256,6 +1322,15 @@ export function WorkoutExperience() {
 
   const currentExercise = activeSession?.exercises[safeExerciseIndex] ?? null;
   const canShowFinishedBanner = resolvedScreen === "list" && completedSession;
+  const profileName =
+    [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Профиль";
+  const profileSubtitle = "История, программы и быстрый доступ";
+  const initials = profileName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "A";
 
   return (
     <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
@@ -1264,6 +1339,9 @@ export function WorkoutExperience() {
         activeSession={activeSession}
         completedSession={completedSession}
         history={historySessions}
+        profileName={profileName}
+        profileSubtitle={profileSubtitle}
+        initials={initials}
         onShowList={() => setScreen("list")}
         onShowActive={() => setScreen("player")}
         onShowSummary={() => setScreen("summary")}
