@@ -23,6 +23,7 @@ import type {
   SaveState,
   TaskItem,
   WorkoutExercise,
+  WorkoutRoutine,
   WorkoutSession,
   WorkoutSet,
   WorkspaceDraft,
@@ -39,6 +40,7 @@ import {
   createDraftFromEntry,
   createMetricFromTemplate,
   createWorkoutExercise,
+  createWorkoutRoutine,
   createWorkoutSession,
   createWorkoutSet,
   formatCompactDate,
@@ -132,6 +134,7 @@ type WorkspaceContextValue = {
     extraction: DiaryExtractionResult,
   ) => void;
   workouts: WorkoutSession[];
+  workoutRoutines: WorkoutRoutine[];
   selectedWorkoutSession: WorkoutSession | null;
   workoutDays: WorkoutDay[];
   updateWorkoutSession: (
@@ -164,6 +167,11 @@ type WorkspaceContextValue = {
     patch?: Partial<Pick<WorkoutSet, "load" | "reps" | "note">>,
   ) => string | null;
   removeWorkoutSet: (exerciseId: string, setId: string) => void;
+  toggleWorkoutSetCompleted: (exerciseId: string, setId: string) => void;
+  toggleWorkoutExerciseCompleted: (exerciseId: string) => void;
+  saveWorkoutAsRoutine: (name?: string) => string | null;
+  startWorkoutFromRoutine: (routineId: string) => string | null;
+  finishWorkoutSession: () => void;
   tasks: TaskItem[];
   selectedTasks: TaskItem[];
   overdueTasks: TaskItem[];
@@ -239,6 +247,14 @@ function mergeWorkspaceState(
               .filter((session): session is WorkoutSession => session !== null),
           )
         : baseState.workouts,
+    workoutRoutines:
+      Array.isArray(persistedState.workoutRoutines) && persistedState.workoutRoutines.length > 0
+        ? sortWorkoutRoutines(
+            persistedState.workoutRoutines
+              .map((routine) => sanitizeWorkoutRoutine(routine))
+              .filter((routine): routine is WorkoutRoutine => routine !== null),
+          )
+        : baseState.workoutRoutines,
     tasks: Array.isArray(persistedState.tasks) ? persistedState.tasks : baseState.tasks,
     reminders:
       Array.isArray(persistedState.reminders) && persistedState.reminders.length > 0
@@ -393,6 +409,10 @@ function sanitizeWorkoutSet(value: unknown): WorkoutSet | null {
     load: typeof candidate.load === "string" ? candidate.load : "",
     reps: typeof candidate.reps === "string" ? candidate.reps : "",
     note: typeof candidate.note === "string" ? candidate.note : "",
+    completedAt:
+      typeof candidate.completedAt === "string" && Number.isFinite(Date.parse(candidate.completedAt))
+        ? new Date(candidate.completedAt).toISOString()
+        : null,
   };
 }
 
@@ -418,6 +438,10 @@ function sanitizeWorkoutExercise(value: unknown): WorkoutExercise | null {
     name: candidate.name.trim() || "Новое упражнение",
     note: typeof candidate.note === "string" ? candidate.note : "",
     sets: sets.length > 0 ? sets : [createWorkoutSet()],
+    completedAt:
+      typeof candidate.completedAt === "string" && Number.isFinite(Date.parse(candidate.completedAt))
+        ? new Date(candidate.completedAt).toISOString()
+        : null,
   };
 }
 
@@ -457,8 +481,71 @@ function sanitizeWorkoutSession(value: unknown): WorkoutSession | null {
           .map((exercise) => sanitizeWorkoutExercise(exercise))
           .filter((exercise): exercise is WorkoutExercise => exercise !== null)
       : [],
+    routineId: typeof candidate.routineId === "string" ? candidate.routineId : null,
+    startedAt:
+      typeof candidate.startedAt === "string" && Number.isFinite(Date.parse(candidate.startedAt))
+        ? new Date(candidate.startedAt).toISOString()
+        : new Date(createdAt).toISOString(),
+    completedAt:
+      typeof candidate.completedAt === "string" && Number.isFinite(Date.parse(candidate.completedAt))
+        ? new Date(candidate.completedAt).toISOString()
+        : null,
     createdAt: new Date(createdAt).toISOString(),
     updatedAt: new Date(updatedAt).toISOString(),
+  };
+}
+
+function sanitizeWorkoutRoutine(value: unknown): WorkoutRoutine | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Partial<WorkoutRoutine>;
+
+  if (
+    typeof candidate.id !== "string" ||
+    typeof candidate.name !== "string" ||
+    typeof candidate.createdAt !== "string" ||
+    typeof candidate.updatedAt !== "string"
+  ) {
+    return null;
+  }
+
+  const createdAt = Date.parse(candidate.createdAt);
+  const updatedAt = Date.parse(candidate.updatedAt);
+
+  if (!Number.isFinite(createdAt) || !Number.isFinite(updatedAt)) {
+    return null;
+  }
+
+  const exercises = Array.isArray(candidate.exercises)
+    ? candidate.exercises
+        .map((exercise) => sanitizeWorkoutExercise(exercise))
+        .filter((exercise): exercise is WorkoutExercise => exercise !== null)
+        .map((exercise) => ({
+          id: exercise.id,
+          name: exercise.name,
+          note: exercise.note,
+          sets: exercise.sets.map((set) => ({
+            id: set.id,
+            load: set.load,
+            reps: set.reps,
+            note: set.note,
+          })),
+        }))
+    : [];
+
+  return {
+    id: candidate.id,
+    name: candidate.name.trim() || "Моя тренировка",
+    focus: typeof candidate.focus === "string" ? candidate.focus : "",
+    exercises,
+    createdAt: new Date(createdAt).toISOString(),
+    updatedAt: new Date(updatedAt).toISOString(),
+    lastUsedAt:
+      typeof candidate.lastUsedAt === "string" && Number.isFinite(Date.parse(candidate.lastUsedAt))
+        ? new Date(candidate.lastUsedAt).toISOString()
+        : null,
   };
 }
 
@@ -469,6 +556,19 @@ function sortWorkoutSessions(sessions: WorkoutSession[]) {
     }
 
     return right.date.localeCompare(left.date);
+  });
+}
+
+function sortWorkoutRoutines(routines: WorkoutRoutine[]) {
+  return [...routines].sort((left, right) => {
+    const leftRank = left.lastUsedAt ?? left.updatedAt ?? left.createdAt;
+    const rightRank = right.lastUsedAt ?? right.updatedAt ?? right.createdAt;
+
+    if (leftRank === rightRank) {
+      return right.name.localeCompare(left.name);
+    }
+
+    return rightRank.localeCompare(leftRank);
   });
 }
 
@@ -1309,6 +1409,7 @@ export function WorkspaceProvider({
 
     updateSelectedWorkoutSession((session) => ({
       ...session,
+      completedAt: null,
       exercises: [...session.exercises, nextExercise],
     }));
 
@@ -1377,10 +1478,12 @@ export function WorkspaceProvider({
 
     updateSelectedWorkoutSession((session) => ({
       ...session,
+      completedAt: null,
       exercises: session.exercises.map((exercise) =>
         exercise.id === exerciseId
           ? {
               ...exercise,
+              completedAt: null,
               sets: [...exercise.sets, nextSet],
             }
           : exercise,
@@ -1397,6 +1500,7 @@ export function WorkspaceProvider({
   ) => {
     updateSelectedWorkoutSession((session) => ({
       ...session,
+      completedAt: null,
       exercises: session.exercises.map((exercise) =>
         exercise.id === exerciseId
           ? {
@@ -1442,19 +1546,272 @@ export function WorkspaceProvider({
   const removeWorkoutSet = (exerciseId: string, setId: string) => {
     updateSelectedWorkoutSession((session) => ({
       ...session,
+      completedAt: null,
       exercises: session.exercises.map((exercise) => {
         if (exercise.id !== exerciseId) {
           return exercise;
         }
 
         const nextSets = exercise.sets.filter((set) => set.id !== setId);
+        const sets = nextSets.length > 0 ? nextSets : [createWorkoutSet()];
+        const allCompleted = sets.every((set) => Boolean(set.completedAt));
 
         return {
           ...exercise,
-          sets: nextSets.length > 0 ? nextSets : [createWorkoutSet()],
+          sets,
+          completedAt: allCompleted ? exercise.completedAt ?? new Date().toISOString() : null,
         };
       }),
     }));
+  };
+
+  const toggleWorkoutSetCompleted = (exerciseId: string, setId: string) => {
+    updateSelectedWorkoutSession((session) => ({
+      ...session,
+      completedAt: null,
+      exercises: session.exercises.map((exercise) => {
+        if (exercise.id !== exerciseId) {
+          return exercise;
+        }
+
+        const timestamp = new Date().toISOString();
+        const nextSets = exercise.sets.map((set) =>
+          set.id === setId
+            ? {
+                ...set,
+                completedAt: set.completedAt ? null : timestamp,
+              }
+            : set,
+        );
+        const allCompleted = nextSets.length > 0 && nextSets.every((set) => Boolean(set.completedAt));
+
+        return {
+          ...exercise,
+          sets: nextSets,
+          completedAt: allCompleted ? exercise.completedAt ?? timestamp : null,
+        };
+      }),
+    }));
+  };
+
+  const toggleWorkoutExerciseCompleted = (exerciseId: string) => {
+    updateSelectedWorkoutSession((session) => ({
+      ...session,
+      completedAt: null,
+      exercises: session.exercises.map((exercise) => {
+        if (exercise.id !== exerciseId) {
+          return exercise;
+        }
+
+        const isCompleted = Boolean(exercise.completedAt);
+        const timestamp = new Date().toISOString();
+
+        return {
+          ...exercise,
+          completedAt: isCompleted ? null : timestamp,
+          sets: exercise.sets.map((set) => ({
+            ...set,
+            completedAt: isCompleted ? null : set.completedAt ?? timestamp,
+          })),
+        };
+      }),
+    }));
+  };
+
+  const saveWorkoutAsRoutine = (name?: string) => {
+    const sourceSession = selectedWorkoutSession;
+
+    if (!sourceSession || sourceSession.exercises.length === 0) {
+      return null;
+    }
+
+    const routineName =
+      name?.trim() ||
+      sourceSession.title.trim() ||
+      workspaceState.workoutRoutines.find((routine) => routine.id === sourceSession.routineId)?.name ||
+      "Моя тренировка";
+    const timestamp = new Date().toISOString();
+    const serializedExercises = sourceSession.exercises.map((exercise) => ({
+      id: exercise.id,
+      name: exercise.name,
+      note: exercise.note,
+      sets: exercise.sets.map((set) => ({
+        id: set.id,
+        load: set.load,
+        reps: set.reps,
+        note: set.note,
+      })),
+    }));
+    const existingRoutine =
+      sourceSession.routineId
+        ? workspaceState.workoutRoutines.find((routine) => routine.id === sourceSession.routineId) ?? null
+        : null;
+    const nextRoutineId = existingRoutine?.id ?? createWorkoutRoutine(routineName).id;
+
+    setWorkspaceState((current) => {
+      const nextRoutine: WorkoutRoutine = existingRoutine
+        ? {
+            ...existingRoutine,
+            name: routineName,
+            focus: sourceSession.focus,
+            exercises: serializedExercises,
+            updatedAt: timestamp,
+          }
+        : {
+            id: nextRoutineId,
+            name: routineName,
+            focus: sourceSession.focus,
+            exercises: serializedExercises,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            lastUsedAt: null,
+          };
+
+      const nextRoutines = existingRoutine
+        ? current.workoutRoutines.map((routine) =>
+            routine.id === nextRoutine.id ? nextRoutine : routine,
+          )
+        : [nextRoutine, ...current.workoutRoutines];
+
+      return {
+        ...current,
+        workoutRoutines: sortWorkoutRoutines(nextRoutines),
+        workouts: sortWorkoutSessions(
+          current.workouts.map((session) =>
+            session.date === selectedDate
+              ? {
+                  ...session,
+                  title: routineName,
+                  focus: sourceSession.focus,
+                  routineId: nextRoutine.id,
+                  updatedAt: timestamp,
+                }
+              : session,
+          ),
+        ),
+      };
+    });
+
+    return nextRoutineId;
+  };
+
+  const startWorkoutFromRoutine = (routineId: string) => {
+    const routine =
+      workspaceState.workoutRoutines.find((entry) => entry.id === routineId) ?? null;
+
+    if (!routine) {
+      return null;
+    }
+
+    const timestamp = new Date().toISOString();
+    const nextSessionId = updateSelectedWorkoutSession((session) => ({
+      ...session,
+      title: routine.name,
+      focus: routine.focus,
+      routineId: routine.id,
+      startedAt: timestamp,
+      completedAt: null,
+      exercises: routine.exercises.map((exercise) => ({
+        id: exercise.id,
+        name: exercise.name,
+        note: exercise.note,
+        completedAt: null,
+        sets: exercise.sets.map((set) => ({
+          id: set.id,
+          load: set.load,
+          reps: set.reps,
+          note: set.note,
+          completedAt: null,
+        })),
+      })),
+    }));
+
+    setWorkspaceState((current) => ({
+      ...current,
+      workoutRoutines: sortWorkoutRoutines(
+        current.workoutRoutines.map((entry) =>
+          entry.id === routine.id
+            ? {
+                ...entry,
+                lastUsedAt: timestamp,
+              }
+            : entry,
+        ),
+      ),
+    }));
+
+    return nextSessionId;
+  };
+
+  const finishWorkoutSession = () => {
+    const sourceSession = selectedWorkoutSession;
+
+    if (!sourceSession) {
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+
+    setWorkspaceState((current) => {
+      const nextWorkouts = current.workouts.map((session) => {
+        if (session.date !== selectedDate) {
+          return session;
+        }
+
+        return {
+          ...session,
+          completedAt: timestamp,
+          updatedAt: timestamp,
+          exercises: session.exercises.map((exercise) => {
+            const allCompleted =
+              exercise.sets.length > 0 && exercise.sets.every((set) => Boolean(set.completedAt));
+
+            return {
+              ...exercise,
+              completedAt: allCompleted ? exercise.completedAt ?? timestamp : null,
+            };
+          }),
+        };
+      });
+
+      if (!sourceSession.routineId) {
+        return {
+          ...current,
+          workouts: sortWorkoutSessions(nextWorkouts),
+        };
+      }
+
+      const nextRoutines = current.workoutRoutines.map((routine) => {
+        if (routine.id !== sourceSession.routineId) {
+          return routine;
+        }
+
+        return {
+          ...routine,
+          name: sourceSession.title.trim() || routine.name,
+          focus: sourceSession.focus,
+          exercises: sourceSession.exercises.map((exercise) => ({
+            id: exercise.id,
+            name: exercise.name,
+            note: exercise.note,
+            sets: exercise.sets.map((set) => ({
+              id: set.id,
+              load: set.load,
+              reps: set.reps,
+              note: set.note,
+            })),
+          })),
+          lastUsedAt: timestamp,
+          updatedAt: timestamp,
+        };
+      });
+
+      return {
+        ...current,
+        workouts: sortWorkoutSessions(nextWorkouts),
+        workoutRoutines: sortWorkoutRoutines(nextRoutines),
+      };
+    });
   };
 
   const requestEntryAnalysis = async () => {
@@ -1687,7 +2044,7 @@ export function WorkspaceProvider({
     workspaceState.workouts,
   ]);
 
-  const value = {
+  const value: WorkspaceContextValue = {
     isConfigured,
     accountEmail,
     accountInfo,
@@ -1720,6 +2077,7 @@ export function WorkspaceProvider({
     requestEntryAnalysis,
     applyVoiceExtraction,
     workouts: workspaceState.workouts,
+    workoutRoutines: workspaceState.workoutRoutines,
     selectedWorkoutSession,
     workoutDays,
     updateWorkoutSession,
@@ -1730,6 +2088,11 @@ export function WorkspaceProvider({
     updateWorkoutSet,
     duplicateWorkoutSet,
     removeWorkoutSet,
+    toggleWorkoutSetCompleted,
+    toggleWorkoutExerciseCompleted,
+    saveWorkoutAsRoutine,
+    startWorkoutFromRoutine,
+    finishWorkoutSession,
     tasks: workspaceState.tasks,
     selectedTasks,
     overdueTasks,

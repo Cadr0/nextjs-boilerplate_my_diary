@@ -81,6 +81,7 @@ export type WorkoutSet = {
   load: string;
   reps: string;
   note: string;
+  completedAt: string | null;
 };
 
 export type WorkoutExercise = {
@@ -88,6 +89,7 @@ export type WorkoutExercise = {
   name: string;
   note: string;
   sets: WorkoutSet[];
+  completedAt: string | null;
 };
 
 export type WorkoutSession = {
@@ -96,8 +98,30 @@ export type WorkoutSession = {
   title: string;
   focus: string;
   exercises: WorkoutExercise[];
+  routineId: string | null;
+  startedAt: string;
+  completedAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type WorkoutRoutineSet = Pick<WorkoutSet, "id" | "load" | "reps" | "note">;
+
+export type WorkoutRoutineExercise = {
+  id: string;
+  name: string;
+  note: string;
+  sets: WorkoutRoutineSet[];
+};
+
+export type WorkoutRoutine = {
+  id: string;
+  name: string;
+  focus: string;
+  exercises: WorkoutRoutineExercise[];
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt: string | null;
 };
 
 export type WorkoutExerciseTemplate = {
@@ -151,6 +175,7 @@ export type PersistedWorkspaceState = {
   version: number;
   drafts: Record<string, WorkspaceDraft>;
   workouts: WorkoutSession[];
+  workoutRoutines: WorkoutRoutine[];
   tasks: TaskItem[];
   reminders: WorkspaceReminder[];
   metricDefinitions: MetricDefinition[];
@@ -468,6 +493,7 @@ export function createWorkoutSet(
     load: preset.load ?? "",
     reps: preset.reps ?? "",
     note: preset.note ?? "",
+    completedAt: null,
   };
 }
 
@@ -486,12 +512,13 @@ export function createWorkoutExercise(
       options.initialSets && options.initialSets.length > 0
         ? options.initialSets.map((set) => createWorkoutSet(set))
         : [createWorkoutSet()],
+    completedAt: null,
   };
 }
 
 export function createWorkoutSession(
   date: string,
-  options: Partial<Pick<WorkoutSession, "title" | "focus">> = {},
+  options: Partial<Pick<WorkoutSession, "title" | "focus" | "routineId">> = {},
 ): WorkoutSession {
   const timestamp = new Date().toISOString();
 
@@ -501,8 +528,49 @@ export function createWorkoutSession(
     title: options.title?.trim() || "Силовая тренировка",
     focus: options.focus?.trim() || "",
     exercises: [],
+    routineId: options.routineId ?? null,
+    startedAt: timestamp,
+    completedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
+  };
+}
+
+export function createWorkoutRoutine(
+  name: string,
+  options: {
+    focus?: string;
+    exercises?: Array<{
+      name: string;
+      note?: string;
+      sets?: Array<Partial<Pick<WorkoutSet, "load" | "reps" | "note">>>;
+    }>;
+  } = {},
+): WorkoutRoutine {
+  const timestamp = new Date().toISOString();
+
+  return {
+    id: generateId("workout-routine"),
+    name: name.trim() || "Моя тренировка",
+    focus: options.focus?.trim() || "",
+    exercises:
+      options.exercises?.map((exercise) => ({
+        id: generateId("workout-routine-exercise"),
+        name: exercise.name.trim() || "Новое упражнение",
+        note: exercise.note ?? "",
+        sets:
+          exercise.sets && exercise.sets.length > 0
+            ? exercise.sets.map((set) => ({
+                id: generateId("workout-routine-set"),
+                load: set.load ?? "",
+                reps: set.reps ?? "",
+                note: set.note ?? "",
+              }))
+            : [{ id: generateId("workout-routine-set"), load: "", reps: "", note: "" }],
+      })) ?? [],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    lastUsedAt: null,
   };
 }
 
@@ -821,6 +889,7 @@ export function createDefaultWorkspaceState(
     version: WORKSPACE_STORAGE_VERSION,
     drafts,
     workouts: [],
+    workoutRoutines: [],
     tasks: [],
     reminders: [],
     metricDefinitions,
