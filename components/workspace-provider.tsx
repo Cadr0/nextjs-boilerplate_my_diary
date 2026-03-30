@@ -229,6 +229,14 @@ type SaveResponse =
       error: string;
     };
 
+type MemorySyncResponse =
+  | {
+      entry: DiaryEntry;
+    }
+  | {
+      error: string;
+    };
+
 function buildEntriesByDate(entries: DiaryEntry[]) {
   return entries.reduce<Record<string, DiaryEntry>>((result, entry) => {
     if (!result[entry.entry_date]) {
@@ -237,6 +245,21 @@ function buildEntriesByDate(entries: DiaryEntry[]) {
 
     return result;
   }, {});
+}
+
+function buildMemoryDraftFingerprint(summary: string, notes: string) {
+  const normalize = (value: string) => value.replace(/\s+/g, " ").trim();
+  const normalizedSummary = normalize(summary);
+  const normalizedNotes = normalize(notes);
+
+  if (!normalizedSummary && !normalizedNotes) {
+    return "";
+  }
+
+  return JSON.stringify({
+    summary: normalizedSummary,
+    notes: normalizedNotes,
+  });
 }
 
 function mergeWorkspaceState(
@@ -636,6 +659,17 @@ export function WorkspaceProvider({
       ]),
     ),
   );
+  const syncedMemoryFingerprints = useRef<Record<string, string>>(
+    Object.fromEntries(
+      initialEntries
+        .filter((entry) => entry.memory_items.length > 0)
+        .map((entry) => [
+          entry.entry_date,
+          buildMemoryDraftFingerprint(entry.summary, entry.notes),
+        ]),
+    ),
+  );
+  const pendingMemoryFingerprints = useRef<Record<string, string>>({});
 
   useEffect(() => {
     setSelectedDateState(requestedDate);
@@ -1004,6 +1038,17 @@ export function WorkspaceProvider({
       }));
       setSaveState("saved");
 
+      const memoryFingerprint = buildMemoryDraftFingerprint(
+        payload.summary,
+        payload.notes,
+      );
+
+      if (result.entry.memory_items.length > 0 || !memoryFingerprint) {
+        syncedMemoryFingerprints.current[payload.entry_date] = memoryFingerprint;
+      }
+
+      void syncEntryMemoryAfterSave(result.entry, memoryFingerprint);
+
       return result.entry;
     } catch (saveError) {
       setSaveState("error");
@@ -1013,6 +1058,67 @@ export function WorkspaceProvider({
           : "Не удалось сохранить изменения.",
       );
       return null;
+    }
+  };
+
+  const syncEntryMemoryAfterSave = async (
+    entry: DiaryEntry,
+    memoryFingerprint: string,
+  ) => {
+    if (!canPersistToServer) {
+      syncedMemoryFingerprints.current[entry.entry_date] = memoryFingerprint;
+      return;
+    }
+
+    if (!memoryFingerprint) {
+      syncedMemoryFingerprints.current[entry.entry_date] = "";
+      return;
+    }
+
+    if (
+      syncedMemoryFingerprints.current[entry.entry_date] === memoryFingerprint ||
+      pendingMemoryFingerprints.current[entry.entry_date] === memoryFingerprint
+    ) {
+      return;
+    }
+
+    pendingMemoryFingerprints.current[entry.entry_date] = memoryFingerprint;
+
+    try {
+      const response = await fetch(`/api/entries/${entry.id}/memory`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      const result = (await response.json().catch(() => ({}))) as MemorySyncResponse;
+
+      if (!response.ok || !("entry" in result)) {
+        console.error("[memory] Failed to sync diary memory items", {
+          entryId: entry.id,
+          date: entry.entry_date,
+          error: "error" in result ? result.error : "Unknown memory sync error.",
+        });
+        return;
+      }
+
+      syncedMemoryFingerprints.current[entry.entry_date] = memoryFingerprint;
+      setServerEntries((current) =>
+        sortEntries([
+          result.entry,
+          ...current.filter((currentEntry) => currentEntry.entry_date !== result.entry.entry_date),
+        ]),
+      );
+    } catch (error) {
+      console.error("[memory] Failed to call diary memory sync route", {
+        entryId: entry.id,
+        date: entry.entry_date,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      if (pendingMemoryFingerprints.current[entry.entry_date] === memoryFingerprint) {
+        delete pendingMemoryFingerprints.current[entry.entry_date];
+      }
     }
   };
 

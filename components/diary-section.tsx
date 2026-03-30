@@ -24,6 +24,7 @@ import type {
 import { useEffect, useRef, useState } from "react";
 
 import { DiaryAssistantPanel } from "@/components/diary-assistant-panel";
+import { DiaryMemoryPanel } from "@/components/diary-memory-panel";
 import { AccountSecurityPanel } from "@/components/account-security-panel";
 import { BrandGlyph } from "@/components/brand-glyph";
 import { DayEntryComposer } from "@/components/day-entry-composer";
@@ -236,6 +237,7 @@ export function DiarySection() {
     saveState,
     selectedDate,
     selectedDraft,
+    selectedEntry,
     serverEntries,
     setSelectedDate,
     updateMetricValue,
@@ -654,6 +656,11 @@ export function DiarySection() {
               />
 
               <DayEntryComposer />
+
+              <DiaryMemoryPanel
+                items={selectedEntry?.memory_items ?? []}
+                hasUnsavedChanges={hasUnsavedChanges}
+              />
             </div>
           </div>
 

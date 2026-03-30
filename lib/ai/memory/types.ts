@@ -3,15 +3,11 @@ export const memoryItemCategories = [
   "plan",
   "idea",
   "purchase",
+  "concern",
   "conflict",
-  "preference",
-  "relationship",
-  "project",
-  "health",
-  "other",
 ] as const;
 
-export const memoryItemStatuses = ["active", "resolved", "archived"] as const;
+export const memoryItemStatuses = ["open", "resolved", "archived"] as const;
 
 export const memoryItemSourceTypes = ["diary_entry"] as const;
 
@@ -30,6 +26,8 @@ export type MemoryItem = {
   title: string;
   content: string;
   confidence: number | null;
+  importance: number | null;
+  mentionCount: number;
   status: MemoryItemStatus;
   metadata: MemoryItemMetadata;
   createdAt: string;
@@ -44,6 +42,7 @@ export type MemoryItemCandidate = {
   title: string;
   content: string;
   confidence: number | null;
+  importance: number | null;
   metadata: MemoryItemMetadata;
 };
 
@@ -66,6 +65,8 @@ export type MemoryItemRow = {
   title: string;
   content: string;
   confidence: number | null;
+  importance: number | null;
+  mention_count: number;
   status: MemoryItemStatus;
   metadata: MemoryItemMetadata;
   created_at: string;

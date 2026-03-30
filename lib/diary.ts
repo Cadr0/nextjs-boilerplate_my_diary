@@ -1,7 +1,18 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  buildMemoryTextFingerprint,
+  extractMemoryItems,
+} from "@/lib/ai/memory/extractMemoryItems";
+import type {
+  MemoryItem,
+  MemoryItemMetadata,
+  MemoryItemRow,
+} from "@/lib/ai/memory/types";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseConfigError } from "@/lib/supabase/env";
@@ -95,6 +106,8 @@ const legacySummaryStart = "<<<DIARY_AI_SUMMARY>>>";
 const legacySummaryEnd = "<<<END_DIARY_AI_SUMMARY>>>";
 const entryMetricSelect =
   "entry_id, metric_definition_id, value_number, value_boolean, value_text, metric_name_snapshot, metric_type_snapshot, metric_unit_snapshot, sort_order_snapshot";
+const memoryItemSelect =
+  "id, user_id, source_entry_id, source_type, category, title, content, confidence, importance, mention_count, status, metadata, created_at, updated_at";
 
 function buildEntrySelect(options: EntrySelectOptions) {
   const columns = ["id", "created_at"];
@@ -213,6 +226,79 @@ function serializeLegacySummary(summary: string, notes: string) {
   }
 
   return `${legacySummaryStart}\n${trimmedSummary}\n${legacySummaryEnd}${trimmedNotes ? `\n\n${trimmedNotes}` : ""}`;
+}
+
+function buildMemorySourceHash(summary: string | null | undefined, notes: string | null | undefined) {
+  const fingerprint = buildMemoryTextFingerprint(summary ?? "", notes ?? "");
+
+  if (!fingerprint) {
+    return "";
+  }
+
+  return createHash("sha256").update(fingerprint).digest("hex");
+}
+
+function readMemoryMetadataString(
+  metadata: MemoryItemMetadata,
+  key: string,
+) {
+  const value = metadata[key];
+  return typeof value === "string" ? value : null;
+}
+
+function mapMemoryItem(row: MemoryItemRow): MemoryItem {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    sourceEntryId: row.source_entry_id,
+    sourceType: row.source_type,
+    category: row.category,
+    title: row.title,
+    content: row.content,
+    confidence: row.confidence,
+    importance: row.importance,
+    mentionCount: row.mention_count,
+    status: row.status,
+    metadata: row.metadata,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function sortMemoryItems(items: MemoryItem[]) {
+  return [...items].sort((left, right) => {
+    const importanceDiff = (right.importance ?? 0.5) - (left.importance ?? 0.5);
+
+    if (importanceDiff !== 0) {
+      return importanceDiff;
+    }
+
+    const confidenceDiff = (right.confidence ?? 0.5) - (left.confidence ?? 0.5);
+
+    if (confidenceDiff !== 0) {
+      return confidenceDiff;
+    }
+
+    return right.createdAt.localeCompare(left.createdAt);
+  });
+}
+
+function resolveMemoryItemsForEntry(
+  row: DailyEntryRow,
+  memoryRows: MemoryItemRow[],
+) {
+  const content = resolveEntryContent(row);
+  const sourceHash = buildMemorySourceHash(content.summary, content.notes);
+
+  if (!sourceHash) {
+    return [] as MemoryItem[];
+  }
+
+  const matchingItems = memoryRows
+    .map(mapMemoryItem)
+    .filter((item) => readMemoryMetadataString(item.metadata, "source_hash") === sourceHash);
+
+  return sortMemoryItems(matchingItems);
 }
 
 function buildEntryWritePayload(
@@ -371,6 +457,65 @@ async function getEntryByIdWithFallback(
     .single();
 }
 
+async function listMemoryItemsForEntryIdsSafe(
+  supabase: SupabaseClient,
+  userId: string,
+  entryIds: string[],
+) {
+  if (entryIds.length === 0) {
+    return [] as MemoryItemRow[];
+  }
+
+  const result = await supabase
+    .from("memory_items")
+    .select(memoryItemSelect)
+    .eq("user_id", userId)
+    .in("source_entry_id", entryIds)
+    .order("created_at", { ascending: false });
+
+  if (result.error) {
+    console.error("[memory] Failed to load memory items", {
+      userId,
+      entryIds,
+      error: result.error.message,
+    });
+    return [] as MemoryItemRow[];
+  }
+
+  return (result.data ?? []) as unknown as MemoryItemRow[];
+}
+
+async function getDiaryEntryBundle(
+  supabase: SupabaseClient,
+  userId: string,
+  id: string,
+) {
+  const entryResult = await getEntryByIdWithFallback(supabase, userId, id);
+
+  if (entryResult.error) {
+    throw new Error(mapDiaryError(entryResult.error));
+  }
+
+  const valuesResult = await supabase
+    .from("daily_entry_metric_values")
+    .select(entryMetricSelect)
+    .eq("user_id", userId)
+    .eq("entry_id", id)
+    .order("sort_order_snapshot", { ascending: true });
+
+  if (valuesResult.error) {
+    throw new Error(mapDiaryError(valuesResult.error));
+  }
+
+  const memoryRows = await listMemoryItemsForEntryIdsSafe(supabase, userId, [id]);
+
+  return {
+    entryRow: entryResult.data as unknown as DailyEntryRow,
+    valueRows: (valuesResult.data ?? []) as unknown as EntryMetricValueRow[],
+    memoryRows,
+  };
+}
+
 async function upsertMetricDefinitionsWithFallback(
   supabase: SupabaseClient,
   rows: Record<string, unknown>[],
@@ -521,13 +666,20 @@ function mapMetricDefinition(row: MetricDefinitionRow): MetricDefinition {
   });
 }
 
+function resolveEntryContent(row: DailyEntryRow) {
+  const rawNotes = row.notes ?? "";
+
+  return row.summary === undefined
+    ? parseLegacySummary(rawNotes)
+    : { summary: row.summary ?? "", notes: rawNotes };
+}
+
 function mapEntry(
   row: DailyEntryRow,
   valueRows: EntryMetricValueRow[],
+  memoryRows: MemoryItemRow[] = [],
 ): DiaryEntry {
-  const rawNotes = row.notes ?? "";
-  const content =
-    row.summary === undefined ? parseLegacySummary(rawNotes) : { summary: row.summary ?? "", notes: rawNotes };
+  const content = resolveEntryContent(row);
 
   return {
     id: row.id,
@@ -537,6 +689,7 @@ function mapEntry(
     summary: content.summary,
     notes: content.notes,
     ai_analysis: row.ai_analysis,
+    memory_items: resolveMemoryItemsForEntry(row, memoryRows),
     metric_values: valueRows.reduce<Record<string, MetricValue>>((result, valueRow) => {
       result[valueRow.metric_definition_id] = resolveMetricValue(valueRow);
       return result;
@@ -717,9 +870,28 @@ export async function getWorkspaceBootstrap(limit = 90) {
       },
       {},
     );
+    const memoryRows = await listMemoryItemsForEntryIdsSafe(supabase, user.id, entryIds);
+    const memoryByEntry = memoryRows.reduce<Record<string, MemoryItemRow[]>>((result, row) => {
+      if (!row.source_entry_id) {
+        return result;
+      }
+
+      if (!result[row.source_entry_id]) {
+        result[row.source_entry_id] = [];
+      }
+
+      result[row.source_entry_id].push(row);
+      return result;
+    }, {});
 
     return {
-      entries: entryRows.map((entry) => mapEntry(entry, valuesByEntry[entry.id] ?? [])),
+      entries: entryRows.map((entry) =>
+        mapEntry(
+          entry,
+          valuesByEntry[entry.id] ?? [],
+          memoryByEntry[entry.id] ?? [],
+        ),
+      ),
       metricDefinitions: ((definitionsResult.data ?? []) as unknown as MetricDefinitionRow[]).map(
         mapMetricDefinition,
       ),
@@ -808,6 +980,7 @@ export async function saveDiaryEntry(input: DiaryEntryInput) {
   const savedMetricDefinitions = ((definitionResult.data ?? []) as unknown as MetricDefinitionRow[]).map(
     mapMetricDefinition,
   );
+  const memoryRows = await listMemoryItemsForEntryIdsSafe(supabase, user.id, [entry.id]);
 
   return {
     entry: mapEntry(
@@ -823,6 +996,7 @@ export async function saveDiaryEntry(input: DiaryEntryInput) {
         metric_unit_snapshot: row.metric_unit_snapshot,
         sort_order_snapshot: row.sort_order_snapshot,
       })),
+      memoryRows,
     ),
     metricDefinitions: savedMetricDefinitions,
   };
@@ -831,28 +1005,9 @@ export async function saveDiaryEntry(input: DiaryEntryInput) {
 export async function getDiaryEntryById(id: string) {
   const user = await requireUser();
   const supabase = await createClient();
+  const bundle = await getDiaryEntryBundle(supabase, user.id, id);
 
-  const entryResult = await getEntryByIdWithFallback(supabase, user.id, id);
-
-  if (entryResult.error) {
-    throw new Error(mapDiaryError(entryResult.error));
-  }
-
-  const valuesResult = await supabase
-    .from("daily_entry_metric_values")
-    .select(entryMetricSelect)
-    .eq("user_id", user.id)
-    .eq("entry_id", id)
-    .order("sort_order_snapshot", { ascending: true });
-
-  if (valuesResult.error) {
-    throw new Error(mapDiaryError(valuesResult.error));
-  }
-
-  return mapEntry(
-    entryResult.data as unknown as DailyEntryRow,
-    (valuesResult.data ?? []) as unknown as EntryMetricValueRow[],
-  );
+  return mapEntry(bundle.entryRow, bundle.valueRows, bundle.memoryRows);
 }
 
 export async function getDiaryEntryAnalysisContext(id: string) {
@@ -905,6 +1060,79 @@ export async function updateDiaryEntryAnalysis(id: string, aiAnalysis: string) {
   }
 
   return getDiaryEntryById(id);
+}
+
+export async function syncDiaryEntryMemoryItems(id: string) {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const bundle = await getDiaryEntryBundle(supabase, user.id, id);
+  const entryContent = resolveEntryContent(bundle.entryRow);
+  const sourceHash = buildMemorySourceHash(entryContent.summary, entryContent.notes);
+  const currentEntry = mapEntry(bundle.entryRow, bundle.valueRows, bundle.memoryRows);
+
+  if (!sourceHash) {
+    return currentEntry;
+  }
+
+  if (currentEntry.memory_items.length > 0) {
+    return currentEntry;
+  }
+
+  try {
+    const candidates = await extractMemoryItems({
+      entryId: id,
+      entryDate: bundle.entryRow.entry_date,
+      summary: entryContent.summary,
+      notes: entryContent.notes,
+      existingItems: currentEntry.memory_items.map((item) => ({
+        id: item.id,
+        category: item.category,
+        title: item.title,
+        content: item.content,
+        status: item.status,
+      })),
+    });
+
+    if (candidates.length > 0) {
+      const insertRows = candidates.map((candidate) => ({
+        user_id: user.id,
+        source_entry_id: id,
+        source_type: candidate.sourceType,
+        category: candidate.category,
+        title: candidate.title,
+        content: candidate.content,
+        confidence: candidate.confidence ?? 0.5,
+        importance: candidate.importance ?? 0.5,
+        mention_count: 1,
+        status: "open" as const,
+        metadata: {
+          ...candidate.metadata,
+          source_hash: sourceHash,
+          entry_date: bundle.entryRow.entry_date,
+          extracted_at: new Date().toISOString(),
+          extraction_version: "memory-v1",
+        },
+      }));
+      const insertResult = await supabase.from("memory_items").insert(insertRows);
+
+      if (insertResult.error) {
+        console.error("[memory] Failed to insert extracted memory items", {
+          entryId: id,
+          userId: user.id,
+          error: insertResult.error.message,
+        });
+      }
+    }
+  } catch (error) {
+    console.error("[memory] Failed to extract memory items", {
+      entryId: id,
+      userId: user.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  const refreshedMemoryRows = await listMemoryItemsForEntryIdsSafe(supabase, user.id, [id]);
+  return mapEntry(bundle.entryRow, bundle.valueRows, refreshedMemoryRows);
 }
 
 export async function listLatestEntries(limit = 90) {

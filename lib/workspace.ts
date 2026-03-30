@@ -1,4 +1,5 @@
 import { aiModelOptions as aiModelCatalog, DEFAULT_OPENROUTER_FREE_MODEL } from "@/lib/ai/models";
+import type { MemoryItem } from "@/lib/ai/memory/types";
 
 export type MetricInputType = "scale" | "number" | "boolean" | "text";
 export type MetricSemanticKey = "mood" | "energy" | "stress" | "sleep";
@@ -20,6 +21,7 @@ export type DiaryEntry = {
   summary: string;
   notes: string;
   ai_analysis: string | null;
+  memory_items: MemoryItem[];
   metric_values: Record<string, MetricValue>;
 };
 
