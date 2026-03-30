@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import { resolveAiProvider } from "@/lib/ai/models";
 import { getAuthState } from "@/lib/auth";
+import { getDiaryChatMemoryContext } from "@/lib/diary";
 import { getOpenRouterConfigError, streamChatWithOpenRouter } from "@/lib/openrouter";
 import { getRouterAiConfigError, streamChatWithRouterAi } from "@/lib/routerai";
 import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
@@ -63,6 +64,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Diary context is required." }, { status: 400 });
     }
 
+    const memoryContext = await getDiaryChatMemoryContext(date);
+
     if (messages.length === 0) {
       return NextResponse.json({ error: "At least one message is required." }, { status: 400 });
     }
@@ -79,6 +82,7 @@ export async function POST(request: Request) {
             model,
             requestTimestamp,
             timezone,
+            memoryContext,
           })
         : await streamChatWithRouterAi(messages, {
             date,
@@ -88,6 +92,7 @@ export async function POST(request: Request) {
             model,
             requestTimestamp,
             timezone,
+            memoryContext,
           });
 
     return new Response(stream, {

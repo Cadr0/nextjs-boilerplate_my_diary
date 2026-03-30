@@ -386,6 +386,88 @@ function sortMemoryItems(items: MemoryItem[]) {
   });
 }
 
+const memoryCategoryContextLabels: Record<MemoryItem["category"], string> = {
+  desire: "желание",
+  plan: "план",
+  idea: "идея",
+  purchase: "покупка",
+  concern: "тревога",
+  conflict: "конфликт",
+};
+
+function getMemoryItemRelevantDate(item: MemoryItem) {
+  return (
+    readMemoryMetadataString(item.metadata, "latest_entry_date") ??
+    readMemoryMetadataString(item.metadata, "entry_date") ??
+    item.createdAt.slice(0, 10)
+  );
+}
+
+function sortMemoryItemsForAiContext(
+  items: MemoryItem[],
+  currentDate?: string,
+) {
+  return [...items].sort((left, right) => {
+    const leftDate = getMemoryItemRelevantDate(left);
+    const rightDate = getMemoryItemRelevantDate(right);
+    const leftIsPast = currentDate ? leftDate <= currentDate : true;
+    const rightIsPast = currentDate ? rightDate <= currentDate : true;
+
+    if (leftIsPast !== rightIsPast) {
+      return leftIsPast ? -1 : 1;
+    }
+
+    const leftStatusRank = left.status === "open" ? 0 : 1;
+    const rightStatusRank = right.status === "open" ? 0 : 1;
+
+    if (leftStatusRank !== rightStatusRank) {
+      return leftStatusRank - rightStatusRank;
+    }
+
+    const importanceDiff = (right.importance ?? 0.5) - (left.importance ?? 0.5);
+
+    if (importanceDiff !== 0) {
+      return importanceDiff;
+    }
+
+    const mentionDiff = right.mentionCount - left.mentionCount;
+
+    if (mentionDiff !== 0) {
+      return mentionDiff;
+    }
+
+    return right.updatedAt.localeCompare(left.updatedAt);
+  });
+}
+
+function buildDiaryAiMemoryContextText(
+  items: MemoryItem[],
+  currentDate?: string,
+) {
+  const relevantItems = currentDate
+    ? items.filter((item) => getMemoryItemRelevantDate(item) <= currentDate)
+    : items;
+
+  if (relevantItems.length === 0) {
+    return "";
+  }
+
+  return sortMemoryItemsForAiContext(relevantItems, currentDate)
+    .slice(0, 8)
+    .map((item, index) => {
+      const relevantDate = getMemoryItemRelevantDate(item);
+      const mentions = item.mentionCount > 1 ? `, упоминаний: ${item.mentionCount}` : "";
+      const status = item.status === "resolved" ? ", статус: resolved" : "";
+
+      return [
+        `${index + 1}. [${memoryCategoryContextLabels[item.category]}] ${item.title}`,
+        `Суть: ${item.content}`,
+        `Последняя дата: ${relevantDate}${mentions}${status}`,
+      ].join("\n");
+    })
+    .join("\n\n");
+}
+
 function resolveMemoryItemsForEntry(
   row: DailyEntryRow,
   memoryRows: MemoryItemRow[],
@@ -638,6 +720,41 @@ async function listOpenMemoryItemsByCategoriesSafe(
   }
 
   return (result.data ?? []) as unknown as MemoryItemRow[];
+}
+
+async function listMemoryItemsForAiContextSafe(
+  supabase: SupabaseClient,
+  userId: string,
+  limit = 40,
+) {
+  const result = await supabase
+    .from("memory_items")
+    .select(memoryItemSelect)
+    .eq("user_id", userId)
+    .in("status", ["open", "resolved"])
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+
+  if (result.error) {
+    console.error("[memory] Failed to load memory items for AI context", {
+      userId,
+      error: result.error.message,
+    });
+    return [] as MemoryItemRow[];
+  }
+
+  return (result.data ?? []) as unknown as MemoryItemRow[];
+}
+
+async function getDiaryAiMemoryContextSafe(
+  supabase: SupabaseClient,
+  userId: string,
+  currentDate?: string,
+) {
+  const memoryRows = await listMemoryItemsForAiContextSafe(supabase, userId, 40);
+  const memoryItems = memoryRows.map(mapMemoryItem);
+
+  return buildDiaryAiMemoryContextText(memoryItems, currentDate);
 }
 
 async function getDiaryEntryBundle(
@@ -1193,11 +1310,24 @@ export async function getDiaryEntryAnalysisContext(id: string) {
     value: resolveMetricValue(row),
     sortOrder: row.sort_order_snapshot ?? 0,
   }));
+  const memoryContext = await getDiaryAiMemoryContextSafe(
+    supabase,
+    user.id,
+    (entryResult.data as unknown as DailyEntryRow).entry_date,
+  );
 
   return {
     entry: entryResult.data as unknown as DailyEntryRow,
     metrics,
+    memoryContext,
   };
+}
+
+export async function getDiaryChatMemoryContext(date: string) {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  return getDiaryAiMemoryContextSafe(supabase, user.id, date);
 }
 
 export async function updateDiaryEntryAnalysis(id: string, aiAnalysis: string) {

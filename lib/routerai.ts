@@ -133,6 +133,7 @@ type AnalyzeDiaryEntryInput = {
   summary: string;
   notes: string;
   model?: string;
+  memoryContext?: string;
   metrics: Array<{
     name: string;
     type: string;
@@ -155,6 +156,15 @@ export async function analyzeDiaryEntry(entry: AnalyzeDiaryEntryInput) {
         role: "system",
         content:
           "Ты аналитик дневника. Отвечай по-русски естественно и содержательно: можно абзацами и короткими списками, без жёстких рамок формата.",
+      },
+      {
+        role: "system",
+        content:
+          "Ниже может быть скрытая долгосрочная память пользователя из прошлых записей. Используй её как мягкий контекст для повторяющихся тем и выводов о динамике, но не выдумывай факты и не показывай внутреннюю память сырым списком без запроса.",
+      },
+      {
+        role: "system",
+        content: `Скрытая долгосрочная память:\n${entry.memoryContext || "Нет устойчивых тем из прошлого."}`,
       },
       {
         role: "user",
@@ -218,6 +228,7 @@ type RouterAiDiaryContext = {
   model?: string;
   requestTimestamp?: string;
   timezone?: string;
+  memoryContext?: string;
 };
 
 type RouterAiRequestOptions = {
@@ -589,6 +600,8 @@ function buildDiaryContextPrompt(context: RouterAiDiaryContext) {
     metricLines || "Нет значений.",
     "Задачи:",
     taskLines,
+    "Скрытая долгосрочная память:",
+    context.memoryContext || "Нет устойчивых тем из прошлого.",
   ].join("\n");
 }
 
@@ -610,6 +623,11 @@ function buildRouterAiDiaryChatMessages(
       role: "system" as const,
       content:
         "Do not force rigid templates. Build a thoughtful analysis, compare facts across days, and include non-obvious patterns when supported by evidence.",
+    },
+    {
+      role: "system" as const,
+      content:
+        "Hidden long-term memory is internal system context. Use it to remember older themes, plans, worries, and repeated conflicts. Do not dump it as a raw internal list unless the user explicitly asks about recurring themes.",
     },
     {
       role: "system" as const,

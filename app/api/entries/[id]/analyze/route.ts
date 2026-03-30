@@ -56,7 +56,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     await usageGuard.consume("ai");
 
-    const { entry, metrics } = await getDiaryEntryAnalysisContext(id);
+    const { entry, metrics, memoryContext } = await getDiaryEntryAnalysisContext(id);
     const aiAnalysis =
       provider === "openrouter"
         ? await analyzeDiaryEntryOpenRouter({
@@ -64,6 +64,7 @@ export async function POST(request: Request, context: RouteContext) {
             summary: entry.summary ?? "",
             notes: entry.notes ?? "",
             model,
+            memoryContext,
             metrics: metrics.map((metric) => ({
               name: metric.name,
               type: metric.type,
@@ -76,6 +77,7 @@ export async function POST(request: Request, context: RouteContext) {
             summary: entry.summary ?? "",
             notes: entry.notes ?? "",
             model,
+            memoryContext,
             metrics: metrics.map((metric) => ({
               name: metric.name,
               type: metric.type,

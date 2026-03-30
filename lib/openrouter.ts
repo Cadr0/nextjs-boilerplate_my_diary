@@ -38,6 +38,7 @@ type AnalyzeDiaryEntryInput = {
   summary: string;
   notes: string;
   model?: string;
+  memoryContext?: string;
   metrics: Array<{
     name: string;
     type: string;
@@ -66,6 +67,7 @@ type OpenRouterDiaryContext = {
   model?: string;
   requestTimestamp?: string;
   timezone?: string;
+  memoryContext?: string;
 };
 
 type OpenRouterPayload = {
@@ -333,6 +335,8 @@ function buildDiaryContextPrompt(context: OpenRouterDiaryContext) {
     metricLines || "Нет значений.",
     "Задачи:",
     taskLines,
+    "Скрытая долгосрочная память:",
+    context.memoryContext || "Нет устойчивых тем из прошлого.",
   ].join("\n");
 }
 
@@ -360,6 +364,15 @@ export async function analyzeDiaryEntry(entry: AnalyzeDiaryEntryInput) {
                 .join("\n")
             : "- Нет сохраненных метрик.",
         ].join("\n"),
+      },
+      {
+        role: "system",
+        content:
+          "Ниже может быть скрытая долгосрочная память пользователя из прошлых записей. Используй её как мягкий контекст для распознавания повторяющихся тем, но не выдумывай факты и не показывай пользователю сырую внутреннюю память списком без необходимости.",
+      },
+      {
+        role: "system",
+        content: `Скрытая долгосрочная память:\n${entry.memoryContext || "Нет устойчивых тем из прошлого."}`,
       },
       {
         role: "system",
@@ -414,6 +427,11 @@ function buildDiaryChatMessages(
       role: "system" as const,
       content:
         "Do not force rigid templates. Build a thoughtful analysis, compare facts across days, and include non-obvious patterns when supported by evidence.",
+    },
+    {
+      role: "system" as const,
+      content:
+        "Hidden long-term memory is internal system context. Use it to remember older themes, plans, worries, and repeated conflicts. Do not dump it as a raw internal list unless the user explicitly asks about recurring themes.",
     },
     {
       role: "system" as const,
