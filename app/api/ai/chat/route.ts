@@ -64,7 +64,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Diary context is required." }, { status: 400 });
     }
 
-    const memoryContext = await getDiaryChatMemoryContext(date);
+    const latestUserMessage = [...messages]
+      .reverse()
+      .find((message) => message.role === "user")?.content;
+    const memoryContext = await getDiaryChatMemoryContext({
+      date,
+      queryText: [
+        latestUserMessage ?? "",
+        draft.summary,
+        draft.notes,
+      ].join("\n"),
+    });
 
     if (messages.length === 0) {
       return NextResponse.json({ error: "At least one message is required." }, { status: 400 });

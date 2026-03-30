@@ -8,6 +8,7 @@ import {
   buildMemoryTextFingerprint,
   extractMemoryItems,
 } from "@/lib/ai/memory/extractMemoryItems";
+import { selectMemoryContextForAi } from "@/lib/ai/memory/retrieveMemoryContext";
 import type {
   MemoryItem,
   MemoryItemMetadata,
@@ -386,86 +387,17 @@ function sortMemoryItems(items: MemoryItem[]) {
   });
 }
 
-const memoryCategoryContextLabels: Record<MemoryItem["category"], string> = {
-  desire: "желание",
-  plan: "план",
-  idea: "идея",
-  purchase: "покупка",
-  concern: "тревога",
-  conflict: "конфликт",
-};
-
-function getMemoryItemRelevantDate(item: MemoryItem) {
-  return (
-    readMemoryMetadataString(item.metadata, "latest_entry_date") ??
-    readMemoryMetadataString(item.metadata, "entry_date") ??
-    item.createdAt.slice(0, 10)
-  );
-}
-
-function sortMemoryItemsForAiContext(
-  items: MemoryItem[],
-  currentDate?: string,
-) {
-  return [...items].sort((left, right) => {
-    const leftDate = getMemoryItemRelevantDate(left);
-    const rightDate = getMemoryItemRelevantDate(right);
-    const leftIsPast = currentDate ? leftDate <= currentDate : true;
-    const rightIsPast = currentDate ? rightDate <= currentDate : true;
-
-    if (leftIsPast !== rightIsPast) {
-      return leftIsPast ? -1 : 1;
-    }
-
-    const leftStatusRank = left.status === "open" ? 0 : 1;
-    const rightStatusRank = right.status === "open" ? 0 : 1;
-
-    if (leftStatusRank !== rightStatusRank) {
-      return leftStatusRank - rightStatusRank;
-    }
-
-    const importanceDiff = (right.importance ?? 0.5) - (left.importance ?? 0.5);
-
-    if (importanceDiff !== 0) {
-      return importanceDiff;
-    }
-
-    const mentionDiff = right.mentionCount - left.mentionCount;
-
-    if (mentionDiff !== 0) {
-      return mentionDiff;
-    }
-
-    return right.updatedAt.localeCompare(left.updatedAt);
-  });
-}
-
 function buildDiaryAiMemoryContextText(
   items: MemoryItem[],
   currentDate?: string,
+  queryText?: string,
 ) {
-  const relevantItems = currentDate
-    ? items.filter((item) => getMemoryItemRelevantDate(item) <= currentDate)
-    : items;
-
-  if (relevantItems.length === 0) {
-    return "";
-  }
-
-  return sortMemoryItemsForAiContext(relevantItems, currentDate)
-    .slice(0, 8)
-    .map((item, index) => {
-      const relevantDate = getMemoryItemRelevantDate(item);
-      const mentions = item.mentionCount > 1 ? `, упоминаний: ${item.mentionCount}` : "";
-      const status = item.status === "resolved" ? ", статус: resolved" : "";
-
-      return [
-        `${index + 1}. [${memoryCategoryContextLabels[item.category]}] ${item.title}`,
-        `Суть: ${item.content}`,
-        `Последняя дата: ${relevantDate}${mentions}${status}`,
-      ].join("\n");
-    })
-    .join("\n\n");
+  return selectMemoryContextForAi({
+    items,
+    currentDate,
+    queryText: queryText ?? "",
+    limit: 5,
+  }).contextText;
 }
 
 function resolveMemoryItemsForEntry(
@@ -749,12 +681,19 @@ async function listMemoryItemsForAiContextSafe(
 async function getDiaryAiMemoryContextSafe(
   supabase: SupabaseClient,
   userId: string,
-  currentDate?: string,
+  args: {
+    currentDate?: string;
+    queryText?: string;
+  },
 ) {
   const memoryRows = await listMemoryItemsForAiContextSafe(supabase, userId, 40);
   const memoryItems = memoryRows.map(mapMemoryItem);
 
-  return buildDiaryAiMemoryContextText(memoryItems, currentDate);
+  return buildDiaryAiMemoryContextText(
+    memoryItems,
+    args.currentDate,
+    args.queryText,
+  );
 }
 
 async function getDiaryEntryBundle(
@@ -1313,7 +1252,17 @@ export async function getDiaryEntryAnalysisContext(id: string) {
   const memoryContext = await getDiaryAiMemoryContextSafe(
     supabase,
     user.id,
-    (entryResult.data as unknown as DailyEntryRow).entry_date,
+    {
+      currentDate: (entryResult.data as unknown as DailyEntryRow).entry_date,
+      queryText: [
+        resolveEntryContent(entryResult.data as unknown as DailyEntryRow).summary,
+        resolveEntryContent(entryResult.data as unknown as DailyEntryRow).notes,
+        ...metrics.map(
+          (metric) =>
+            `${metric.name}: ${String(metric.value)}${metric.unit ? ` ${metric.unit}` : ""}`,
+        ),
+      ].join("\n"),
+    },
   );
 
   return {
@@ -1323,11 +1272,17 @@ export async function getDiaryEntryAnalysisContext(id: string) {
   };
 }
 
-export async function getDiaryChatMemoryContext(date: string) {
+export async function getDiaryChatMemoryContext(args: {
+  date: string;
+  queryText?: string;
+}) {
   const user = await requireUser();
   const supabase = await createClient();
 
-  return getDiaryAiMemoryContextSafe(supabase, user.id, date);
+  return getDiaryAiMemoryContextSafe(supabase, user.id, {
+    currentDate: args.date,
+    queryText: args.queryText,
+  });
 }
 
 export async function updateDiaryEntryAnalysis(id: string, aiAnalysis: string) {
