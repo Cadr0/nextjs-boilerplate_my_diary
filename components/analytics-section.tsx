@@ -5,6 +5,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { AnalyticsAssistantPanel } from "@/components/analytics-assistant-panel";
 import { BrandGlyph } from "@/components/brand-glyph";
 import { useWorkspace } from "@/components/workspace-provider";
+import { buildWorkoutDateSummaries } from "@/lib/ai/workouts/buildWorkoutDateSummaries";
 import {
   EmptyState,
   SectionCard,
@@ -74,6 +75,7 @@ export function AnalyticsSection() {
     profile,
     selectedDate,
     serverEntries,
+    workouts,
   } = useWorkspace();
   const [fromDate, setFromDate] = useState(() => shiftIsoDate(selectedDate, -13));
   const [toDate, setToDate] = useState(() => selectedDate);
@@ -215,6 +217,14 @@ export function AnalyticsSection() {
       totalNotes,
     ],
   );
+  const rangeWorkoutSummaries = useMemo(
+    () =>
+      buildWorkoutDateSummaries(workouts, {
+        from: rangeStart,
+        to: rangeEnd,
+      }),
+    [rangeEnd, rangeStart, workouts],
+  );
 
   const runPeriodAnalysis = async () => {
     if (rangePayload.length === 0 || analysisState === "loading") {
@@ -242,6 +252,7 @@ export function AnalyticsSection() {
           to: rangeEnd,
           entries: rangePayload,
           summary: periodSummary,
+          workoutSummaries: rangeWorkoutSummaries,
           currentAnalysis: analysisText || undefined,
           model: profile.aiModel,
         }),
@@ -694,6 +705,7 @@ export function AnalyticsSection() {
               toDate={rangeEnd}
               entries={rangePayload}
               summary={periodSummary}
+              workoutSummaries={rangeWorkoutSummaries}
               analysisText={analysisText}
               followUpCandidates={analysisFollowUps}
               analysisState={analysisState}

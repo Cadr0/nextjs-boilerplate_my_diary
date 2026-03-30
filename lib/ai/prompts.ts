@@ -123,6 +123,7 @@ function buildPeriodDataContext(args: {
   currentAnalysis?: string;
   memoryContext?: string;
   periodSignals?: string;
+  workoutContext?: string;
   followUpContext?: string;
 }) {
   return [
@@ -140,6 +141,9 @@ function buildPeriodDataContext(args: {
     "Derived signals:",
     args.periodSignals || "No stable derived period signals yet.",
     "",
+    "Workout summaries:",
+    args.workoutContext || "No workout summaries for this range.",
+    "",
     "Hidden follow-up candidates:",
     args.followUpContext || "No gentle follow-up candidates.",
     "",
@@ -156,6 +160,7 @@ export function buildPeriodAnalysisPrompt(args: {
   currentAnalysis?: string;
   memoryContext?: string;
   periodSignals?: string;
+  workoutContext?: string;
   followUpContext?: string;
 }) {
   return [
@@ -174,6 +179,7 @@ export function buildPeriodAnalysisPrompt(args: {
     "- Явно разделяй: 1) наблюдения из данных, 2) гипотезы. Для гипотез указывай уверенность: низкая/средняя/высокая.",
     "- Для boolean-метрик анализируй частоты и контекст.",
     "- Для text-метрик выделяй повторяющиеся темы и эмоциональные сигналы.",
+    "- Сопоставляй тренировки с энергией, настроением, стрессом и сном: ищи как полезные связи, так и признаки перегруза или неудачного восстановления.",
     "- Используй скрытую долгосрочную память только как фон для повторяющихся тем, не показывай ее сырым внутренним списком.",
     "- Используй derived signals как усиленный слой гипотез, но проверяй их по конкретным датам и сырым записям.",
     "- Hidden follow-up candidates — это мягкие вопросы к незавершенным темам. Используй их только если они помогают уточнить ключевой вектор периода.",
@@ -197,6 +203,7 @@ export function buildPeriodChatContextPrompt(args: {
   currentAnalysis?: string;
   memoryContext?: string;
   periodSignals?: string;
+  workoutContext?: string;
   requestTimestamp?: string;
   timezone?: string;
 }) {
@@ -230,6 +237,7 @@ export function buildPeriodChatContextPrompt(args: {
       currentAnalysis: args.currentAnalysis,
       memoryContext: args.memoryContext,
       periodSignals: args.periodSignals,
+      workoutContext: args.workoutContext,
     }),
   ].join("\n\n");
 }

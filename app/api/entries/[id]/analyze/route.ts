@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 
 import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import { resolveAiProvider } from "@/lib/ai/models";
+import {
+  buildWorkoutSummaryContextText,
+  sanitizeWorkoutDateSummaries,
+} from "@/lib/ai/workouts/buildWorkoutDateSummaries";
 import { getAuthState } from "@/lib/auth";
 import {
   getDiaryEntryAnalysisContext,
@@ -38,7 +42,10 @@ export async function POST(request: Request, context: RouteContext) {
 
   try {
     const usageGuard = await createUsageGuard(user.id);
-    const body = (await request.json().catch(() => ({}))) as { model?: string };
+    const body = (await request.json().catch(() => ({}))) as {
+      model?: string;
+      workoutSummaries?: unknown;
+    };
     const model = usageGuard.resolveTextModel(body.model);
     const provider = resolveAiProvider(model);
     const providerConfigError =
@@ -58,7 +65,13 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { entry, metrics, memoryContext, followUpContext, followUpCandidates } =
       await getDiaryEntryAnalysisContext(id);
-    const hiddenAnalysisContext = [memoryContext, followUpContext].filter(Boolean).join("\n\n");
+    const workoutContext = buildWorkoutSummaryContextText({
+      summaries: sanitizeWorkoutDateSummaries(body.workoutSummaries, 7),
+      focusDate: entry.entry_date,
+    });
+    const hiddenAnalysisContext = [memoryContext, followUpContext, workoutContext]
+      .filter(Boolean)
+      .join("\n\n");
     const aiAnalysis =
       provider === "openrouter"
         ? await analyzeDiaryEntryOpenRouter({

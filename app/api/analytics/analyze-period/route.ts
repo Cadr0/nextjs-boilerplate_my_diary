@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import type { PeriodAiSummaryPayload } from "@/lib/ai/contracts";
 import { resolveAiProvider } from "@/lib/ai/models";
+import {
+  buildWorkoutSummaryContextText,
+  sanitizeWorkoutDateSummaries,
+} from "@/lib/ai/workouts/buildWorkoutDateSummaries";
 import { getAuthState } from "@/lib/auth";
 import { parsePeriodAnalysisInput } from "@/lib/ai/contracts";
 import { getPeriodAiAnalysisSupport } from "@/lib/diary";
@@ -67,7 +71,8 @@ export async function POST(request: Request) {
 
   try {
     const usageGuard = await createUsageGuard(user.id);
-    const payload = parsePeriodAnalysisInput(await request.json());
+    const rawBody = await request.json();
+    const payload = parsePeriodAnalysisInput(rawBody);
     const model = usageGuard.resolveTextModel(payload.model);
     const provider = resolveAiProvider(model);
     const providerConfigError =
@@ -91,17 +96,23 @@ export async function POST(request: Request) {
         summary: payload.summary,
       }),
     });
+    const workoutContext = buildWorkoutSummaryContextText({
+      summaries: sanitizeWorkoutDateSummaries(
+        typeof rawBody === "object" && rawBody !== null
+          ? (rawBody as { workoutSummaries?: unknown }).workoutSummaries
+          : undefined,
+      ),
+      from: payload.from,
+      to: payload.to,
+    });
 
     const normalizedPayload = {
       ...payload,
       model,
-      memoryContext: [
-        aiSupport.memoryContext,
-        aiSupport.periodSignals,
-        aiSupport.followUpContext,
-      ]
-        .filter(Boolean)
-        .join("\n\n"),
+      memoryContext: aiSupport.memoryContext,
+      followUpContext: aiSupport.followUpContext,
+      periodSignals: aiSupport.periodSignals,
+      workoutContext,
     };
 
     const stream =

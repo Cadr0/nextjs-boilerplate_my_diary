@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ChatMessageContent } from "@/components/diary-assistant-panel";
 import { useWorkspace } from "@/components/workspace-provider";
+import type { WorkoutDateSummary } from "@/lib/ai/workouts/buildWorkoutDateSummaries";
 import type {
   PeriodAiSummaryPayload,
   PeriodAnalysisEntryPayload,
@@ -21,6 +22,7 @@ type AnalyticsAssistantPanelProps = {
   toDate: string;
   entries: PeriodAnalysisEntryPayload[];
   summary: PeriodAiSummaryPayload;
+  workoutSummaries: WorkoutDateSummary[];
   analysisText: string;
   followUpCandidates: string[];
   analysisState: "idle" | "loading" | "error";
@@ -178,6 +180,7 @@ export function AnalyticsAssistantPanel(props: AnalyticsAssistantPanelProps) {
             to: props.toDate,
             entries: props.entries,
             summary: props.summary,
+            workoutSummaries: props.workoutSummaries,
             currentAnalysis: props.analysisText || undefined,
             model: profile.aiModel,
             requestTimestamp: new Date().toISOString(),

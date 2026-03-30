@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import { parsePeriodAnalysisInput } from "@/lib/ai/contracts";
 import { resolveAiProvider } from "@/lib/ai/models";
+import {
+  buildWorkoutSummaryContextText,
+  sanitizeWorkoutDateSummaries,
+} from "@/lib/ai/workouts/buildWorkoutDateSummaries";
 import { getAuthState } from "@/lib/auth";
 import { getPeriodAiChatSupport } from "@/lib/diary";
 import {
@@ -25,6 +29,7 @@ type RequestPayload = {
     entries?: unknown;
     summary?: unknown;
     currentAnalysis?: string;
+    workoutSummaries?: unknown;
     model?: string;
     requestTimestamp?: string;
     timezone?: string;
@@ -122,6 +127,11 @@ export async function POST(request: Request) {
         context: contextPayload,
       }),
     });
+    const workoutContext = buildWorkoutSummaryContextText({
+      summaries: sanitizeWorkoutDateSummaries(payload.context?.workoutSummaries),
+      from: contextPayload.from,
+      to: contextPayload.to,
+    });
 
     await usageGuard.consume("ai");
 
@@ -136,9 +146,9 @@ export async function POST(request: Request) {
             model,
             requestTimestamp,
             timezone,
-            memoryContext: [aiSupport.memoryContext, aiSupport.periodSignals]
-              .filter(Boolean)
-              .join("\n\n"),
+            memoryContext: aiSupport.memoryContext,
+            workoutContext,
+            periodSignals: aiSupport.periodSignals,
           })
         : await streamPeriodChatWithRouterAi(messages, {
             from: contextPayload.from,
@@ -149,9 +159,9 @@ export async function POST(request: Request) {
             model,
             requestTimestamp,
             timezone,
-            memoryContext: [aiSupport.memoryContext, aiSupport.periodSignals]
-              .filter(Boolean)
-              .join("\n\n"),
+            memoryContext: aiSupport.memoryContext,
+            workoutContext,
+            periodSignals: aiSupport.periodSignals,
           });
 
     return new Response(stream, {

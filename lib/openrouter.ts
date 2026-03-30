@@ -42,6 +42,7 @@ type AnalyzeDiaryEntryInput = {
   model?: string;
   memoryContext?: string;
   followUpContext?: string;
+  workoutContext?: string;
   metrics: Array<{
     name: string;
     type: string;
@@ -60,6 +61,7 @@ type AnalyzeDiaryPeriodInput = {
   memoryContext?: string;
   followUpContext?: string;
   periodSignals?: string;
+  workoutContext?: string;
 };
 
 type OpenRouterMessage = {
@@ -89,6 +91,7 @@ type OpenRouterPeriodContext = {
   timezone?: string;
   memoryContext?: string;
   periodSignals?: string;
+  workoutContext?: string;
 };
 
 type OpenRouterPayload = {
@@ -638,6 +641,9 @@ export async function streamPeriodAnalysisWithOpenRouter(
               summary: input.summary,
               currentAnalysis: input.currentAnalysis,
               memoryContext: input.memoryContext,
+              periodSignals: input.periodSignals,
+              followUpContext: input.followUpContext,
+              workoutContext: input.workoutContext,
             }),
           },
         ],
@@ -881,15 +887,18 @@ export async function analyzeDiaryPeriod(
       },
       {
         role: "user",
-        content: buildPeriodAnalysisPrompt({
-          from: input.from,
-          to: input.to,
-          entries: input.entries,
-          summary: input.summary,
-          currentAnalysis: input.currentAnalysis,
-          memoryContext: input.memoryContext,
-        }),
-      },
+            content: buildPeriodAnalysisPrompt({
+              from: input.from,
+              to: input.to,
+              entries: input.entries,
+              summary: input.summary,
+              currentAnalysis: input.currentAnalysis,
+              memoryContext: input.memoryContext,
+              periodSignals: input.periodSignals,
+              followUpContext: input.followUpContext,
+              workoutContext: input.workoutContext,
+            }),
+          },
     ],
     parsePeriodAnalysisResult,
     {

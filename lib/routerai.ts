@@ -139,6 +139,7 @@ type AnalyzeDiaryEntryInput = {
   notes: string;
   model?: string;
   memoryContext?: string;
+  workoutContext?: string;
   metrics: Array<{
     name: string;
     type: string;
@@ -155,6 +156,8 @@ type AnalyzeDiaryPeriodInput = {
   currentAnalysis?: string;
   model?: string;
   memoryContext?: string;
+  periodSignals?: string;
+  workoutContext?: string;
 };
 
 export async function analyzeDiaryEntry(entry: AnalyzeDiaryEntryInput) {
@@ -249,6 +252,8 @@ type RouterAiPeriodContext = {
   requestTimestamp?: string;
   timezone?: string;
   memoryContext?: string;
+  periodSignals?: string;
+  workoutContext?: string;
 };
 
 type RouterAiRequestOptions = {
@@ -824,6 +829,8 @@ export async function streamPeriodAnalysisWithRouterAi(
           summary: input.summary,
           currentAnalysis: input.currentAnalysis,
           memoryContext: input.memoryContext,
+          periodSignals: input.periodSignals,
+          workoutContext: input.workoutContext,
         }),
       },
     ],
@@ -1128,6 +1135,8 @@ export async function analyzeDiaryPeriod(
           summary: input.summary,
           currentAnalysis: input.currentAnalysis,
           memoryContext: input.memoryContext,
+          periodSignals: input.periodSignals,
+          workoutContext: input.workoutContext,
         }),
       },
     ],

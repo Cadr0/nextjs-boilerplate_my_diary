@@ -14,6 +14,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import type { AuthAccountInfo } from "@/lib/auth";
 import type { DiaryExtractionResult } from "@/lib/ai/contracts";
+import { buildWorkoutDateSummaries } from "@/lib/ai/workouts/buildWorkoutDateSummaries";
 import type {
   DiaryEntry,
   MetricDefinition,
@@ -2042,6 +2043,10 @@ export function WorkspaceProvider({
         },
         body: JSON.stringify({
           model: workspaceState.profile.aiModel,
+          workoutSummaries: buildWorkoutDateSummaries(workspaceState.workouts, {
+            from: syncedEntry.entry_date,
+            to: syncedEntry.entry_date,
+          }),
         }),
       });
       const result = (await response.json()) as { entry?: DiaryEntry; error?: string };
