@@ -56,7 +56,9 @@ export async function POST(request: Request, context: RouteContext) {
 
     await usageGuard.consume("ai");
 
-    const { entry, metrics, memoryContext } = await getDiaryEntryAnalysisContext(id);
+    const { entry, metrics, memoryContext, followUpContext, followUpCandidates } =
+      await getDiaryEntryAnalysisContext(id);
+    const hiddenAnalysisContext = [memoryContext, followUpContext].filter(Boolean).join("\n\n");
     const aiAnalysis =
       provider === "openrouter"
         ? await analyzeDiaryEntryOpenRouter({
@@ -64,7 +66,7 @@ export async function POST(request: Request, context: RouteContext) {
             summary: entry.summary ?? "",
             notes: entry.notes ?? "",
             model,
-            memoryContext,
+            memoryContext: hiddenAnalysisContext,
             metrics: metrics.map((metric) => ({
               name: metric.name,
               type: metric.type,
@@ -77,7 +79,7 @@ export async function POST(request: Request, context: RouteContext) {
             summary: entry.summary ?? "",
             notes: entry.notes ?? "",
             model,
-            memoryContext,
+            memoryContext: hiddenAnalysisContext,
             metrics: metrics.map((metric) => ({
               name: metric.name,
               type: metric.type,
@@ -87,7 +89,15 @@ export async function POST(request: Request, context: RouteContext) {
           });
     const updatedEntry = await updateDiaryEntryAnalysis(id, aiAnalysis);
 
-    return NextResponse.json({ entry: updatedEntry }, { status: 200 });
+    return NextResponse.json(
+      {
+        entry: {
+          ...updatedEntry,
+          follow_up_candidates: followUpCandidates,
+        },
+      },
+      { status: 200 },
+    );
   } catch (error) {
     const usageGuardError = getUsageGuardErrorResponse(error);
 

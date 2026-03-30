@@ -5,7 +5,7 @@ import type { PeriodAiSummaryPayload } from "@/lib/ai/contracts";
 import { resolveAiProvider } from "@/lib/ai/models";
 import { getAuthState } from "@/lib/auth";
 import { parsePeriodAnalysisInput } from "@/lib/ai/contracts";
-import { getPeriodAiMemoryContext } from "@/lib/diary";
+import { getPeriodAiAnalysisSupport } from "@/lib/diary";
 import {
   getOpenRouterConfigError,
   streamPeriodAnalysisWithOpenRouter,
@@ -79,9 +79,11 @@ export async function POST(request: Request) {
 
     await usageGuard.consume("ai");
 
-    const memoryContext = await getPeriodAiMemoryContext({
+    const aiSupport = await getPeriodAiAnalysisSupport({
       from: payload.from,
       to: payload.to,
+      entries: payload.entries,
+      summary: payload.summary,
       queryText: buildPeriodMemoryQueryText({
         from: payload.from,
         to: payload.to,
@@ -93,7 +95,13 @@ export async function POST(request: Request) {
     const normalizedPayload = {
       ...payload,
       model,
-      memoryContext,
+      memoryContext: [
+        aiSupport.memoryContext,
+        aiSupport.periodSignals,
+        aiSupport.followUpContext,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     };
 
     const stream =
@@ -108,6 +116,15 @@ export async function POST(request: Request) {
         "Cache-Control": "no-cache, no-transform",
         Connection: "keep-alive",
         "X-Accel-Buffering": "no",
+        ...(aiSupport.followUpCandidates.length > 0
+          ? {
+              "X-Diary-Follow-Up-Candidates": encodeURIComponent(
+                JSON.stringify(
+                  aiSupport.followUpCandidates.map((candidate) => candidate.question),
+                ),
+              ),
+            }
+          : {}),
       },
     });
   } catch (error) {

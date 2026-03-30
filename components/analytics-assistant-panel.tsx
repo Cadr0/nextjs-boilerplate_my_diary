@@ -22,6 +22,7 @@ type AnalyticsAssistantPanelProps = {
   entries: PeriodAnalysisEntryPayload[];
   summary: PeriodAiSummaryPayload;
   analysisText: string;
+  followUpCandidates: string[];
   analysisState: "idle" | "loading" | "error";
   analysisError: string | null;
   onAnalyze: () => Promise<void> | void;
@@ -322,6 +323,22 @@ export function AnalyticsAssistantPanel(props: AnalyticsAssistantPanelProps) {
             </p>
           </div>
         )}
+
+        {props.followUpCandidates.length > 0 && hasAnalysis ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {props.followUpCandidates.map((question) => (
+              <button
+                key={question}
+                type="button"
+                onClick={() => void sendChatMessage(question)}
+                disabled={props.entries.length === 0}
+                className="rounded-full border border-[rgba(47,111,97,0.16)] bg-[rgba(247,249,246,0.92)] px-3 py-2 text-xs text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.28)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
+              >
+                {question}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">

@@ -146,6 +146,10 @@ export function DiaryAssistantPanel() {
     () => extractSleepReminderSuggestion(selectedEntry?.ai_analysis ?? null),
     [selectedEntry?.ai_analysis],
   );
+  const followUpCandidates = useMemo(
+    () => selectedEntry?.follow_up_candidates?.slice(0, 3) ?? [],
+    [selectedEntry?.follow_up_candidates],
+  );
 
   useEffect(() => {
     setSleepReminderStatus(null);
@@ -382,6 +386,21 @@ export function DiaryAssistantPanel() {
                   variant="analysis"
                 />
               </div>
+
+              {followUpCandidates.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {followUpCandidates.map((question) => (
+                    <button
+                      key={question}
+                      type="button"
+                      onClick={() => void sendChatMessage(question)}
+                      className="rounded-full border border-[rgba(47,111,97,0.16)] bg-[rgba(247,249,246,0.92)] px-3 py-2 text-xs text-[var(--foreground)] transition hover:border-[rgba(47,111,97,0.28)] hover:text-[var(--accent)] sm:text-sm"
+                    >
+                      {question}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
 
               {sleepReminderSuggestion ? (
                 <div className="rounded-[18px] border border-[rgba(47,111,97,0.16)] bg-[rgba(47,111,97,0.06)] p-3 sm:p-4">

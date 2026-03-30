@@ -21,6 +21,7 @@ export type DiaryEntry = {
   summary: string;
   notes: string;
   ai_analysis: string | null;
+  follow_up_candidates?: string[];
   memory_items: MemoryItem[];
   metric_values: Record<string, MetricValue>;
 };

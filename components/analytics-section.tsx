@@ -82,6 +82,7 @@ export function AnalyticsSection() {
   const [analysisState, setAnalysisState] = useState<"idle" | "loading" | "error">("idle");
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisText, setAnalysisText] = useState("");
+  const [analysisFollowUps, setAnalysisFollowUps] = useState<string[]>([]);
   const analysisAbortRef = useRef<AbortController | null>(null);
 
   const rangeStart = fromDate <= toDate ? fromDate : toDate;
@@ -90,6 +91,7 @@ export function AnalyticsSection() {
   useEffect(() => {
     analysisAbortRef.current?.abort();
     setAnalysisText("");
+    setAnalysisFollowUps([]);
     setAnalysisError(null);
     setAnalysisState("idle");
   }, [rangeEnd, rangeStart]);
@@ -227,6 +229,7 @@ export function AnalyticsSection() {
       setAnalysisState("loading");
       setAnalysisError(null);
       setAnalysisText("");
+      setAnalysisFollowUps([]);
 
       const response = await fetch("/api/analytics/analyze-period", {
         method: "POST",
@@ -249,6 +252,21 @@ export function AnalyticsSection() {
           | { error?: string }
           | null;
         throw new Error(payload?.error ?? "Не удалось проанализировать выбранный период.");
+      }
+
+      const rawFollowUps = response.headers.get("X-Diary-Follow-Up-Candidates");
+
+      if (rawFollowUps) {
+        try {
+          const parsed = JSON.parse(decodeURIComponent(rawFollowUps)) as unknown;
+          setAnalysisFollowUps(
+            Array.isArray(parsed)
+              ? parsed.filter((value): value is string => typeof value === "string")
+              : [],
+          );
+        } catch {
+          setAnalysisFollowUps([]);
+        }
       }
 
       if (!response.body) {
@@ -282,6 +300,7 @@ export function AnalyticsSection() {
       }
 
       setAnalysisState("error");
+      setAnalysisFollowUps([]);
       setAnalysisError(
         requestError instanceof Error
           ? requestError.message
@@ -676,6 +695,7 @@ export function AnalyticsSection() {
               entries={rangePayload}
               summary={periodSummary}
               analysisText={analysisText}
+              followUpCandidates={analysisFollowUps}
               analysisState={analysisState}
               analysisError={analysisError}
               onAnalyze={() => runPeriodAnalysis()}
@@ -721,14 +741,6 @@ function countInclusiveDays(fromDate: string, toDate: string) {
   }
 
   return Math.floor(diff / 86_400_000) + 1;
-}
-
-function ChevronLeftIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
-      <path d="m15 6-6 6 6 6" />
-    </svg>
-  );
 }
 
 function MenuIcon() {

@@ -4,7 +4,7 @@ import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import { parsePeriodAnalysisInput } from "@/lib/ai/contracts";
 import { resolveAiProvider } from "@/lib/ai/models";
 import { getAuthState } from "@/lib/auth";
-import { getPeriodAiMemoryContext } from "@/lib/diary";
+import { getPeriodAiChatSupport } from "@/lib/diary";
 import {
   getOpenRouterConfigError,
   streamPeriodChatWithOpenRouter,
@@ -111,9 +111,11 @@ export async function POST(request: Request) {
     const latestUserMessage = [...messages]
       .reverse()
       .find((message) => message.role === "user")?.content;
-    const memoryContext = await getPeriodAiMemoryContext({
+    const aiSupport = await getPeriodAiChatSupport({
       from: contextPayload.from,
       to: contextPayload.to,
+      entries: contextPayload.entries,
+      summary: contextPayload.summary,
       queryText: buildPeriodMemoryQueryText({
         latestUserMessage,
         currentAnalysis: contextPayload.currentAnalysis,
@@ -134,7 +136,9 @@ export async function POST(request: Request) {
             model,
             requestTimestamp,
             timezone,
-            memoryContext,
+            memoryContext: [aiSupport.memoryContext, aiSupport.periodSignals]
+              .filter(Boolean)
+              .join("\n\n"),
           })
         : await streamPeriodChatWithRouterAi(messages, {
             from: contextPayload.from,
@@ -145,7 +149,9 @@ export async function POST(request: Request) {
             model,
             requestTimestamp,
             timezone,
-            memoryContext,
+            memoryContext: [aiSupport.memoryContext, aiSupport.periodSignals]
+              .filter(Boolean)
+              .join("\n\n"),
           });
 
     return new Response(stream, {

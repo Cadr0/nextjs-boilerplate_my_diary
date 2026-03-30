@@ -41,6 +41,7 @@ type AnalyzeDiaryEntryInput = {
   notes: string;
   model?: string;
   memoryContext?: string;
+  followUpContext?: string;
   metrics: Array<{
     name: string;
     type: string;
@@ -57,6 +58,8 @@ type AnalyzeDiaryPeriodInput = {
   currentAnalysis?: string;
   model?: string;
   memoryContext?: string;
+  followUpContext?: string;
+  periodSignals?: string;
 };
 
 type OpenRouterMessage = {
@@ -85,6 +88,7 @@ type OpenRouterPeriodContext = {
   requestTimestamp?: string;
   timezone?: string;
   memoryContext?: string;
+  periodSignals?: string;
 };
 
 type OpenRouterPayload = {

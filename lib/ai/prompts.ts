@@ -66,7 +66,7 @@ export function buildDiaryExtractionPrompt(args: {
 
 function formatPeriodMetrics(metrics: PeriodAnalysisEntryPayload["metrics"]) {
   if (metrics.length === 0) {
-    return "- Нет сохранённых метрик.";
+    return "- Нет сохраненных метрик.";
   }
 
   return metrics
@@ -91,13 +91,13 @@ function buildPeriodSummaryBlock(summary?: PeriodAiSummaryPayload) {
   }
 
   return [
-    `- Сохранённых дней: ${summary.saved_days}`,
+    `- Сохраненных дней: ${summary.saved_days}`,
     `- Покрытие диапазона: ${summary.covered_days} дн.`,
     `- Среднее настроение: ${formatSummaryValue(summary.average_mood)}`,
     `- Средняя энергия: ${formatSummaryValue(summary.average_energy)}`,
     `- Средний стресс: ${formatSummaryValue(summary.average_stress)}`,
     `- Средний сон: ${formatSummaryValue(summary.average_sleep)}`,
-    `- Средний объём заметок: ${formatSummaryValue(summary.average_note_length)} симв.`,
+    `- Средний объем заметок: ${formatSummaryValue(summary.average_note_length)} симв.`,
   ].join("\n");
 }
 
@@ -122,6 +122,8 @@ function buildPeriodDataContext(args: {
   summary?: PeriodAiSummaryPayload;
   currentAnalysis?: string;
   memoryContext?: string;
+  periodSignals?: string;
+  followUpContext?: string;
 }) {
   return [
     `Период: с ${args.from} по ${args.to}`,
@@ -130,10 +132,16 @@ function buildPeriodDataContext(args: {
     buildPeriodSummaryBlock(args.summary),
     "",
     "Текущий черновик разбора периода:",
-    args.currentAnalysis || "Разбор периода ещё не запускался.",
+    args.currentAnalysis || "Разбор периода еще не запускался.",
     "",
     "Скрытая долгосрочная память:",
     args.memoryContext || "Нет релевантных долгосрочных тем.",
+    "",
+    "Derived signals:",
+    args.periodSignals || "No stable derived period signals yet.",
+    "",
+    "Hidden follow-up candidates:",
+    args.followUpContext || "No gentle follow-up candidates.",
     "",
     "Данные по дням:",
     buildPeriodEntriesBlock(args.entries),
@@ -147,6 +155,8 @@ export function buildPeriodAnalysisPrompt(args: {
   summary?: PeriodAiSummaryPayload;
   currentAnalysis?: string;
   memoryContext?: string;
+  periodSignals?: string;
+  followUpContext?: string;
 }) {
   return [
     "Ты анализируешь дневниковые записи за период и помогаешь пользователю находить практичные изменения для улучшения самочувствия, фокуса и ритма жизни.",
@@ -164,7 +174,9 @@ export function buildPeriodAnalysisPrompt(args: {
     "- Явно разделяй: 1) наблюдения из данных, 2) гипотезы. Для гипотез указывай уверенность: низкая/средняя/высокая.",
     "- Для boolean-метрик анализируй частоты и контекст.",
     "- Для text-метрик выделяй повторяющиеся темы и эмоциональные сигналы.",
-    "- Используй скрытую долгосрочную память только как фон для повторяющихся тем, не показывай её сырым внутренним списком.",
+    "- Используй скрытую долгосрочную память только как фон для повторяющихся тем, не показывай ее сырым внутренним списком.",
+    "- Используй derived signals как усиленный слой гипотез, но проверяй их по конкретным датам и сырым записям.",
+    "- Hidden follow-up candidates — это мягкие вопросы к незавершенным темам. Используй их только если они помогают уточнить ключевой вектор периода.",
     "- Не выдумывай факты и не ставь медицинские диагнозы.",
     "",
     "Практическая часть:",
@@ -184,6 +196,7 @@ export function buildPeriodChatContextPrompt(args: {
   summary?: PeriodAiSummaryPayload;
   currentAnalysis?: string;
   memoryContext?: string;
+  periodSignals?: string;
   requestTimestamp?: string;
   timezone?: string;
 }) {
@@ -216,6 +229,7 @@ export function buildPeriodChatContextPrompt(args: {
       summary: args.summary,
       currentAnalysis: args.currentAnalysis,
       memoryContext: args.memoryContext,
+      periodSignals: args.periodSignals,
     }),
   ].join("\n\n");
 }

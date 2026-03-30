@@ -9,6 +9,15 @@ import {
   extractMemoryItems,
 } from "@/lib/ai/memory/extractMemoryItems";
 import { selectMemoryContextForAi } from "@/lib/ai/memory/retrieveMemoryContext";
+import {
+  buildFollowUpContextText,
+  deriveFollowUpCandidates,
+} from "@/lib/ai/followups/deriveFollowUpCandidates";
+import { buildPeriodSignals } from "@/lib/ai/period/buildPeriodSignals";
+import type {
+  PeriodAiSummaryPayload,
+  PeriodAnalysisEntryPayload,
+} from "@/lib/ai/contracts";
 import type {
   MemoryItem,
   MemoryItemMetadata,
@@ -678,6 +687,53 @@ async function listMemoryItemsForAiContextSafe(
   return (result.data ?? []) as unknown as MemoryItemRow[];
 }
 
+async function listAiMemoryItemsSafe(
+  supabase: SupabaseClient,
+  userId: string,
+) {
+  const memoryRows = await listMemoryItemsForAiContextSafe(supabase, userId, 40);
+  return memoryRows.map(mapMemoryItem);
+}
+
+function buildDiaryAiMemoryContextSafeText(
+  memoryItems: MemoryItem[],
+  args: {
+    currentDate?: string;
+    queryText?: string;
+  },
+) {
+  return buildDiaryAiMemoryContextText(
+    memoryItems,
+    args.currentDate,
+    args.queryText,
+  );
+}
+
+async function getDiaryAiSupportSafe(
+  supabase: SupabaseClient,
+  userId: string,
+  args: {
+    currentDate?: string;
+    queryText?: string;
+  },
+) {
+  const memoryItems = await listAiMemoryItemsSafe(supabase, userId);
+  const memoryContext = buildDiaryAiMemoryContextSafeText(memoryItems, args);
+  const followUpCandidates = deriveFollowUpCandidates({
+    items: memoryItems,
+    currentDate: args.currentDate,
+    queryText: args.queryText,
+    limit: 3,
+  });
+
+  return {
+    memoryItems,
+    memoryContext,
+    followUpCandidates,
+    followUpContext: buildFollowUpContextText(followUpCandidates),
+  };
+}
+
 async function getDiaryAiMemoryContextSafe(
   supabase: SupabaseClient,
   userId: string,
@@ -686,14 +742,48 @@ async function getDiaryAiMemoryContextSafe(
     queryText?: string;
   },
 ) {
-  const memoryRows = await listMemoryItemsForAiContextSafe(supabase, userId, 40);
-  const memoryItems = memoryRows.map(mapMemoryItem);
+  return (await getDiaryAiSupportSafe(supabase, userId, args)).memoryContext;
+}
 
-  return buildDiaryAiMemoryContextText(
+async function getPeriodAiSupportSafe(
+  supabase: SupabaseClient,
+  userId: string,
+  args: {
+    from: string;
+    to: string;
+    queryText?: string;
+    entries: PeriodAnalysisEntryPayload[];
+    summary?: PeriodAiSummaryPayload;
+    includeFollowUps?: boolean;
+  },
+) {
+  const memoryItems = await listAiMemoryItemsSafe(supabase, userId);
+  const memoryContext = buildDiaryAiMemoryContextSafeText(memoryItems, {
+    currentDate: args.to,
+    queryText: [`Период с ${args.from} по ${args.to}`, args.queryText ?? ""].join("\n"),
+  });
+  const periodSignals = buildPeriodSignals({
+    from: args.from,
+    to: args.to,
+    entries: args.entries,
+    summary: args.summary,
     memoryItems,
-    args.currentDate,
-    args.queryText,
-  );
+  });
+  const followUpCandidates = args.includeFollowUps
+    ? deriveFollowUpCandidates({
+        items: memoryItems,
+        currentDate: args.to,
+        queryText: args.queryText,
+        limit: 3,
+      })
+    : [];
+
+  return {
+    memoryContext,
+    periodSignals: periodSignals.contextText,
+    followUpCandidates,
+    followUpContext: buildFollowUpContextText(followUpCandidates),
+  };
 }
 
 async function getDiaryEntryBundle(
@@ -1249,26 +1339,26 @@ export async function getDiaryEntryAnalysisContext(id: string) {
     value: resolveMetricValue(row),
     sortOrder: row.sort_order_snapshot ?? 0,
   }));
-  const memoryContext = await getDiaryAiMemoryContextSafe(
-    supabase,
-    user.id,
-    {
-      currentDate: (entryResult.data as unknown as DailyEntryRow).entry_date,
-      queryText: [
-        resolveEntryContent(entryResult.data as unknown as DailyEntryRow).summary,
-        resolveEntryContent(entryResult.data as unknown as DailyEntryRow).notes,
-        ...metrics.map(
-          (metric) =>
-            `${metric.name}: ${String(metric.value)}${metric.unit ? ` ${metric.unit}` : ""}`,
-        ),
-      ].join("\n"),
-    },
-  );
+  const entryRow = entryResult.data as unknown as DailyEntryRow;
+  const entryContent = resolveEntryContent(entryRow);
+  const aiSupport = await getDiaryAiSupportSafe(supabase, user.id, {
+    currentDate: entryRow.entry_date,
+    queryText: [
+      entryContent.summary,
+      entryContent.notes,
+      ...metrics.map(
+        (metric) =>
+          `${metric.name}: ${String(metric.value)}${metric.unit ? ` ${metric.unit}` : ""}`,
+      ),
+    ].join("\n"),
+  });
 
   return {
-    entry: entryResult.data as unknown as DailyEntryRow,
+    entry: entryRow,
     metrics,
-    memoryContext,
+    memoryContext: aiSupport.memoryContext,
+    followUpContext: aiSupport.followUpContext,
+    followUpCandidates: aiSupport.followUpCandidates.map((candidate) => candidate.question),
   };
 }
 
@@ -1279,10 +1369,12 @@ export async function getDiaryChatMemoryContext(args: {
   const user = await requireUser();
   const supabase = await createClient();
 
-  return getDiaryAiMemoryContextSafe(supabase, user.id, {
-    currentDate: args.date,
-    queryText: args.queryText,
-  });
+  return (
+    await getDiaryAiSupportSafe(supabase, user.id, {
+      currentDate: args.date,
+      queryText: args.queryText,
+    })
+  ).memoryContext;
 }
 
 export async function getPeriodAiMemoryContext(args: {
@@ -1296,6 +1388,46 @@ export async function getPeriodAiMemoryContext(args: {
   return getDiaryAiMemoryContextSafe(supabase, user.id, {
     currentDate: args.to,
     queryText: [`Период с ${args.from} по ${args.to}`, args.queryText ?? ""].join("\n"),
+  });
+}
+
+export async function getPeriodAiAnalysisSupport(args: {
+  from: string;
+  to: string;
+  entries: PeriodAnalysisEntryPayload[];
+  summary?: PeriodAiSummaryPayload;
+  queryText?: string;
+}) {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  return getPeriodAiSupportSafe(supabase, user.id, {
+    from: args.from,
+    to: args.to,
+    entries: args.entries,
+    summary: args.summary,
+    queryText: args.queryText,
+    includeFollowUps: true,
+  });
+}
+
+export async function getPeriodAiChatSupport(args: {
+  from: string;
+  to: string;
+  entries: PeriodAnalysisEntryPayload[];
+  summary?: PeriodAiSummaryPayload;
+  queryText?: string;
+}) {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  return getPeriodAiSupportSafe(supabase, user.id, {
+    from: args.from,
+    to: args.to,
+    entries: args.entries,
+    summary: args.summary,
+    queryText: args.queryText,
+    includeFollowUps: false,
   });
 }
 
