@@ -647,7 +647,7 @@ function buildRouterAiDiaryChatMessages(
     {
       role: "system" as const,
       content:
-        "Hidden long-term memory is internal system context. Use it to remember older themes, plans, worries, and repeated conflicts. Do not dump it as a raw internal list unless the user explicitly asks about recurring themes.",
+        "Hidden long-term memory is internal system context. Use it to remember older themes, plans, worries, and repeated conflicts. State labels mean: active = recently reinforced, stalled = ongoing but not reinforced recently, fading = weakening signal, resolved = already closed. Do not dump it as a raw internal list unless the user explicitly asks about recurring themes.",
     },
     {
       role: "system" as const,
@@ -680,7 +680,7 @@ function buildRouterAiPeriodChatMessages(
     {
       role: "system" as const,
       content:
-        "Hidden long-term memory is internal system context. Use it only to connect recurring long-term themes across dates. Do not expose it as a raw internal list unless the user explicitly asks about recurring themes.",
+        "Hidden long-term memory is internal system context. Use it only to connect recurring long-term themes across dates. State labels mean: active = recently reinforced, stalled = ongoing but not reinforced recently, fading = weakening signal, resolved = already closed. Do not expose it as a raw internal list unless the user explicitly asks about recurring themes.",
     },
     ...messages,
   ];

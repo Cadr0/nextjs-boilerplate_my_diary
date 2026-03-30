@@ -1,5 +1,9 @@
 import "server-only";
 
+import {
+  deriveMemoryState,
+  type DerivedMemoryState,
+} from "@/lib/ai/memory/deriveMemoryState";
 import type { MemoryItem, MemoryItemCategory } from "@/lib/ai/memory/types";
 
 const memoryCategoryContextLabels: Record<MemoryItemCategory, string> = {
@@ -118,6 +122,13 @@ const stopWords = new Set([
   "about",
 ]);
 
+const derivedMemoryStateWeights: Record<DerivedMemoryState, number> = {
+  active: 5,
+  stalled: 3,
+  fading: 1.25,
+  resolved: 0.5,
+};
+
 function normalizeText(value: string) {
   return value
     .toLowerCase()
@@ -202,16 +213,12 @@ function buildMemoryItemScore(args: {
   currentDate?: string;
 }) {
   const { item, queryTokens, relevantCategories, currentDate } = args;
+  const derivedState = deriveMemoryState(item, { currentDate });
   let score = 0;
-
-  if (item.status === "open") {
-    score += 6;
-  } else if (item.status === "resolved") {
-    score += 2;
-  }
 
   score += (item.importance ?? 0.5) * 4;
   score += Math.min(item.mentionCount, 6) * 0.6;
+  score += derivedMemoryStateWeights[derivedState.state];
 
   if (relevantCategories.includes(item.category)) {
     score += 8;
@@ -231,20 +238,26 @@ function buildMemoryItemScore(args: {
   return score;
 }
 
-function buildMemoryContextText(items: MemoryItem[]) {
-  return items
+function buildMemoryContextText(items: MemoryItem[], currentDate?: string) {
+  const guideLine =
+    "Memory state guide: active = recently reinforced, stalled = ongoing but not reinforced recently, fading = weakening or aging signal, resolved = already closed.";
+  const itemLines = items
     .map((item, index) => {
-      const relevantDate = getMemoryItemRelevantDate(item);
-      const mentions = item.mentionCount > 1 ? `, упоминаний: ${item.mentionCount}` : "";
-      const status = item.status === "resolved" ? ", статус: resolved" : "";
+      const derivedState = deriveMemoryState(item, { currentDate });
+      const cadenceText =
+        derivedState.mentionCadenceDays !== null
+          ? `, cadence ~${derivedState.mentionCadenceDays}d`
+          : "";
 
       return [
         `${index + 1}. [${memoryCategoryContextLabels[item.category]}] ${item.title}`,
-        `Суть: ${item.content}`,
-        `Последняя дата: ${relevantDate}${mentions}${status}`,
+        `Summary: ${item.content}`,
+        `State: ${derivedState.state}; signal: ${item.mentionCount} mention(s) across ${derivedState.daysTracked}d, last reinforced ${derivedState.daysSinceSeen}d ago${cadenceText}`,
       ].join("\n");
     })
     .join("\n\n");
+
+  return [guideLine, itemLines].filter(Boolean).join("\n\n");
 }
 
 export function selectMemoryContextForAi(args: {
@@ -288,11 +301,11 @@ export function selectMemoryContextForAi(args: {
       : eligibleItems
           .sort((left, right) => {
             const leftScore =
-              (left.status === "open" ? 1 : 0) +
+              derivedMemoryStateWeights[deriveMemoryState(left, { currentDate }).state] +
               (left.importance ?? 0.5) +
               Math.min(left.mentionCount, 6) * 0.25;
             const rightScore =
-              (right.status === "open" ? 1 : 0) +
+              derivedMemoryStateWeights[deriveMemoryState(right, { currentDate }).state] +
               (right.importance ?? 0.5) +
               Math.min(right.mentionCount, 6) * 0.25;
 
@@ -301,7 +314,7 @@ export function selectMemoryContextForAi(args: {
           .slice(0, Math.min(4, limit));
 
   return {
-    contextText: buildMemoryContextText(selectedItems),
+    contextText: buildMemoryContextText(selectedItems, currentDate),
     matchedCategories: relevantCategories,
     strategy: scoredItems.length > 0 ? ("targeted" as const) : ("fallback" as const),
   };
