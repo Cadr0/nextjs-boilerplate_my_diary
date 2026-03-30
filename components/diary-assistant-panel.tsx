@@ -728,7 +728,7 @@ function renderMarkdownTable(
   );
 }
 
-function ChatMessageContent({
+export function ChatMessageContent({
   content,
   streaming,
   variant = "chat",

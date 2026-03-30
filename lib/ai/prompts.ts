@@ -1,6 +1,7 @@
 import type {
   DiaryExtractionMetricDefinition,
   PeriodAnalysisEntryPayload,
+  PeriodAiSummaryPayload,
 } from "@/lib/ai/contracts";
 
 export function buildDiaryExtractionPrompt(args: {
@@ -63,36 +64,158 @@ export function buildDiaryExtractionPrompt(args: {
   ].join("\n");
 }
 
+function formatPeriodMetrics(metrics: PeriodAnalysisEntryPayload["metrics"]) {
+  if (metrics.length === 0) {
+    return "- Нет сохранённых метрик.";
+  }
+
+  return metrics
+    .map(
+      (metric) =>
+        `- ${metric.name}: ${String(metric.value)}${metric.unit ? ` ${metric.unit}` : ""} (${metric.type})`,
+    )
+    .join("\n");
+}
+
+function formatSummaryValue(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return "нет данных";
+  }
+
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function buildPeriodSummaryBlock(summary?: PeriodAiSummaryPayload) {
+  if (!summary) {
+    return "- Сводная статистика не передана.";
+  }
+
+  return [
+    `- Сохранённых дней: ${summary.saved_days}`,
+    `- Покрытие диапазона: ${summary.covered_days} дн.`,
+    `- Среднее настроение: ${formatSummaryValue(summary.average_mood)}`,
+    `- Средняя энергия: ${formatSummaryValue(summary.average_energy)}`,
+    `- Средний стресс: ${formatSummaryValue(summary.average_stress)}`,
+    `- Средний сон: ${formatSummaryValue(summary.average_sleep)}`,
+    `- Средний объём заметок: ${formatSummaryValue(summary.average_note_length)} симв.`,
+  ].join("\n");
+}
+
+function buildPeriodEntriesBlock(entries: PeriodAnalysisEntryPayload[]) {
+  return entries
+    .map((entry, index) =>
+      [
+        `${index + 1}. ${entry.entry_date}`,
+        `Главное: ${entry.summary || "—"}`,
+        `Заметки: ${entry.notes || "—"}`,
+        "Метрики:",
+        formatPeriodMetrics(entry.metrics),
+      ].join("\n"),
+    )
+    .join("\n\n");
+}
+
+function buildPeriodDataContext(args: {
+  from: string;
+  to: string;
+  entries: PeriodAnalysisEntryPayload[];
+  summary?: PeriodAiSummaryPayload;
+  currentAnalysis?: string;
+  memoryContext?: string;
+}) {
+  return [
+    `Период: с ${args.from} по ${args.to}`,
+    "",
+    "Сводка периода:",
+    buildPeriodSummaryBlock(args.summary),
+    "",
+    "Текущий черновик разбора периода:",
+    args.currentAnalysis || "Разбор периода ещё не запускался.",
+    "",
+    "Скрытая долгосрочная память:",
+    args.memoryContext || "Нет релевантных долгосрочных тем.",
+    "",
+    "Данные по дням:",
+    buildPeriodEntriesBlock(args.entries),
+  ].join("\n");
+}
+
 export function buildPeriodAnalysisPrompt(args: {
   from: string;
   to: string;
   entries: PeriodAnalysisEntryPayload[];
+  summary?: PeriodAiSummaryPayload;
+  currentAnalysis?: string;
+  memoryContext?: string;
 }) {
   return [
-    "Ты анализируешь дневниковые записи за период и помогаешь пользователю находить практичные изменения для улучшения самочувствия и ритма жизни.",
+    "Ты анализируешь дневниковые записи за период и помогаешь пользователю находить практичные изменения для улучшения самочувствия, фокуса и ритма жизни.",
     "",
     "Формат ответа:",
     "- Пиши по-русски, естественно и по делу.",
     "- Можно использовать markdown: заголовки, списки, короткие таблицы.",
     "- Не возвращай JSON.",
     "- Не следуй жесткому шаблону: подстрой структуру под данные.",
+    "- Ссылайся на конкретные даты и отрезки, когда это помогает объяснить вывод.",
     "",
     "Как анализировать:",
     "- Сопоставляй факты между днями, а не пересказывай записи отдельно.",
-    "- Ищи неочевидные паттерны и зависимости между сном, стрессом, энергией, настроением, нагрузкой, общением, питанием и контекстом дня.",
+    "- Ищи неочевидные паттерны между сном, стрессом, энергией, настроением, нагрузкой, общением, питанием и контекстом дня.",
     "- Явно разделяй: 1) наблюдения из данных, 2) гипотезы. Для гипотез указывай уверенность: низкая/средняя/высокая.",
-    "- Для boolean-метрик анализируй частоты и контекст (когда true/false связано с более хорошими или тяжелыми днями).",
+    "- Для boolean-метрик анализируй частоты и контекст.",
     "- Для text-метрик выделяй повторяющиеся темы и эмоциональные сигналы.",
+    "- Используй скрытую долгосрочную память только как фон для повторяющихся тем, не показывай её сырым внутренним списком.",
     "- Не выдумывай факты и не ставь медицинские диагнозы.",
     "",
     "Практическая часть:",
     "- Дай конкретные шаги, которые реально выполнить.",
-    "- Сформируй короткий план на 3 дня и ориентир на 1–2 недели.",
-    "- Отметь 2–4 ключевых индикатора, за которыми стоит следить в первую очередь.",
+    "- Сформируй короткий план на ближайшие 3 дня и ориентир на 1-2 недели.",
+    "- Отметь 2-4 ключевых индикатора, за которыми стоит следить в первую очередь.",
     "- Если данных мало или они противоречивы, скажи об этом прямо.",
     "",
-    `Период: с ${args.from} по ${args.to}`,
-    "Данные по записям:",
-    JSON.stringify(args.entries),
+    buildPeriodDataContext(args),
   ].join("\n");
+}
+
+export function buildPeriodChatContextPrompt(args: {
+  from: string;
+  to: string;
+  entries: PeriodAnalysisEntryPayload[];
+  summary?: PeriodAiSummaryPayload;
+  currentAnalysis?: string;
+  memoryContext?: string;
+  requestTimestamp?: string;
+  timezone?: string;
+}) {
+  const requestMomentDate = args.requestTimestamp ? new Date(args.requestTimestamp) : new Date();
+  const safeRequestMoment = Number.isFinite(requestMomentDate.getTime())
+    ? requestMomentDate
+    : new Date();
+  const safeTimezone = args.timezone?.trim() || "UTC";
+  const localRequestMoment = (() => {
+    try {
+      return new Intl.DateTimeFormat("ru-RU", {
+        timeZone: safeTimezone,
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(safeRequestMoment);
+    } catch {
+      return safeRequestMoment.toISOString();
+    }
+  })();
+
+  return [
+    `Request time: ${localRequestMoment} (${safeTimezone}), ISO: ${safeRequestMoment.toISOString()}`,
+    buildPeriodDataContext({
+      from: args.from,
+      to: args.to,
+      entries: args.entries,
+      summary: args.summary,
+      currentAnalysis: args.currentAnalysis,
+      memoryContext: args.memoryContext,
+    }),
+  ].join("\n\n");
 }

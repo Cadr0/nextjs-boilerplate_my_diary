@@ -147,6 +147,21 @@ function getMemoryItemRelevantDate(item: MemoryItem) {
   return item.createdAt.slice(0, 10);
 }
 
+function getMemoryItemFirstSeenDate(item: MemoryItem) {
+  const firstEntryDate = item.metadata.first_entry_date;
+  const entryDate = item.metadata.entry_date;
+
+  if (typeof firstEntryDate === "string") {
+    return firstEntryDate;
+  }
+
+  if (typeof entryDate === "string") {
+    return entryDate;
+  }
+
+  return item.createdAt.slice(0, 10);
+}
+
 function inferRelevantCategories(queryText: string) {
   const normalizedQuery = normalizeText(queryText);
   const scores = new Map<MemoryItemCategory, number>();
@@ -241,7 +256,7 @@ export function selectMemoryContextForAi(args: {
   const limit = Math.min(8, Math.max(1, args.limit ?? 5));
   const currentDate = args.currentDate;
   const eligibleItems = currentDate
-    ? args.items.filter((item) => getMemoryItemRelevantDate(item) <= currentDate)
+    ? args.items.filter((item) => getMemoryItemFirstSeenDate(item) <= currentDate)
     : args.items;
 
   if (eligibleItems.length === 0) {

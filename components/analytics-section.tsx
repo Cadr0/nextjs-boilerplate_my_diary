@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { AnalyticsAssistantPanel } from "@/components/analytics-assistant-panel";
 import { BrandGlyph } from "@/components/brand-glyph";
 import { useWorkspace } from "@/components/workspace-provider";
 import {
@@ -10,6 +11,7 @@ import {
   SectionHeader,
   TrendChart,
 } from "@/components/workspace-ui";
+import type { PeriodAiSummaryPayload } from "@/lib/ai/contracts";
 import {
   findMetricDefinitionBySemantic,
   formatCompactDate,
@@ -189,6 +191,28 @@ export function AnalyticsSection() {
         ];
       }),
   }));
+  const periodSummary = useMemo<PeriodAiSummaryPayload>(
+    () => ({
+      saved_days: deferredEntries.length,
+      covered_days: countInclusiveDays(rangeStart, rangeEnd),
+      average_mood: average(moodValues),
+      average_energy: average(energyValues),
+      average_stress: average(stressValues),
+      average_sleep: average(sleepValues),
+      average_note_length:
+        deferredEntries.length > 0 ? totalNotes / deferredEntries.length : null,
+    }),
+    [
+      deferredEntries,
+      energyValues,
+      moodValues,
+      rangeEnd,
+      rangeStart,
+      sleepValues,
+      stressValues,
+      totalNotes,
+    ],
+  );
 
   const runPeriodAnalysis = async () => {
     if (rangePayload.length === 0 || analysisState === "loading") {
@@ -214,6 +238,8 @@ export function AnalyticsSection() {
           from: rangeStart,
           to: rangeEnd,
           entries: rangePayload,
+          summary: periodSummary,
+          currentAnalysis: analysisText || undefined,
           model: profile.aiModel,
         }),
       });
@@ -644,40 +670,16 @@ export function AnalyticsSection() {
           </div>
             </SectionCard>
 
-            <SectionCard className="rounded-[30px] p-4 sm:p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-                AI review
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-                Разбор периода
-              </h2>
-            </div>
-            <span className="rounded-full bg-[rgba(47,111,97,0.08)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
-              On demand
-            </span>
-          </div>
-
-          {analysisError ? (
-            <div className="mt-4 rounded-[18px] border border-[rgba(208,138,149,0.22)] bg-white px-4 py-3 text-sm text-[rgb(136,47,63)]">
-              {analysisError}
-            </div>
-          ) : null}
-
-          {analysisText || analysisState === "loading" ? (
-            <div className="mt-4 rounded-[22px] border border-[var(--border)] bg-white/90 p-4">
-              <AiMarkdownContent
-                content={analysisText || "Анализируем период..."}
-                streaming={analysisState === "loading"}
-              />
-            </div>
-          ) : (
-            <div className="mt-4">
-              <EmptyState copy="Период пока не проанализирован. Выбери диапазон и нажми «Анализировать период»." />
-            </div>
-          )}
-            </SectionCard>
+            <AnalyticsAssistantPanel
+              fromDate={rangeStart}
+              toDate={rangeEnd}
+              entries={rangePayload}
+              summary={periodSummary}
+              analysisText={analysisText}
+              analysisState={analysisState}
+              analysisError={analysisError}
+              onAnalyze={() => runPeriodAnalysis()}
+            />
           </div>
         </div>
       </div>
@@ -707,6 +709,18 @@ export function AnalyticsSection() {
       ) : null}
     </>
   );
+}
+
+function countInclusiveDays(fromDate: string, toDate: string) {
+  const start = new Date(`${fromDate}T00:00:00Z`);
+  const end = new Date(`${toDate}T00:00:00Z`);
+  const diff = end.getTime() - start.getTime();
+
+  if (!Number.isFinite(diff) || diff < 0) {
+    return 1;
+  }
+
+  return Math.floor(diff / 86_400_000) + 1;
 }
 
 function ChevronLeftIcon() {
@@ -924,7 +938,7 @@ function renderMarkdownTable(key: string, rows: string[][]) {
   );
 }
 
-function AiMarkdownContent({
+export function AiMarkdownContent({
   content,
   streaming,
 }: {

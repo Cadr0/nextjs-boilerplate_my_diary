@@ -1285,6 +1285,20 @@ export async function getDiaryChatMemoryContext(args: {
   });
 }
 
+export async function getPeriodAiMemoryContext(args: {
+  from: string;
+  to: string;
+  queryText?: string;
+}) {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  return getDiaryAiMemoryContextSafe(supabase, user.id, {
+    currentDate: args.to,
+    queryText: [`Период с ${args.from} по ${args.to}`, args.queryText ?? ""].join("\n"),
+  });
+}
+
 export async function updateDiaryEntryAnalysis(id: string, aiAnalysis: string) {
   const user = await requireUser();
   const supabase = await createClient();

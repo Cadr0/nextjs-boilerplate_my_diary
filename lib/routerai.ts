@@ -6,9 +6,14 @@ import {
   type DiaryExtractionMetricDefinition,
   type DiaryExtractionResult,
   type PeriodAnalysisEntryPayload,
+  type PeriodAiSummaryPayload,
   type PeriodAnalysisResult,
 } from "@/lib/ai/contracts";
-import { buildDiaryExtractionPrompt, buildPeriodAnalysisPrompt } from "@/lib/ai/prompts";
+import {
+  buildDiaryExtractionPrompt,
+  buildPeriodAnalysisPrompt,
+  buildPeriodChatContextPrompt,
+} from "@/lib/ai/prompts";
 import { DEFAULT_ROUTERAI_PAID_MODEL } from "@/lib/ai/models";
 import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
 
@@ -146,7 +151,10 @@ type AnalyzeDiaryPeriodInput = {
   from: string;
   to: string;
   entries: PeriodAnalysisEntryPayload[];
+  summary?: PeriodAiSummaryPayload;
+  currentAnalysis?: string;
   model?: string;
+  memoryContext?: string;
 };
 
 export async function analyzeDiaryEntry(entry: AnalyzeDiaryEntryInput) {
@@ -225,6 +233,18 @@ type RouterAiDiaryContext = {
   draft: WorkspaceDraft;
   metricDefinitions: MetricDefinition[];
   tasks: TaskItem[];
+  model?: string;
+  requestTimestamp?: string;
+  timezone?: string;
+  memoryContext?: string;
+};
+
+type RouterAiPeriodContext = {
+  from: string;
+  to: string;
+  entries: PeriodAnalysisEntryPayload[];
+  summary?: PeriodAiSummaryPayload;
+  currentAnalysis?: string;
   model?: string;
   requestTimestamp?: string;
   timezone?: string;
@@ -638,6 +658,34 @@ function buildRouterAiDiaryChatMessages(
   ];
 }
 
+function buildRouterAiPeriodChatMessages(
+  messages: RouterAiChatMessage[],
+  context: RouterAiPeriodContext,
+) {
+  return [
+    {
+      role: "system" as const,
+      content:
+        "Ты внимательный AI-аналитик периода. Отвечай по-русски тепло и предметно. Помогай понять динамику по диапазону дат, выделять переломные точки, повторяющиеся паттерны и практичные следующие шаги.",
+    },
+    {
+      role: "system" as const,
+      content: `Контекст периода:\n${buildPeriodChatContextPrompt(context)}`,
+    },
+    {
+      role: "system" as const,
+      content:
+        "Всегда анализируй выбранный диапазон целиком: сравнивай дни между собой, ссылайся на даты, отделяй наблюдения от гипотез и говори прямо, если данных недостаточно.",
+    },
+    {
+      role: "system" as const,
+      content:
+        "Hidden long-term memory is internal system context. Use it only to connect recurring long-term themes across dates. Do not expose it as a raw internal list unless the user explicitly asks about recurring themes.",
+    },
+    ...messages,
+  ];
+}
+
 export async function streamChatWithRouterAi(
   messages: RouterAiChatMessage[],
   context: RouterAiDiaryContext,
@@ -773,6 +821,9 @@ export async function streamPeriodAnalysisWithRouterAi(
           from: input.from,
           to: input.to,
           entries: input.entries,
+          summary: input.summary,
+          currentAnalysis: input.currentAnalysis,
+          memoryContext: input.memoryContext,
         }),
       },
     ],
@@ -880,6 +931,114 @@ export async function chatWithRouterAi(
   );
 }
 
+export async function streamPeriodChatWithRouterAi(
+  messages: RouterAiChatMessage[],
+  context: RouterAiPeriodContext,
+) {
+  const configError = getRouterAiConfigError();
+
+  if (configError) {
+    throw new Error(configError);
+  }
+
+  const requestedModel = context.model ?? routerAiModel;
+  const maxTokens = resolveRouterAiMaxTokens(requestedModel);
+  const body: Record<string, unknown> = {
+    model: requestedModel,
+    temperature: 0.58,
+    stream: true,
+    messages: buildRouterAiPeriodChatMessages(messages, context),
+  };
+
+  if (typeof maxTokens === "number") {
+    body.max_tokens = maxTokens;
+  }
+
+  const response = await fetch(`${routerAiBaseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${routerAiApiKey}`,
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: { message?: string };
+    };
+    throw new Error(payload.error?.message ?? "RouterAI request failed.");
+  }
+
+  if (!response.body) {
+    throw new Error("RouterAI did not provide a stream body.");
+  }
+
+  const sourceReader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let buffer = "";
+
+      const pushSseChunk = (line: string) => {
+        const trimmed = line.trim();
+
+        if (!trimmed.startsWith("data:")) {
+          return;
+        }
+
+        const data = trimmed.slice(5).trim();
+
+        if (!data || data === "[DONE]") {
+          return;
+        }
+
+        try {
+          const chunk = JSON.parse(data) as RouterAiStreamPayload;
+          const token = chunk.choices?.[0]?.delta?.content;
+
+          if (token) {
+            controller.enqueue(encoder.encode(token));
+          }
+        } catch {
+          // Ignore malformed partial SSE chunks.
+        }
+      };
+
+      try {
+        while (true) {
+          const { value, done } = await sourceReader.read();
+
+          if (done) {
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          lines.forEach(pushSseChunk);
+        }
+
+        buffer += decoder.decode();
+        const tail = buffer.trim();
+
+        if (tail.length > 0) {
+          pushSseChunk(tail);
+        }
+
+        controller.close();
+      } catch (streamError) {
+        controller.error(streamError);
+      } finally {
+        sourceReader.releaseLock();
+      }
+    },
+  });
+}
+
 export async function extractDiaryDataFromTranscript(args: {
   transcript: string;
   metricDefinitions: DiaryExtractionMetricDefinition[];
@@ -966,6 +1125,9 @@ export async function analyzeDiaryPeriod(
           from: input.from,
           to: input.to,
           entries: input.entries,
+          summary: input.summary,
+          currentAnalysis: input.currentAnalysis,
+          memoryContext: input.memoryContext,
         }),
       },
     ],

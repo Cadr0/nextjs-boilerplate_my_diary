@@ -50,6 +50,16 @@ export type PeriodAnalysisEntryPayload = {
   }>;
 };
 
+export type PeriodAiSummaryPayload = {
+  saved_days: number;
+  covered_days: number;
+  average_mood: number | null;
+  average_energy: number | null;
+  average_stress: number | null;
+  average_sleep: number | null;
+  average_note_length: number | null;
+};
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -80,6 +90,28 @@ function readNullableScore(value: unknown) {
 
 function readNullableNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readPositiveInteger(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? Math.round(value)
+    : 0;
+}
+
+function readPeriodAiSummary(value: unknown): PeriodAiSummaryPayload | undefined {
+  if (!isObject(value)) {
+    return undefined;
+  }
+
+  return {
+    saved_days: readPositiveInteger(value.saved_days),
+    covered_days: Math.max(1, readPositiveInteger(value.covered_days)),
+    average_mood: readNullableNumber(value.average_mood),
+    average_energy: readNullableNumber(value.average_energy),
+    average_stress: readNullableNumber(value.average_stress),
+    average_sleep: readNullableNumber(value.average_sleep),
+    average_note_length: readNullableNumber(value.average_note_length),
+  };
 }
 
 export function parseDiaryExtractionResult(value: unknown): DiaryExtractionResult {
@@ -269,6 +301,11 @@ export function parsePeriodAnalysisInput(value: unknown) {
     from,
     to,
     entries,
+    summary: readPeriodAiSummary(value.summary),
+    currentAnalysis:
+      typeof value.currentAnalysis === "string" && value.currentAnalysis.trim()
+        ? value.currentAnalysis.trim()
+        : undefined,
     model: typeof value.model === "string" && value.model.trim() ? value.model.trim() : undefined,
   };
 }

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
+import type { PeriodAiSummaryPayload } from "@/lib/ai/contracts";
 import { resolveAiProvider } from "@/lib/ai/models";
 import { getAuthState } from "@/lib/auth";
 import { parsePeriodAnalysisInput } from "@/lib/ai/contracts";
+import { getPeriodAiMemoryContext } from "@/lib/diary";
 import {
   getOpenRouterConfigError,
   streamPeriodAnalysisWithOpenRouter,
@@ -12,6 +14,49 @@ import {
   getRouterAiConfigError,
   streamPeriodAnalysisWithRouterAi,
 } from "@/lib/routerai";
+
+function buildPeriodMemoryQueryText(args: {
+  from: string;
+  to: string;
+  entries: Array<{
+    entry_date: string;
+    summary: string;
+    notes: string;
+    metrics: Array<{
+      name: string;
+      type: string;
+      unit: string;
+      value: string | number | boolean;
+    }>;
+  }>;
+  summary?: PeriodAiSummaryPayload;
+}) {
+  return [
+    `Разбор периода с ${args.from} по ${args.to}`,
+    args.summary
+      ? [
+          `Сохранённых дней: ${args.summary.saved_days}`,
+          `Среднее настроение: ${args.summary.average_mood ?? "нет данных"}`,
+          `Средняя энергия: ${args.summary.average_energy ?? "нет данных"}`,
+          `Средний стресс: ${args.summary.average_stress ?? "нет данных"}`,
+          `Средний сон: ${args.summary.average_sleep ?? "нет данных"}`,
+        ].join("\n")
+      : "",
+    ...args.entries.map((entry) =>
+      [
+        entry.entry_date,
+        entry.summary,
+        entry.notes,
+        ...entry.metrics.map(
+          (metric) =>
+            `${metric.name}: ${String(metric.value)}${metric.unit ? ` ${metric.unit}` : ""}`,
+        ),
+      ].join("\n"),
+    ),
+  ]
+    .join("\n\n")
+    .slice(0, 8000);
+}
 
 export async function POST(request: Request) {
   const { user } = await getAuthState();
@@ -34,9 +79,21 @@ export async function POST(request: Request) {
 
     await usageGuard.consume("ai");
 
+    const memoryContext = await getPeriodAiMemoryContext({
+      from: payload.from,
+      to: payload.to,
+      queryText: buildPeriodMemoryQueryText({
+        from: payload.from,
+        to: payload.to,
+        entries: payload.entries,
+        summary: payload.summary,
+      }),
+    });
+
     const normalizedPayload = {
       ...payload,
       model,
+      memoryContext,
     };
 
     const stream =

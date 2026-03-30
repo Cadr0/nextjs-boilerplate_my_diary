@@ -6,11 +6,13 @@ import {
   type DiaryExtractionMetricDefinition,
   type DiaryExtractionResult,
   type PeriodAnalysisEntryPayload,
+  type PeriodAiSummaryPayload,
   type PeriodAnalysisResult,
 } from "@/lib/ai/contracts";
 import {
   buildDiaryExtractionPrompt,
   buildPeriodAnalysisPrompt,
+  buildPeriodChatContextPrompt,
 } from "@/lib/ai/prompts";
 import { DEFAULT_OPENROUTER_FREE_MODEL } from "@/lib/ai/models";
 import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
@@ -51,7 +53,10 @@ type AnalyzeDiaryPeriodInput = {
   from: string;
   to: string;
   entries: PeriodAnalysisEntryPayload[];
+  summary?: PeriodAiSummaryPayload;
+  currentAnalysis?: string;
   model?: string;
+  memoryContext?: string;
 };
 
 type OpenRouterMessage = {
@@ -64,6 +69,18 @@ type OpenRouterDiaryContext = {
   draft: WorkspaceDraft;
   metricDefinitions: MetricDefinition[];
   tasks: TaskItem[];
+  model?: string;
+  requestTimestamp?: string;
+  timezone?: string;
+  memoryContext?: string;
+};
+
+type OpenRouterPeriodContext = {
+  from: string;
+  to: string;
+  entries: PeriodAnalysisEntryPayload[];
+  summary?: PeriodAiSummaryPayload;
+  currentAnalysis?: string;
   model?: string;
   requestTimestamp?: string;
   timezone?: string;
@@ -442,6 +459,34 @@ function buildDiaryChatMessages(
   ];
 }
 
+function buildPeriodChatMessages(
+  messages: OpenRouterMessage[],
+  context: OpenRouterPeriodContext,
+) {
+  return [
+    {
+      role: "system" as const,
+      content:
+        "Ты внимательный AI-аналитик периода. Отвечай по-русски, в свободной и полезной форме. Помогай понять динамику по диапазону дат, отделяй наблюдения от гипотез и предлагай реалистичные следующие шаги.",
+    },
+    {
+      role: "system" as const,
+      content: `Контекст периода:\n${buildPeriodChatContextPrompt(context)}`,
+    },
+    {
+      role: "system" as const,
+      content:
+        "Всегда анализируй выбранный диапазон целиком: сравнивай дни между собой, отмечай переломные даты и объясняй, что действительно повторяется. Если данных мало, говори об этом прямо.",
+    },
+    {
+      role: "system" as const,
+      content:
+        "Hidden long-term memory is internal system context. Use it only to connect repeated long-term themes across dates. Do not expose it as a raw internal list unless the user explicitly asks about repeating themes.",
+    },
+    ...messages,
+  ];
+}
+
 type OpenRouterStreamPayload = {
   choices?: Array<{
     delta?: {
@@ -586,6 +631,9 @@ export async function streamPeriodAnalysisWithOpenRouter(
               from: input.from,
               to: input.to,
               entries: input.entries,
+              summary: input.summary,
+              currentAnalysis: input.currentAnalysis,
+              memoryContext: input.memoryContext,
             }),
           },
         ],
@@ -685,6 +733,110 @@ export async function chatWithOpenRouter(
   );
 }
 
+export async function streamPeriodChatWithOpenRouter(
+  messages: OpenRouterMessage[],
+  context: OpenRouterPeriodContext,
+) {
+  const configError = getOpenRouterConfigError();
+
+  if (configError) {
+    throw new Error(configError);
+  }
+
+  const response = await fetch(`${openRouterBaseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${openRouterApiKey}`,
+      "HTTP-Referer": siteUrl,
+      "X-Title": appTitle,
+    },
+    body: JSON.stringify(
+      buildOpenRouterRequestBody(
+        buildPeriodChatMessages(messages, context),
+        context.model ?? openRouterModel,
+        {
+          temperature: 0.58,
+          stream: true,
+        },
+      ),
+    ),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as OpenRouterPayload;
+    throw new Error(payload.error?.message ?? "OpenRouter request failed.");
+  }
+
+  if (!response.body) {
+    throw new Error("OpenRouter did not provide a stream body.");
+  }
+
+  const sourceReader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let buffer = "";
+
+      const pushSseChunk = (line: string) => {
+        const trimmed = line.trim();
+
+        if (!trimmed.startsWith("data:")) {
+          return;
+        }
+
+        const data = trimmed.slice(5).trim();
+
+        if (!data || data === "[DONE]") {
+          return;
+        }
+
+        try {
+          const chunk = JSON.parse(data) as OpenRouterStreamPayload;
+          const token = chunk.choices?.[0]?.delta?.content;
+
+          if (token) {
+            controller.enqueue(encoder.encode(token));
+          }
+        } catch {
+          // Ignore malformed partial SSE chunks.
+        }
+      };
+
+      try {
+        while (true) {
+          const { value, done } = await sourceReader.read();
+
+          if (done) {
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          lines.forEach(pushSseChunk);
+        }
+
+        buffer += decoder.decode();
+        const tail = buffer.trim();
+
+        if (tail.length > 0) {
+          pushSseChunk(tail);
+        }
+
+        controller.close();
+      } catch (streamError) {
+        controller.error(streamError);
+      } finally {
+        sourceReader.releaseLock();
+      }
+    },
+  });
+}
+
 export async function extractDiaryDataFromTranscript(args: {
   transcript: string;
   metricDefinitions: DiaryExtractionMetricDefinition[];
@@ -729,6 +881,9 @@ export async function analyzeDiaryPeriod(
           from: input.from,
           to: input.to,
           entries: input.entries,
+          summary: input.summary,
+          currentAnalysis: input.currentAnalysis,
+          memoryContext: input.memoryContext,
         }),
       },
     ],
