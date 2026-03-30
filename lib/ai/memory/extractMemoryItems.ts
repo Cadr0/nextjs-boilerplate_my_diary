@@ -275,6 +275,12 @@ export async function extractMemoryItems(
     summary,
     notes,
     maxItems: 3,
+    existingItems: (input.existingItems ?? []).map((item) => ({
+      category: item.category,
+      title: item.title,
+      content: item.content,
+      status: item.status,
+    })),
   });
 
   return requestStructuredMemoryItems(provider, prompt);

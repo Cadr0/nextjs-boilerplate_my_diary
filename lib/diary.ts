@@ -246,6 +246,109 @@ function readMemoryMetadataString(
   return typeof value === "string" ? value : null;
 }
 
+function readMemoryMetadataStringArray(
+  metadata: MemoryItemMetadata,
+  key: string,
+) {
+  const value = metadata[key];
+
+  if (!Array.isArray(value)) {
+    return [] as string[];
+  }
+
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function normalizeMemoryComparisonText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildLimitedUniqueStrings(values: string[], limit = 12) {
+  return [...new Set(values.filter((value) => value.trim().length > 0))].slice(-limit);
+}
+
+function hasProcessedSourceHash(metadata: MemoryItemMetadata, sourceHash: string) {
+  if (!sourceHash) {
+    return false;
+  }
+
+  if (readMemoryMetadataString(metadata, "source_hash") === sourceHash) {
+    return true;
+  }
+
+  return readMemoryMetadataStringArray(metadata, "source_hashes").includes(sourceHash);
+}
+
+function findMatchingOpenMemoryRow(
+  rows: MemoryItemRow[],
+  candidate: Pick<MemoryItem, "category" | "title" | "content">,
+) {
+  const normalizedTitle = normalizeMemoryComparisonText(candidate.title);
+  const normalizedContent = normalizeMemoryComparisonText(candidate.content);
+
+  return (
+    rows.find(
+      (row) =>
+        row.status === "open" &&
+        row.category === candidate.category &&
+        normalizeMemoryComparisonText(row.title) === normalizedTitle,
+    ) ??
+    rows.find(
+      (row) =>
+        row.status === "open" &&
+        row.category === candidate.category &&
+        normalizeMemoryComparisonText(row.content) === normalizedContent,
+    ) ??
+    null
+  );
+}
+
+function buildUpdatedMemoryMetadata(args: {
+  existingMetadata: MemoryItemMetadata;
+  candidateMetadata: MemoryItemMetadata;
+  sourceHash: string;
+  entryId: string;
+  entryDate: string;
+  timestamp: string;
+}) {
+  const existingSourceHashes = readMemoryMetadataStringArray(
+    args.existingMetadata,
+    "source_hashes",
+  );
+  const existingSourceEntryIds = readMemoryMetadataStringArray(
+    args.existingMetadata,
+    "source_entry_ids",
+  );
+  const firstEntryDate =
+    readMemoryMetadataString(args.existingMetadata, "first_entry_date") ??
+    readMemoryMetadataString(args.existingMetadata, "entry_date") ??
+    args.entryDate;
+
+  return {
+    ...args.existingMetadata,
+    ...args.candidateMetadata,
+    source_hash: args.sourceHash,
+    source_hashes: buildLimitedUniqueStrings(
+      [...existingSourceHashes, args.sourceHash],
+      12,
+    ),
+    source_entry_ids: buildLimitedUniqueStrings(
+      [...existingSourceEntryIds, args.entryId],
+      12,
+    ),
+    first_entry_date: firstEntryDate,
+    latest_entry_id: args.entryId,
+    latest_entry_date: args.entryDate,
+    last_seen_at: args.timestamp,
+    extracted_at: args.timestamp,
+    extraction_version: "memory-v2",
+  } satisfies MemoryItemMetadata;
+}
+
 function mapMemoryItem(row: MemoryItemRow): MemoryItem {
   return {
     id: row.id,
@@ -477,6 +580,58 @@ async function listMemoryItemsForEntryIdsSafe(
     console.error("[memory] Failed to load memory items", {
       userId,
       entryIds,
+      error: result.error.message,
+    });
+    return [] as MemoryItemRow[];
+  }
+
+  return (result.data ?? []) as unknown as MemoryItemRow[];
+}
+
+async function listRecentMemoryItemsSafe(
+  supabase: SupabaseClient,
+  userId: string,
+  limit = 40,
+) {
+  const result = await supabase
+    .from("memory_items")
+    .select(memoryItemSelect)
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+
+  if (result.error) {
+    console.error("[memory] Failed to load recent memory items", {
+      userId,
+      error: result.error.message,
+    });
+    return [] as MemoryItemRow[];
+  }
+
+  return (result.data ?? []) as unknown as MemoryItemRow[];
+}
+
+async function listOpenMemoryItemsByCategoriesSafe(
+  supabase: SupabaseClient,
+  userId: string,
+  categories: MemoryItem["category"][],
+) {
+  if (categories.length === 0) {
+    return [] as MemoryItemRow[];
+  }
+
+  const result = await supabase
+    .from("memory_items")
+    .select(memoryItemSelect)
+    .eq("user_id", userId)
+    .eq("status", "open")
+    .in("category", categories)
+    .order("updated_at", { ascending: false });
+
+  if (result.error) {
+    console.error("[memory] Failed to load open memory items by category", {
+      userId,
+      categories,
       error: result.error.message,
     });
     return [] as MemoryItemRow[];
@@ -1069,12 +1224,16 @@ export async function syncDiaryEntryMemoryItems(id: string) {
   const entryContent = resolveEntryContent(bundle.entryRow);
   const sourceHash = buildMemorySourceHash(entryContent.summary, entryContent.notes);
   const currentEntry = mapEntry(bundle.entryRow, bundle.valueRows, bundle.memoryRows);
+  const recentMemoryRows = await listRecentMemoryItemsSafe(supabase, user.id, 48);
 
   if (!sourceHash) {
     return currentEntry;
   }
 
-  if (currentEntry.memory_items.length > 0) {
+  if (
+    currentEntry.memory_items.length > 0 ||
+    recentMemoryRows.some((row) => hasProcessedSourceHash(row.metadata, sourceHash))
+  ) {
     return currentEntry;
   }
 
@@ -1084,7 +1243,9 @@ export async function syncDiaryEntryMemoryItems(id: string) {
       entryDate: bundle.entryRow.entry_date,
       summary: entryContent.summary,
       notes: entryContent.notes,
-      existingItems: currentEntry.memory_items.map((item) => ({
+      existingItems: sortMemoryItems(recentMemoryRows.map(mapMemoryItem))
+        .slice(0, 12)
+        .map((item) => ({
         id: item.id,
         category: item.category,
         title: item.title,
@@ -1094,33 +1255,119 @@ export async function syncDiaryEntryMemoryItems(id: string) {
     });
 
     if (candidates.length > 0) {
-      const insertRows = candidates.map((candidate) => ({
-        user_id: user.id,
-        source_entry_id: id,
-        source_type: candidate.sourceType,
-        category: candidate.category,
-        title: candidate.title,
-        content: candidate.content,
-        confidence: candidate.confidence ?? 0.5,
-        importance: candidate.importance ?? 0.5,
-        mention_count: 1,
-        status: "open" as const,
-        metadata: {
-          ...candidate.metadata,
-          source_hash: sourceHash,
-          entry_date: bundle.entryRow.entry_date,
-          extracted_at: new Date().toISOString(),
-          extraction_version: "memory-v1",
-        },
-      }));
-      const insertResult = await supabase.from("memory_items").insert(insertRows);
+      const candidateCategories = [...new Set(candidates.map((candidate) => candidate.category))];
+      const matchingRows = await listOpenMemoryItemsByCategoriesSafe(
+        supabase,
+        user.id,
+        candidateCategories,
+      );
+      const touchedMemoryIds = new Set<string>();
+      const insertRows: Array<{
+        user_id: string;
+        source_entry_id: string;
+        source_type: MemoryItem["sourceType"];
+        category: MemoryItem["category"];
+        title: string;
+        content: string;
+        confidence: number;
+        importance: number;
+        mention_count: number;
+        status: "open";
+        metadata: MemoryItemMetadata;
+      }> = [];
 
-      if (insertResult.error) {
-        console.error("[memory] Failed to insert extracted memory items", {
-          entryId: id,
-          userId: user.id,
-          error: insertResult.error.message,
+      for (const candidate of candidates) {
+        const matchingRow = findMatchingOpenMemoryRow(matchingRows, candidate);
+        const timestamp = new Date().toISOString();
+
+        if (matchingRow) {
+          if (touchedMemoryIds.has(matchingRow.id)) {
+            continue;
+          }
+
+          touchedMemoryIds.add(matchingRow.id);
+
+          const nextMetadata = buildUpdatedMemoryMetadata({
+            existingMetadata: matchingRow.metadata,
+            candidateMetadata: candidate.metadata,
+            sourceHash,
+            entryId: id,
+            entryDate: bundle.entryRow.entry_date,
+            timestamp,
+          });
+          const nextConfidence = Math.max(
+            matchingRow.confidence ?? 0.5,
+            candidate.confidence ?? 0.5,
+          );
+          const nextImportance = Math.max(
+            matchingRow.importance ?? 0.5,
+            candidate.importance ?? 0.5,
+          );
+          const updateResult = await supabase
+            .from("memory_items")
+            .update({
+              confidence: nextConfidence,
+              importance: nextImportance,
+              mention_count: Math.max(matchingRow.mention_count, 1) + 1,
+              metadata: nextMetadata,
+            })
+            .eq("id", matchingRow.id)
+            .eq("user_id", user.id);
+
+          if (updateResult.error) {
+            console.error("[memory] Failed to update existing memory item", {
+              entryId: id,
+              userId: user.id,
+              memoryItemId: matchingRow.id,
+              error: updateResult.error.message,
+            });
+            continue;
+          }
+
+          matchingRow.confidence = nextConfidence;
+          matchingRow.importance = nextImportance;
+          matchingRow.mention_count = Math.max(matchingRow.mention_count, 1) + 1;
+          matchingRow.metadata = nextMetadata;
+          continue;
+        }
+
+        insertRows.push({
+          user_id: user.id,
+          source_entry_id: id,
+          source_type: candidate.sourceType,
+          category: candidate.category,
+          title: candidate.title,
+          content: candidate.content,
+          confidence: candidate.confidence ?? 0.5,
+          importance: candidate.importance ?? 0.5,
+          mention_count: 1,
+          status: "open",
+          metadata: {
+            ...candidate.metadata,
+            source_hash: sourceHash,
+            source_hashes: [sourceHash],
+            entry_date: bundle.entryRow.entry_date,
+            first_entry_date: bundle.entryRow.entry_date,
+            latest_entry_id: id,
+            latest_entry_date: bundle.entryRow.entry_date,
+            source_entry_ids: [id],
+            last_seen_at: timestamp,
+            extracted_at: timestamp,
+            extraction_version: "memory-v2",
+          },
         });
+      }
+
+      if (insertRows.length > 0) {
+        const insertResult = await supabase.from("memory_items").insert(insertRows);
+
+        if (insertResult.error) {
+          console.error("[memory] Failed to insert extracted memory items", {
+            entryId: id,
+            userId: user.id,
+            error: insertResult.error.message,
+          });
+        }
       }
     }
   } catch (error) {
