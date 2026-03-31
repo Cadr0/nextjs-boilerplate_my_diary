@@ -4,10 +4,8 @@ import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { AnalyticsAssistantPanel } from "@/components/analytics-assistant-panel";
 import { BrandGlyph } from "@/components/brand-glyph";
-import {
-  WorkspaceSidebarFrame,
-  WorkspaceUserCard,
-} from "@/components/workspace-sidebar";
+import { WorkspaceSidebarFrame } from "@/components/workspace-sidebar";
+import { WorkspaceUserControls } from "@/components/workspace-user-controls";
 import { useWorkspace } from "@/components/workspace-provider";
 import { buildWorkoutDateSummaries } from "@/lib/ai/workouts/buildWorkoutDateSummaries";
 import {
@@ -90,16 +88,6 @@ export function AnalyticsSection() {
   const [analysisText, setAnalysisText] = useState("");
   const [analysisFollowUps, setAnalysisFollowUps] = useState<string[]>([]);
   const analysisAbortRef = useRef<AbortController | null>(null);
-  const profileName =
-    [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
-  const initials =
-    profileName
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? "")
-      .join("") || "D";
-
   const rangeStart = fromDate <= toDate ? fromDate : toDate;
   const rangeEnd = fromDate <= toDate ? toDate : fromDate;
 
@@ -348,10 +336,8 @@ export function AnalyticsSection() {
       title="Период"
       currentSection="analytics"
       footer={
-        <WorkspaceUserCard
-          href="/profile"
-          initials={initials}
-          name={profileName}
+        <WorkspaceUserControls
+          onOpenSettings={() => setIsMobileSidebarOpen(false)}
           subtitle="Настройки, профиль и аккаунт"
         />
       }

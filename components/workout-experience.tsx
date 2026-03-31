@@ -4,11 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { BrandGlyph } from "@/components/brand-glyph";
-import {
-  WorkspaceSidebarFrame,
-  WorkspaceUserCard,
-} from "@/components/workspace-sidebar";
+import { WorkspaceSidebarFrame } from "@/components/workspace-sidebar";
 import { WorkoutAssistantPanel } from "@/components/workout-assistant-panel";
+import { WorkspaceUserControls } from "@/components/workspace-user-controls";
 import { EmptyState } from "@/components/workspace-ui";
 import { useWorkspace } from "@/components/workspace-provider";
 import { getTodayIsoDate } from "@/lib/workspace";
@@ -762,6 +760,7 @@ function WorkoutSidebarContent({
   profileSubtitle,
   initials,
   onSelectDate,
+  onOpenSettings,
 }: {
   days: Array<{
     date: string;
@@ -774,6 +773,7 @@ function WorkoutSidebarContent({
   profileSubtitle: string;
   initials: string;
   onSelectDate: (date: string) => void;
+  onOpenSettings?: () => void;
 }) {
   const getPreview = (date: string, fallbackSummary: string, fallbackNotes: string) => {
     const daySessions = workouts.filter((session) => session.date === date);
@@ -801,11 +801,9 @@ function WorkoutSidebarContent({
       title="Тренировки"
       currentSection="workouts"
       footer={
-        <WorkspaceUserCard
-          href="/profile"
-          initials={initials}
-          name={profileName}
+        <WorkspaceUserControls
           subtitle={profileSubtitle}
+          onOpenSettings={onOpenSettings}
         />
       }
     >
@@ -901,6 +899,7 @@ function DiaryWorkoutSidebar(props: {
   profileSubtitle: string;
   initials: string;
   onSelectDate: (date: string) => void;
+  onOpenSettings?: () => void;
 }) {
   return (
     <aside className="surface-card hidden h-[calc(100vh-2rem)] self-start flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
@@ -1643,6 +1642,7 @@ export function WorkoutExperience() {
           setScreen("list");
           setExerciseIndex(0);
         }}
+        onOpenSettings={closeMobileSidebar}
       />
 
       <div className="grid min-w-0 gap-5 overflow-x-hidden">
@@ -2031,6 +2031,7 @@ export function WorkoutExperience() {
                 setExerciseIndex(0);
                 closeMobileSidebar();
               }}
+              onOpenSettings={closeMobileSidebar}
             />
           </aside>
         </div>
