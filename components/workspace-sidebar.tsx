@@ -44,8 +44,8 @@ export function WorkspaceSidebarFrame({
   footer,
 }: WorkspaceSidebarFrameProps) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="rounded-[24px] border border-[var(--border)] bg-white/90 p-4">
+    <div className="flex h-full min-h-0 flex-1 flex-col">
+      <div className="shrink-0 rounded-[24px] border border-[var(--border)] bg-white/90 p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]">
             <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_10px_20px_rgba(32,77,67,0.24)]" />
@@ -88,9 +88,11 @@ export function WorkspaceSidebarFrame({
         </div>
       </div>
 
-      {children}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {children}
+      </div>
 
-      {footer ? <div className="mt-auto pt-4">{footer}</div> : null}
+      {footer ? <div className="shrink-0 pt-4">{footer}</div> : null}
     </div>
   );
 }
