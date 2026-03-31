@@ -335,6 +335,18 @@ export function AnalyticsSection() {
       eyebrow="Analytics"
       title="Период"
       currentSection="analytics"
+      headerAction={
+        isMobileSidebarOpen ? (
+          <button
+            type="button"
+            onClick={() => setIsMobileSidebarOpen(false)}
+            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
+            aria-label="Р—Р°РєСЂС‹С‚СЊ Р±РѕРєРѕРІСѓСЋ РїР°РЅРµР»СЊ"
+          >
+            <CloseIcon />
+          </button>
+        ) : null
+      }
       footer={
         <WorkspaceUserControls
           onOpenSettings={() => setIsMobileSidebarOpen(false)}
@@ -736,7 +748,7 @@ export function AnalyticsSection() {
             aria-label="Закрыть боковую панель"
           />
           <aside className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col overflow-hidden rounded-r-[28px] p-4">
-            <div className="mb-3 shrink-0 flex items-center justify-end">
+            <div className="hidden">
               <button
                 type="button"
                 onClick={() => setIsMobileSidebarOpen(false)}

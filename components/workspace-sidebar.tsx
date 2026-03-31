@@ -12,6 +12,7 @@ type WorkspaceSidebarFrameProps = {
   currentSection?: WorkspaceSection;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  headerAction?: React.ReactNode;
 };
 
 const workspaceSectionLinks: Array<{
@@ -42,22 +43,26 @@ export function WorkspaceSidebarFrame({
   currentSection,
   children,
   footer,
+  headerAction,
 }: WorkspaceSidebarFrameProps) {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <div className="shrink-0 rounded-[24px] border border-[var(--border)] bg-white/90 p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]">
-            <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_10px_20px_rgba(32,77,67,0.24)]" />
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]">
+              <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_10px_20px_rgba(32,77,67,0.24)]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
+                {eyebrow}
+              </p>
+              <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+                {title}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
-              {eyebrow}
-            </p>
-            <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-              {title}
-            </p>
-          </div>
+          {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-2">

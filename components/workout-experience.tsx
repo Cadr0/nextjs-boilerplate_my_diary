@@ -760,6 +760,7 @@ function WorkoutSidebarContent({
   profileSubtitle,
   initials,
   onSelectDate,
+  onCloseSidebar,
   onOpenSettings,
 }: {
   days: Array<{
@@ -773,6 +774,7 @@ function WorkoutSidebarContent({
   profileSubtitle: string;
   initials: string;
   onSelectDate: (date: string) => void;
+  onCloseSidebar?: () => void;
   onOpenSettings?: () => void;
 }) {
   const getPreview = (date: string, fallbackSummary: string, fallbackNotes: string) => {
@@ -800,6 +802,18 @@ function WorkoutSidebarContent({
       eyebrow="Diary AI"
       title="Тренировки"
       currentSection="workouts"
+      headerAction={
+        onCloseSidebar ? (
+          <button
+            type="button"
+            onClick={onCloseSidebar}
+            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
+            aria-label="Р—Р°РєСЂС‹С‚СЊ Р±РѕРєРѕРІСѓСЋ РїР°РЅРµР»СЊ"
+          >
+            <CloseIcon className="h-5 w-5" />
+          </button>
+        ) : null
+      }
       footer={
         <WorkspaceUserControls
           subtitle={profileSubtitle}
@@ -2007,7 +2021,7 @@ export function WorkoutExperience() {
             onClick={closeMobileSidebar}
           />
           <aside className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col overflow-hidden rounded-r-[28px] p-4">
-            <div className="mb-3 shrink-0 flex items-center justify-end">
+            <div className="hidden">
               <button
                 type="button"
                 onClick={closeMobileSidebar}
@@ -2032,6 +2046,7 @@ export function WorkoutExperience() {
                   setExerciseIndex(0);
                   closeMobileSidebar();
                 }}
+                onCloseSidebar={closeMobileSidebar}
                 onOpenSettings={closeMobileSidebar}
               />
             </div>

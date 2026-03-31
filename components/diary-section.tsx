@@ -17,6 +17,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { createPortal } from "react-dom";
 import type {
   MouseEvent as ReactMouseEvent,
   ReactNode,
@@ -280,6 +281,7 @@ export function DiarySection() {
   const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
   const profileDisplayName =
     [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
+  const portalTarget = typeof document === "undefined" ? null : document.body;
   const saveStatusTitle =
     saveState === "error"
       ? error ?? "Не удалось сохранить изменения."
@@ -451,6 +453,18 @@ export function DiarySection() {
       eyebrow="Diary AI"
       title="Дневник"
       currentSection="diary"
+      headerAction={
+        isMobileSidebarOpen ? (
+          <button
+            type="button"
+            onClick={closeMobileSidebar}
+            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
+            aria-label="Закрыть боковую панель"
+          >
+            <CloseIcon />
+          </button>
+        ) : null
+      }
       footer={
         <WorkspaceUserCard
           initials={initials}
@@ -772,16 +786,6 @@ export function DiarySection() {
               drawerTouchCurrent.current = null;
             }}
           >
-            <div className="mb-3 shrink-0 flex items-center justify-end">
-              <button
-                type="button"
-                onClick={closeMobileSidebar}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl text-[var(--foreground)]"
-                aria-label="Закрыть боковую панель"
-              >
-                <CloseIcon />
-              </button>
-            </div>
             <div className="min-h-0 flex-1 overflow-hidden">{sidebarContent}</div>
           </aside>
         </div>
@@ -808,20 +812,23 @@ export function DiarySection() {
         />
       ) : null}
 
-      {isSettingsOpen ? (
-        <DiarySettingsModal
-          accountEmail={accountEmail}
-          accountInfo={accountInfo}
-          entryCount={serverEntries.length}
-          metricCount={metricDefinitions.length}
-          initialTab={settingsInitialTab}
-          microphonePermission={microphonePermission}
-          profile={profile}
-          onClose={closeSettings}
-          onChange={updateProfile}
-          onMicrophoneToggle={() => void handleMicrophoneToggle()}
-        />
-      ) : null}
+      {isSettingsOpen && portalTarget
+        ? createPortal(
+            <DiarySettingsModal
+              accountEmail={accountEmail}
+              accountInfo={accountInfo}
+              entryCount={serverEntries.length}
+              metricCount={metricDefinitions.length}
+              initialTab={settingsInitialTab}
+              microphonePermission={microphonePermission}
+              profile={profile}
+              onClose={closeSettings}
+              onChange={updateProfile}
+              onMicrophoneToggle={() => void handleMicrophoneToggle()}
+            />,
+            portalTarget,
+          )
+        : null}
 
     </>
   );
