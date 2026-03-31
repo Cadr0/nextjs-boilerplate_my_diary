@@ -90,7 +90,7 @@ export function WorkspaceSidebarFrame({
 
       {children}
 
-      {footer ? <div className="mt-4">{footer}</div> : null}
+      {footer ? <div className="mt-auto pt-4">{footer}</div> : null}
     </div>
   );
 }

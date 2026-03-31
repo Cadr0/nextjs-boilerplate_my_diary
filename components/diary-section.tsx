@@ -544,7 +544,7 @@ export function DiarySection() {
           edgeTouchStart.current = null;
         }}
       >
-        <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
+        <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
           {sidebarContent}
         </aside>
 
@@ -751,7 +751,7 @@ export function DiarySection() {
             onClick={closeMobileSidebar}
           />
           <aside
-            className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col rounded-r-[28px] p-4"
+            className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col overflow-hidden rounded-r-[28px] p-4"
             onTouchStart={(event) => {
               drawerTouchStart.current = event.touches[0]?.clientX ?? null;
               drawerTouchCurrent.current = drawerTouchStart.current;
@@ -772,7 +772,7 @@ export function DiarySection() {
               drawerTouchCurrent.current = null;
             }}
           >
-            <div className="mb-3 flex items-center justify-end">
+            <div className="mb-3 shrink-0 flex items-center justify-end">
               <button
                 type="button"
                 onClick={closeMobileSidebar}
@@ -782,7 +782,7 @@ export function DiarySection() {
                 <CloseIcon />
               </button>
             </div>
-            {sidebarContent}
+            <div className="min-h-0 flex-1 overflow-hidden">{sidebarContent}</div>
           </aside>
         </div>
       ) : null}

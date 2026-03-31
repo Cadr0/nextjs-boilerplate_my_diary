@@ -902,7 +902,7 @@ function DiaryWorkoutSidebar(props: {
   onOpenSettings?: () => void;
 }) {
   return (
-    <aside className="surface-card hidden h-[calc(100vh-2rem)] self-start flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
+    <aside className="surface-card hidden h-[calc(100vh-2rem)] self-start flex-col overflow-hidden rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
       <WorkoutSidebarContent {...props} />
     </aside>
   );
@@ -2006,8 +2006,8 @@ export function WorkoutExperience() {
             aria-label="Закрыть боковую панель"
             onClick={closeMobileSidebar}
           />
-          <aside className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col rounded-r-[28px] p-4">
-            <div className="mb-3 flex items-center justify-end">
+          <aside className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col overflow-hidden rounded-r-[28px] p-4">
+            <div className="mb-3 shrink-0 flex items-center justify-end">
               <button
                 type="button"
                 onClick={closeMobileSidebar}
@@ -2018,21 +2018,23 @@ export function WorkoutExperience() {
               </button>
             </div>
 
-            <WorkoutSidebarContent
-              days={days}
-              selectedDate={selectedDate}
-              workouts={workouts}
-              profileName={profileName}
-              profileSubtitle={profileSubtitle}
-              initials={initials}
-              onSelectDate={(date) => {
-                setSelectedDate(date);
-                setScreen("list");
-                setExerciseIndex(0);
-                closeMobileSidebar();
-              }}
-              onOpenSettings={closeMobileSidebar}
-            />
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <WorkoutSidebarContent
+                days={days}
+                selectedDate={selectedDate}
+                workouts={workouts}
+                profileName={profileName}
+                profileSubtitle={profileSubtitle}
+                initials={initials}
+                onSelectDate={(date) => {
+                  setSelectedDate(date);
+                  setScreen("list");
+                  setExerciseIndex(0);
+                  closeMobileSidebar();
+                }}
+                onOpenSettings={closeMobileSidebar}
+              />
+            </div>
           </aside>
         </div>
       ) : null}

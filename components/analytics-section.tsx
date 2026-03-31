@@ -465,7 +465,7 @@ export function AnalyticsSection() {
   return (
     <>
       <div className="grid gap-4 xl:grid-cols-[290px_minmax(0,1fr)]">
-        <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
+        <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
           {sidebarContent}
         </aside>
 
@@ -735,8 +735,8 @@ export function AnalyticsSection() {
             onClick={() => setIsMobileSidebarOpen(false)}
             aria-label="Закрыть боковую панель"
           />
-          <aside className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col rounded-r-[28px] p-4">
-            <div className="mb-3 flex items-center justify-end">
+          <aside className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col overflow-hidden rounded-r-[28px] p-4">
+            <div className="mb-3 shrink-0 flex items-center justify-end">
               <button
                 type="button"
                 onClick={() => setIsMobileSidebarOpen(false)}
@@ -746,7 +746,7 @@ export function AnalyticsSection() {
                 <CloseIcon />
               </button>
             </div>
-            {sidebarContent}
+            <div className="min-h-0 flex-1 overflow-hidden">{sidebarContent}</div>
           </aside>
         </div>
       ) : null}
