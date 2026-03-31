@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { AccountSecurityPanel } from "@/components/account-security-panel";
 import { InstallAppButton } from "@/components/install-app-button";
@@ -43,6 +44,7 @@ export function WorkspaceUserControls({
   const profileName =
     [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
   const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
+  const portalTarget = typeof document === "undefined" ? null : document.body;
 
   useEffect(() => {
     if (
@@ -185,20 +187,23 @@ export function WorkspaceUserControls({
         onClick={() => setIsUserMenuOpen((current) => !current)}
       />
 
-      {isSettingsOpen ? (
-        <WorkspaceSettingsModal
-          accountEmail={accountEmail}
-          accountInfo={accountInfo}
-          entryCount={serverEntries.length}
-          metricCount={metricDefinitions.length}
-          initialTab={settingsInitialTab}
-          microphonePermission={microphonePermission}
-          profile={profile}
-          onClose={closeSettings}
-          onChange={updateProfile}
-          onMicrophoneToggle={() => void handleMicrophoneToggle()}
-        />
-      ) : null}
+      {isSettingsOpen && portalTarget
+        ? createPortal(
+            <WorkspaceSettingsModal
+              accountEmail={accountEmail}
+              accountInfo={accountInfo}
+              entryCount={serverEntries.length}
+              metricCount={metricDefinitions.length}
+              initialTab={settingsInitialTab}
+              microphonePermission={microphonePermission}
+              profile={profile}
+              onClose={closeSettings}
+              onChange={updateProfile}
+              onMicrophoneToggle={() => void handleMicrophoneToggle()}
+            />,
+            portalTarget,
+          )
+        : null}
     </>
   );
 }
