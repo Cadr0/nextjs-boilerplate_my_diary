@@ -74,17 +74,17 @@ function buildWorkoutAssistantContext(args: {
 
   const summary =
     sessionsForDate.length > 0
-      ? `РќР° ${selectedDate} Р·Р°РїР»Р°РЅРёСЂРѕРІР°РЅРѕ ${sessionsForDate.length} ${getPluralForm(
+      ? `На ${selectedDate} запланировано ${sessionsForDate.length} ${getPluralForm(
           sessionsForDate.length,
-          "С‚СЂРµРЅРёСЂРѕРІРєР°",
-          "С‚СЂРµРЅРёСЂРѕРІРєРё",
-          "С‚СЂРµРЅРёСЂРѕРІРѕРє",
+          "тренировка",
+          "тренировки",
+          "тренировок",
         )}.`
-      : `РќР° ${selectedDate} С‚СЂРµРЅРёСЂРѕРІРѕРє РїРѕРєР° РЅРµС‚.`;
+      : `На ${selectedDate} тренировок пока нет.`;
 
   const selectedDateBlock =
     sessionsForDate.length === 0
-      ? "РќР° РІС‹Р±СЂР°РЅРЅСѓСЋ РґР°С‚Сѓ С‚СЂРµРЅРёСЂРѕРІРѕРє РїРѕРєР° РЅРµС‚."
+      ? "На выбранную дату тренировок пока нет."
       : sessionsForDate
           .map((session, index) => {
             const metrics = getSessionMetrics(session);
@@ -92,7 +92,7 @@ function buildWorkoutAssistantContext(args: {
               .map((exercise) => {
                 const sets = exercise.sets
                   .filter((set) => Boolean(set.completedAt))
-                  .map((set) => `${set.load || "0"} РєРі Г— ${set.reps || "0"}`)
+                  .map((set) => `${set.load || "0"} кг × ${set.reps || "0"}`)
                   .join(", ");
 
                 return `- ${exercise.name}${sets ? `: ${sets}` : ""}`;
@@ -100,45 +100,50 @@ function buildWorkoutAssistantContext(args: {
               .join("\n");
 
             return [
-              `${index + 1}. ${session.title || "РўСЂРµРЅРёСЂРѕРІРєР°"} (${session.completedAt ? "Р·Р°РІРµСЂС€РµРЅР°" : "РІ РїСЂРѕС†РµСЃСЃРµ"})`,
-              `РџРѕРґС…РѕРґРѕРІ: ${metrics.totalSets}, РїРѕРІС‚РѕСЂРµРЅРёР№: ${metrics.totalReps}, РѕР±СЉС‘Рј: ${metrics.totalVolume} РєРі`,
-              exercises || "- РЈРїСЂР°Р¶РЅРµРЅРёСЏ РїРѕРєР° РЅРµ Р·Р°РїРѕР»РЅРµРЅС‹",
+              `${index + 1}. ${session.title || "Тренировка"} (${session.completedAt ? "завершена" : "в процессе"})`,
+              `Подходов: ${metrics.totalSets}, повторений: ${metrics.totalReps}, объём: ${metrics.totalVolume} кг`,
+              exercises || "- Упражнения пока не заполнены",
             ].join("\n");
           })
           .join("\n\n");
 
   const historyBlock =
     recentCompleted.length === 0
-      ? "РСЃС‚РѕСЂРёСЏ Р·Р°РІРµСЂС€С‘РЅРЅС‹С… С‚СЂРµРЅРёСЂРѕРІРѕРє РїРѕРєР° РїСѓСЃС‚Р°."
+      ? "История завершённых тренировок пока пустая."
       : recentCompleted
           .map((session, index) => {
             const metrics = getSessionMetrics(session);
 
-            return `${index + 1}. ${session.date} В· ${session.title || "РўСЂРµРЅРёСЂРѕРІРєР°"} В· ${metrics.totalSets} РїРѕРґС…РѕРґРѕРІ В· ${metrics.totalVolume} РєРі`;
+            return `${index + 1}. ${session.date} · ${session.title || "Тренировка"} · ${metrics.totalSets} подходов · ${metrics.totalVolume} кг`;
           })
           .join("\n");
 
   const routinesBlock =
     workoutRoutines.length === 0
-      ? "РЎРѕС…СЂР°РЅС‘РЅРЅС‹С… РїСЂРѕРіСЂР°РјРј РїРѕРєР° РЅРµС‚."
+      ? "Сохранённых программ пока нет."
       : workoutRoutines
           .slice(0, 8)
           .map(
             (routine, index) =>
-              `${index + 1}. ${routine.name} В· ${routine.exercises.length} СѓРїСЂР°Р¶РЅРµРЅРёР№`,
+              `${index + 1}. ${routine.name} · ${routine.exercises.length} ${getPluralForm(
+                routine.exercises.length,
+                "упражнение",
+                "упражнения",
+                "упражнений",
+              )}`,
           )
           .join("\n");
 
   return {
     summary,
     notes: [
-      `РўСЂРµРЅРёСЂРѕРІРєРё РЅР° ${selectedDate}:`,
+      `Тренировки на ${selectedDate}:`,
       selectedDateBlock,
       "",
-      "РСЃС‚РѕСЂРёСЏ Р·Р°РІРµСЂС€С‘РЅРЅС‹С… С‚СЂРµРЅРёСЂРѕРІРѕРє:",
+      "История завершённых тренировок:",
       historyBlock,
       "",
-      "РЎРѕС…СЂР°РЅС‘РЅРЅС‹Рµ РїСЂРѕРіСЂР°РјРјС‹:",
+      "Сохранённые программы:",
       routinesBlock,
     ].join("\n"),
   };
@@ -186,9 +191,9 @@ export function WorkoutAssistantPanel() {
 
   const quickPrompts = useMemo(
     () => [
-      "Р Р°Р·Р±РµСЂРё РјРѕРё С‚СЂРµРЅРёСЂРѕРІРєРё Р·Р° СЌС‚Сѓ РґР°С‚Сѓ",
-      "Р§С‚Рѕ РІРёРґРЅРѕ РїРѕ РїСЂРѕРіСЂРµСЃСЃСѓ Р·Р° РїРѕСЃР»РµРґРЅРёРµ СЃРµСЃСЃРёРё?",
-      "РќР° С‡С‚Рѕ РѕР±СЂР°С‚РёС‚СЊ РІРЅРёРјР°РЅРёРµ РІ СЃР»РµРґСѓСЋС‰РµР№ С‚СЂРµРЅРёСЂРѕРІРєРµ?",
+      "Разбери мои тренировки за эту дату",
+      "Что видно по прогрессу за последние сессии?",
+      "На что обратить внимание в следующей тренировке?",
     ],
     [],
   );
@@ -291,7 +296,7 @@ export function WorkoutAssistantPanel() {
       });
 
       if (!response.ok) {
-        let errorMessage = "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РѕС‚РІРµС‚ РѕС‚ AI.";
+        let errorMessage = "Не удалось получить ответ от AI.";
 
         try {
           const result = (await response.json()) as { error?: string };
@@ -305,7 +310,7 @@ export function WorkoutAssistantPanel() {
       }
 
       if (!response.body) {
-        throw new Error("РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РїРѕС‚РѕРєРѕРІС‹Р№ РѕС‚РІРµС‚ РѕС‚ AI.");
+        throw new Error("Не удалось получить потоковый ответ от AI.");
       }
 
       const reader = response.body.getReader();
@@ -332,14 +337,14 @@ export function WorkoutAssistantPanel() {
       }
 
       if (!assistantContent.trim()) {
-        throw new Error("AI РІРµСЂРЅСѓР» РїСѓСЃС‚РѕР№ РѕС‚РІРµС‚.");
+        throw new Error("AI вернул пустой ответ.");
       }
 
       setChatState("idle");
       setStreamingAssistantId(null);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ СЃРѕРѕР±С‰РµРЅРёРµ.";
+        error instanceof Error ? error.message : "Не удалось отправить сообщение.";
 
       setChatState("error");
       setChatError(message);
@@ -362,7 +367,7 @@ export function WorkoutAssistantPanel() {
           <div>
             <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">AI</p>
             <h3 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-xl">
-              РџРѕРјРѕС‰РЅРёРє РїРѕ С‚СЂРµРЅРёСЂРѕРІРєР°Рј
+              Помощник по тренировкам
             </h3>
           </div>
         </div>
@@ -385,17 +390,19 @@ export function WorkoutAssistantPanel() {
           <div className="grid gap-3">
             <div className="flex flex-wrap gap-2">
               <span className="rounded-full border border-[rgba(47,111,97,0.16)] bg-[rgba(47,111,97,0.08)] px-3 py-1 text-sm text-[var(--accent)]">
-                Р Р°Р·Р±РѕСЂ С‚СЂРµРЅРёСЂРѕРІРѕРє
+                Разбор тренировок
               </span>
               <span className="rounded-full border border-[var(--border)] bg-white px-3 py-1 text-sm text-[var(--muted)]">
-                РџРѕ С‚РµРєСѓС‰РµР№ РґР°С‚Рµ Рё РёСЃС‚РѕСЂРёРё
+                По текущей дате и истории
               </span>
             </div>
             <h4 className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-2xl">
-              AI СѓР¶Рµ РІРёРґРёС‚ РІС‹Р±СЂР°РЅРЅСѓСЋ РґР°С‚Сѓ Рё Р·Р°РІРµСЂС€С‘РЅРЅС‹Рµ С‚СЂРµРЅРёСЂРѕРІРєРё
+              AI уже видит выбранную дату и завершённые тренировки
             </h4>
-            <p className="text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">{assistantContext.summary}</p>
-            <p className="text-xs leading-5 text-[var(--muted)] whitespace-pre-line sm:text-sm sm:leading-6">
+            <p className="text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">
+              {assistantContext.summary}
+            </p>
+            <p className="whitespace-pre-line text-xs leading-5 text-[var(--muted)] sm:text-sm sm:leading-6">
               {assistantContext.notes}
             </p>
           </div>
@@ -449,7 +456,7 @@ export function WorkoutAssistantPanel() {
           <textarea
             value={chatInput}
             onChange={(event) => setChatInput(event.target.value)}
-            placeholder="РЎРїСЂРѕСЃРё РїСЂРѕ РѕР±СЉС‘Рј, РїСЂРѕРіСЂРµСЃСЃ, Р·Р°РІРµСЂС€С‘РЅРЅС‹Рµ С‚СЂРµРЅРёСЂРѕРІРєРё РёР»Рё СЃР»РµРґСѓСЋС‰СѓСЋ СЃРµСЃСЃРёСЋ."
+            placeholder="Спроси про объём, прогресс, завершённые тренировки или следующую сессию."
             rows={3}
             className="min-h-[108px] rounded-[20px] border border-[var(--border)] bg-white px-4 py-3 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
           />
@@ -462,7 +469,7 @@ export function WorkoutAssistantPanel() {
           disabled={chatState === "sending" || chatInput.trim().length === 0}
           className="inline-flex min-h-12 items-center justify-center rounded-[20px] bg-[var(--accent)] px-5 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(47,111,97,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[160px]"
         >
-          {chatState === "sending" ? "Р”СѓРјР°СЋ..." : "РћС‚РїСЂР°РІРёС‚СЊ"}
+          {chatState === "sending" ? "Думаю..." : "Отправить"}
         </button>
       </div>
     </section>
@@ -471,7 +478,15 @@ export function WorkoutAssistantPanel() {
 
 function SparkIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className ?? "h-5 w-5"}>
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className ?? "h-5 w-5"}
+    >
       <path d="M13 2 5 14h6l-1 8 9-13h-6z" />
     </svg>
   );

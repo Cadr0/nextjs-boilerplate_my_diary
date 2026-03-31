@@ -16,6 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type {
   MouseEvent as ReactMouseEvent,
   ReactNode,
@@ -220,6 +221,9 @@ function getProviderLabel(provider: string | undefined) {
 }
 
 export function DiarySection() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const {
     accountEmail,
     accountInfo,
@@ -392,6 +396,50 @@ export function DiarySection() {
       setIsSettingsOpen(true);
     }, 0);
   };
+
+  const closeSettings = () => {
+    setIsSettingsOpen(false);
+
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (!params.has("settings")) {
+      return;
+    }
+
+    params.delete("settings");
+    const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    router.replace(nextUrl, {
+      scroll: false,
+    });
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const requestedTab = new URLSearchParams(window.location.search).get("settings");
+
+    if (
+      requestedTab !== "general" &&
+      requestedTab !== "profile" &&
+      requestedTab !== "assistant" &&
+      requestedTab !== "account"
+    ) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setSettingsInitialTab(requestedTab);
+      setIsSettingsOpen(true);
+      setIsMobileSidebarOpen(false);
+      setIsUserMenuOpen(false);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, []);
 
   const sidebarContent = (
     <>
@@ -800,7 +848,7 @@ export function DiarySection() {
           initialTab={settingsInitialTab}
           microphonePermission={microphonePermission}
           profile={profile}
-          onClose={() => setIsSettingsOpen(false)}
+          onClose={closeSettings}
           onChange={updateProfile}
           onMicrophoneToggle={() => void handleMicrophoneToggle()}
         />

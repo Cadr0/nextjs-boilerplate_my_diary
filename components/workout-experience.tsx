@@ -857,7 +857,10 @@ function WorkoutSidebarContent({
         </div>
       </div>
 
-      <div className="mt-4 flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 p-4">
+      <Link
+        href="/profile?tab=general"
+        className="mt-4 flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 p-4 text-left transition hover:border-[rgba(47,111,97,0.24)]"
+      >
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white">
           {initials}
         </div>
@@ -865,7 +868,7 @@ function WorkoutSidebarContent({
           <p className="truncate text-base font-semibold text-[var(--foreground)]">{profileName}</p>
           <p className="mt-1 text-xs text-[var(--muted)]">{profileSubtitle}</p>
         </div>
-      </div>
+      </Link>
     </>
   );
 }
@@ -884,7 +887,7 @@ function DiaryWorkoutSidebar(props: {
   onSelectDate: (date: string) => void;
 }) {
   return (
-    <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
+    <aside className="surface-card hidden h-[calc(100vh-2rem)] self-start flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
       <WorkoutSidebarContent {...props} />
     </aside>
   );
@@ -1606,8 +1609,12 @@ export function WorkoutExperience() {
     };
   }, [isMobileSidebarOpen]);
 
+  const closeMobileSidebar = () => {
+    setIsMobileSidebarOpen(false);
+  };
+
   return (
-    <div className="grid overflow-x-hidden gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
+    <div className="grid gap-4 overflow-x-hidden xl:grid-cols-[280px_minmax(0,1fr)] xl:items-start">
       <DiaryWorkoutSidebar
         days={days}
         selectedDate={selectedDate}
@@ -1981,13 +1988,13 @@ export function WorkoutExperience() {
             type="button"
             className="absolute inset-0 bg-[rgba(24,33,29,0.2)]"
             aria-label="Закрыть боковую панель"
-            onClick={() => setIsMobileSidebarOpen(false)}
+            onClick={closeMobileSidebar}
           />
           <aside className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col rounded-r-[28px] p-4">
             <div className="mb-3 flex items-center justify-end">
               <button
                 type="button"
-                onClick={() => setIsMobileSidebarOpen(false)}
+                onClick={closeMobileSidebar}
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
                 aria-label="Закрыть боковую панель"
               >
@@ -2006,7 +2013,7 @@ export function WorkoutExperience() {
                 setSelectedDate(date);
                 setScreen("list");
                 setExerciseIndex(0);
-                setIsMobileSidebarOpen(false);
+                closeMobileSidebar();
               }}
             />
           </aside>
