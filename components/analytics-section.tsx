@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { AnalyticsAssistantPanel } from "@/components/analytics-assistant-panel";
 import { BrandGlyph } from "@/components/brand-glyph";
+import {
+  WorkspaceSidebarFrame,
+  WorkspaceUserCard,
+} from "@/components/workspace-sidebar";
 import { useWorkspace } from "@/components/workspace-provider";
 import { buildWorkoutDateSummaries } from "@/lib/ai/workouts/buildWorkoutDateSummaries";
 import {
@@ -86,6 +90,15 @@ export function AnalyticsSection() {
   const [analysisText, setAnalysisText] = useState("");
   const [analysisFollowUps, setAnalysisFollowUps] = useState<string[]>([]);
   const analysisAbortRef = useRef<AbortController | null>(null);
+  const profileName =
+    [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
+  const initials =
+    profileName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("") || "D";
 
   const rangeStart = fromDate <= toDate ? fromDate : toDate;
   const rangeEnd = fromDate <= toDate ? toDate : fromDate;
@@ -330,9 +343,21 @@ export function AnalyticsSection() {
   };
 
   const sidebarContent = (
-    <>
-      <div className="rounded-[24px] border border-[var(--border)] bg-white/90 p-4">
-        <div className="flex items-center gap-3">
+    <WorkspaceSidebarFrame
+      eyebrow="Analytics"
+      title="Период"
+      currentSection="analytics"
+      footer={
+        <WorkspaceUserCard
+          href="/profile"
+          initials={initials}
+          name={profileName}
+          subtitle="Настройки, профиль и аккаунт"
+        />
+      }
+    >
+      <div className="hidden">
+        <div className="hidden">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white">
             <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_10px_20px_rgba(32,77,67,0.24)]" />
           </div>
@@ -448,7 +473,7 @@ export function AnalyticsSection() {
           AI-разбор запускается только по кнопке. Просмотр диапазона сам по себе не тратит AI-запрос.
         </div>
       </div>
-    </>
+    </WorkspaceSidebarFrame>
   );
 
   return (

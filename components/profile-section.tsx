@@ -4,6 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 
 import { LogoutButton } from "@/components/logout-button";
+import {
+  WorkspaceSidebarFrame,
+  WorkspaceUserCard,
+} from "@/components/workspace-sidebar";
 import { useWorkspace } from "@/components/workspace-provider";
 import {
   ProfileField,
@@ -25,6 +29,15 @@ export function ProfileSection() {
       : accountInfo?.provider === "email"
         ? "Email"
         : accountInfo?.provider ?? "unknown";
+  const profileName =
+    [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
+  const initials =
+    profileName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("") || "D";
 
   const requestNotificationPermission = async () => {
     if (typeof Notification === "undefined") {
@@ -36,7 +49,60 @@ export function ProfileSection() {
   };
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+    <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+      <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
+        <WorkspaceSidebarFrame
+          eyebrow="Diary AI"
+          title="Настройки"
+          footer={
+            <WorkspaceUserCard
+              href="/profile"
+              initials={initials}
+              name={profileName}
+              subtitle="Профиль, приложение и аккаунт"
+              active
+            />
+          }
+        >
+          <div className="mt-4 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
+            <div className="mb-3 flex items-center justify-between px-1">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+                Разделы
+              </p>
+              <span className="text-xs text-[var(--muted)]">4</span>
+            </div>
+
+            <div className="grid gap-2">
+              <a
+                href="#account-settings"
+                className="rounded-[20px] border border-[var(--border)] bg-white/92 px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              >
+                Учетная запись
+              </a>
+              <a
+                href="#context-settings"
+                className="rounded-[20px] border border-[var(--border)] bg-white/92 px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              >
+                Личный контекст
+              </a>
+              <a
+                href="#interface-settings"
+                className="rounded-[20px] border border-[var(--border)] bg-white/92 px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              >
+                Интерфейс
+              </a>
+              <a
+                href="#notification-settings"
+                className="rounded-[20px] border border-[var(--border)] bg-white/92 px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              >
+                Уведомления
+              </a>
+            </div>
+          </div>
+        </WorkspaceSidebarFrame>
+      </aside>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
       <SectionCard className="rounded-[32px] p-5 sm:p-6">
         <SectionHeader
           eyebrow="Settings"
@@ -45,7 +111,7 @@ export function ProfileSection() {
         />
 
         <div className="mt-6 grid gap-6">
-          <section className="grid gap-4">
+          <section id="account-settings" className="grid gap-4 scroll-mt-24">
             <h2 className="text-xl font-semibold text-[var(--foreground)]">Учетная запись</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2">
@@ -105,7 +171,7 @@ export function ProfileSection() {
             </div>
           </section>
 
-          <section className="grid gap-4">
+          <section id="context-settings" className="grid gap-4 scroll-mt-24">
             <h2 className="text-xl font-semibold text-[var(--foreground)]">Личный контекст</h2>
             <ProfileTextarea
               label="Фокус системы"
@@ -124,7 +190,7 @@ export function ProfileSection() {
             />
           </section>
 
-          <section className="grid gap-4">
+          <section id="interface-settings" className="grid gap-4 scroll-mt-24">
             <h2 className="text-xl font-semibold text-[var(--foreground)]">
               Поведение интерфейса
             </h2>
@@ -175,7 +241,7 @@ export function ProfileSection() {
             </div>
           </section>
 
-          <section className="grid gap-4">
+          <section id="notification-settings" className="grid gap-4 scroll-mt-24">
             <h2 className="text-xl font-semibold text-[var(--foreground)]">Уведомления</h2>
             <div className="grid gap-3 rounded-[24px] border border-[var(--border)] bg-[rgba(247,250,247,0.84)] p-4">
               <div className="flex flex-wrap gap-2">
@@ -238,6 +304,7 @@ export function ProfileSection() {
             </Link>
           </div>
         </SectionCard>
+      </div>
       </div>
     </div>
   );

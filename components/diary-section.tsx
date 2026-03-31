@@ -26,10 +26,13 @@ import { useEffect, useRef, useState } from "react";
 
 import { DiaryAssistantPanel } from "@/components/diary-assistant-panel";
 import { AccountSecurityPanel } from "@/components/account-security-panel";
-import { BrandGlyph } from "@/components/brand-glyph";
 import { DayEntryComposer } from "@/components/day-entry-composer";
 import { InstallAppButton } from "@/components/install-app-button";
 import { LogoutButton } from "@/components/logout-button";
+import {
+  WorkspaceSidebarFrame,
+  WorkspaceUserCard,
+} from "@/components/workspace-sidebar";
 import { useWorkspace } from "@/components/workspace-provider";
 import type {
   MetricDefinition,
@@ -275,6 +278,8 @@ export function DiarySection() {
   );
 
   const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
+  const profileDisplayName =
+    [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
   const saveStatusTitle =
     saveState === "error"
       ? error ?? "Не удалось сохранить изменения."
@@ -442,39 +447,22 @@ export function DiarySection() {
   }, []);
 
   const sidebarContent = (
-    <>
-      <div className="rounded-[24px] border border-[var(--border)] bg-white/90 p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]">
-            <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_10px_20px_rgba(32,77,67,0.24)]" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">Diary AI</p>
-            <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-              Дневник
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-2">
-          <div className="inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--accent)] px-3 text-sm font-medium text-white">
-            Дневник
-          </div>
-          <Link
-            href="/workouts"
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          >
-            Тренировки
-          </Link>
-          <Link
-            href="/analytics"
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          >
-            Период
-          </Link>
-        </div>
-      </div>
-
+    <WorkspaceSidebarFrame
+      eyebrow="Diary AI"
+      title="Дневник"
+      currentSection="diary"
+      footer={
+        <WorkspaceUserCard
+          initials={initials}
+          name={profileDisplayName}
+          subtitle="Профиль, приложение и выход"
+          active={isUserMenuOpen}
+          onClick={() => {
+            setIsUserMenuOpen((current) => !current);
+          }}
+        />
+      }
+    >
       <div className="mt-4 min-h-0 flex-1 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
         <div className="mb-2 flex items-center justify-between px-1">
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
@@ -522,26 +510,7 @@ export function DiarySection() {
           onOpenSettings={openSettings}
         />
       ) : null}
-
-      <button
-        type="button"
-        onClick={() => {
-          setIsUserMenuOpen((current) => !current);
-        }}
-        className="mt-4 flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 p-4 text-left transition hover:border-[rgba(47,111,97,0.24)]"
-      >
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white">
-          {initials}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-semibold text-[var(--foreground)]">
-            {profile.firstName}
-            {profile.lastName ? ` ${profile.lastName}` : ""}
-          </p>
-          <p className="mt-1 text-xs text-[var(--muted)]">Профиль, приложение и выход</p>
-        </div>
-      </button>
-    </>
+    </WorkspaceSidebarFrame>
   );
 
   return (

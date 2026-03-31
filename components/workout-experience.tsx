@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { BrandGlyph } from "@/components/brand-glyph";
+import {
+  WorkspaceSidebarFrame,
+  WorkspaceUserCard,
+} from "@/components/workspace-sidebar";
 import { WorkoutAssistantPanel } from "@/components/workout-assistant-panel";
 import { EmptyState } from "@/components/workspace-ui";
 import { useWorkspace } from "@/components/workspace-provider";
@@ -792,8 +796,20 @@ function WorkoutSidebarContent({
   };
 
   return (
-    <>
-      <div className="rounded-[24px] border border-[var(--border)] bg-white/90 p-4">
+    <WorkspaceSidebarFrame
+      eyebrow="Diary AI"
+      title="Тренировки"
+      currentSection="workouts"
+      footer={
+        <WorkspaceUserCard
+          href="/profile"
+          initials={initials}
+          name={profileName}
+          subtitle={profileSubtitle}
+        />
+      }
+    >
+      <div className="hidden">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]">
             <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_10px_20px_rgba(32,77,67,0.24)]" />
@@ -859,7 +875,7 @@ function WorkoutSidebarContent({
 
       <Link
         href="/profile?tab=general"
-        className="mt-4 flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 p-4 text-left transition hover:border-[rgba(47,111,97,0.24)]"
+        className="hidden"
       >
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white">
           {initials}
@@ -869,7 +885,7 @@ function WorkoutSidebarContent({
           <p className="mt-1 text-xs text-[var(--muted)]">{profileSubtitle}</p>
         </div>
       </Link>
-    </>
+    </WorkspaceSidebarFrame>
   );
 }
 
