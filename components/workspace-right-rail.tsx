@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useWorkspace } from "@/components/workspace-provider";
 import { EmptyState, SectionCard } from "@/components/workspace-ui";
@@ -9,11 +9,13 @@ type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
-const CHAT_STORAGE_KEY = "diary-ai-right-rail-chat-v1";
-
 function createChatMessage(role: ChatMessage["role"], content: string): ChatMessage {
+  const timestamp = new Date().toISOString();
+
   return {
     id:
       typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -21,13 +23,15 @@ function createChatMessage(role: ChatMessage["role"], content: string): ChatMess
         : `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     role,
     content,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   };
 }
 
 export function WorkspaceRightRail() {
   const {
-    accountInfo,
     addTask,
+    diaryChats,
     metricDefinitions,
     moveTaskToNextDay,
     moveTaskToSelectedDate,
@@ -37,51 +41,15 @@ export function WorkspaceRightRail() {
     selectedDraft,
     selectedTasks,
     toggleTask,
+    updateDiaryChatThread,
   } = useWorkspace();
 
   const [taskTitle, setTaskTitle] = useState("");
   const [chatInput, setChatInput] = useState("");
-  const [chatMessagesByDate, setChatMessagesByDate] = useState<Record<string, ChatMessage[]>>({});
   const [chatState, setChatState] = useState<"idle" | "sending" | "error">("idle");
   const [chatError, setChatError] = useState<string | null>(null);
-  const chatStorageKey = useMemo(
-    () =>
-      accountInfo?.userId
-        ? `${CHAT_STORAGE_KEY}:${accountInfo.userId}`
-        : CHAT_STORAGE_KEY,
-    [accountInfo?.userId],
-  );
-
-  const chatMessages = chatMessagesByDate[selectedDate] ?? [];
+  const chatMessages = diaryChats[selectedDate] ?? [];
   const completedTasksCount = selectedTasks.filter((task) => task.completedAt).length;
-
-  useEffect(() => {
-    setChatMessagesByDate({});
-
-    try {
-      const raw = window.localStorage.getItem(chatStorageKey);
-
-      if (!raw) {
-        return;
-      }
-
-      setChatMessagesByDate(JSON.parse(raw) as Record<string, ChatMessage[]>);
-    } catch {
-      window.localStorage.removeItem(chatStorageKey);
-    }
-  }, [chatStorageKey]);
-
-  useEffect(() => {
-    window.localStorage.setItem(chatStorageKey, JSON.stringify(chatMessagesByDate));
-  }, [chatMessagesByDate, chatStorageKey]);
-
-  useEffect(() => {
-    if (chatStorageKey === CHAT_STORAGE_KEY) {
-      return;
-    }
-
-    window.localStorage.removeItem(CHAT_STORAGE_KEY);
-  }, [chatStorageKey]);
 
   const quickPrompts = useMemo(
     () => [
@@ -96,10 +64,7 @@ export function WorkspaceRightRail() {
     date: string,
     updater: (messages: ChatMessage[]) => ChatMessage[],
   ) => {
-    setChatMessagesByDate((current) => ({
-      ...current,
-      [date]: updater(current[date] ?? []),
-    }));
+    updateDiaryChatThread(date, updater);
   };
 
   const sendChatMessage = async (content: string) => {
@@ -174,7 +139,11 @@ export function WorkspaceRightRail() {
         updateChatForDate(targetDate, (current) =>
           current.map((message) =>
             message.id === assistantMessage.id
-              ? { ...message, content: assistantContent }
+              ? {
+                  ...message,
+                  content: assistantContent,
+                  updatedAt: new Date().toISOString(),
+                }
               : message,
           ),
         );

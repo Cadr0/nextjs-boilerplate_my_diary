@@ -11,11 +11,13 @@ type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
-const CHAT_STORAGE_KEY = "workout-ai-assistant-chat-v1";
-
 function createChatMessage(role: ChatMessage["role"], content: string): ChatMessage {
+  const timestamp = new Date().toISOString();
+
   return {
     id:
       typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -23,6 +25,8 @@ function createChatMessage(role: ChatMessage["role"], content: string): ChatMess
         : `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     role,
     content,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   };
 }
 
@@ -151,31 +155,26 @@ function buildWorkoutAssistantContext(args: {
 
 export function WorkoutAssistantPanel() {
   const {
-    accountInfo,
     profile,
     selectedDate,
     workouts,
+    updateWorkoutChatThread,
     workoutRoutines,
+    workoutChats,
     workoutSessionsForDate,
     updateProfile,
   } = useWorkspace();
 
   const [chatInput, setChatInput] = useState("");
-  const [chatMessagesByDate, setChatMessagesByDate] = useState<Record<string, ChatMessage[]>>({});
   const [chatState, setChatState] = useState<"idle" | "sending" | "error">("idle");
   const [chatError, setChatError] = useState<string | null>(null);
   const [streamingAssistantId, setStreamingAssistantId] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const chatAbortRef = useRef<AbortController | null>(null);
 
-  const chatStorageKey = useMemo(
-    () => (accountInfo?.userId ? `${CHAT_STORAGE_KEY}:${accountInfo.userId}` : CHAT_STORAGE_KEY),
-    [accountInfo?.userId],
-  );
-
   const chatMessages = useMemo(
-    () => chatMessagesByDate[selectedDate] ?? [],
-    [chatMessagesByDate, selectedDate],
+    () => workoutChats[selectedDate] ?? [],
+    [selectedDate, workoutChats],
   );
 
   const assistantContext = useMemo(
@@ -199,26 +198,6 @@ export function WorkoutAssistantPanel() {
   );
 
   useEffect(() => {
-    setChatMessagesByDate({});
-
-    try {
-      const raw = window.localStorage.getItem(chatStorageKey);
-
-      if (!raw) {
-        return;
-      }
-
-      setChatMessagesByDate(JSON.parse(raw) as Record<string, ChatMessage[]>);
-    } catch {
-      window.localStorage.removeItem(chatStorageKey);
-    }
-  }, [chatStorageKey]);
-
-  useEffect(() => {
-    window.localStorage.setItem(chatStorageKey, JSON.stringify(chatMessagesByDate));
-  }, [chatMessagesByDate, chatStorageKey]);
-
-  useEffect(() => {
     if (chatState !== "sending") {
       return;
     }
@@ -239,10 +218,7 @@ export function WorkoutAssistantPanel() {
     date: string,
     updater: (messages: ChatMessage[]) => ChatMessage[],
   ) => {
-    setChatMessagesByDate((current) => ({
-      ...current,
-      [date]: updater(current[date] ?? []),
-    }));
+    updateWorkoutChatThread(date, updater);
   };
 
   const sendChatMessage = async (content: string) => {
@@ -330,7 +306,11 @@ export function WorkoutAssistantPanel() {
         updateChatForDate(targetDate, (current) =>
           current.map((message) =>
             message.id === assistantMessage.id
-              ? { ...message, content: assistantContent }
+              ? {
+                  ...message,
+                  content: assistantContent,
+                  updatedAt: new Date().toISOString(),
+                }
               : message,
           ),
         );

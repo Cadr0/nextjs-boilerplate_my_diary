@@ -20,6 +20,7 @@ export async function DELETE() {
       { table: "daily_entry_metric_values", column: "user_id" },
       { table: "metric_definitions", column: "user_id" },
       { table: "daily_entries", column: "user_id" },
+      { table: "workspace_sync_state", column: "user_id" },
       { table: "profiles", column: "user_id" },
     ] as const;
 

@@ -74,7 +74,9 @@ export function AnalyticsSection() {
   const {
     analyticsMetricDefinitions,
     metricDefinitions,
+    periodAnalyses,
     profile,
+    setPeriodAnalysis,
     selectedDate,
     serverEntries,
     workouts,
@@ -90,14 +92,16 @@ export function AnalyticsSection() {
   const analysisAbortRef = useRef<AbortController | null>(null);
   const rangeStart = fromDate <= toDate ? fromDate : toDate;
   const rangeEnd = fromDate <= toDate ? toDate : fromDate;
+  const rangeKey = useMemo(() => `${rangeStart}:${rangeEnd}`, [rangeEnd, rangeStart]);
+  const persistedAnalysis = periodAnalyses[rangeKey] ?? null;
 
   useEffect(() => {
     analysisAbortRef.current?.abort();
-    setAnalysisText("");
-    setAnalysisFollowUps([]);
+    setAnalysisText(persistedAnalysis?.analysisText ?? "");
+    setAnalysisFollowUps(persistedAnalysis?.followUpCandidates ?? []);
     setAnalysisError(null);
     setAnalysisState("idle");
-  }, [rangeEnd, rangeStart]);
+  }, [persistedAnalysis, rangeEnd, rangeKey, rangeStart]);
 
   useEffect(() => {
     return () => {
@@ -267,23 +271,30 @@ export function AnalyticsSection() {
       }
 
       const rawFollowUps = response.headers.get("X-Diary-Follow-Up-Candidates");
+      let nextFollowUps: string[] = [];
 
       if (rawFollowUps) {
         try {
           const parsed = JSON.parse(decodeURIComponent(rawFollowUps)) as unknown;
-          setAnalysisFollowUps(
-            Array.isArray(parsed)
-              ? parsed.filter((value): value is string => typeof value === "string")
-              : [],
-          );
+          nextFollowUps = Array.isArray(parsed)
+            ? parsed.filter((value): value is string => typeof value === "string")
+            : [];
+          setAnalysisFollowUps(nextFollowUps);
         } catch {
+          nextFollowUps = [];
           setAnalysisFollowUps([]);
         }
       }
 
       if (!response.body) {
         const fallbackText = await response.text();
-        setAnalysisText(fallbackText.trim());
+        const finalText = fallbackText.trim();
+        setAnalysisText(finalText);
+        setPeriodAnalysis(rangeKey, {
+          analysisText: finalText,
+          followUpCandidates: nextFollowUps,
+          updatedAt: new Date().toISOString(),
+        });
         setAnalysisState("idle");
         return;
       }
@@ -304,7 +315,13 @@ export function AnalyticsSection() {
       }
 
       accumulated += decoder.decode();
-      setAnalysisText(accumulated.trim());
+      const finalText = accumulated.trim();
+      setAnalysisText(finalText);
+      setPeriodAnalysis(rangeKey, {
+        analysisText: finalText,
+        followUpCandidates: nextFollowUps,
+        updatedAt: new Date().toISOString(),
+      });
       setAnalysisState("idle");
     } catch (requestError) {
       if (abortController.signal.aborted) {

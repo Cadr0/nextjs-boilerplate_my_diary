@@ -10,6 +10,7 @@ type RequestPayload = {
   notes?: string;
   metric_definitions?: MetricDefinition[];
   metric_values?: Record<string, string | number | boolean>;
+  client_updated_at?: string;
 };
 
 export async function POST(request: Request) {
@@ -46,18 +47,21 @@ export async function POST(request: Request) {
       notes: body.notes?.trim() ?? "",
       metric_definitions: body.metric_definitions,
       metric_values: body.metric_values,
+      client_updated_at: body.client_updated_at,
     };
 
     const result = await saveDiaryEntry(payload);
 
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to save diary entry.";
+
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : "Failed to save diary entry.",
+        error: message,
       },
-      { status: 500 },
+      { status: message.includes("another device") ? 409 : 500 },
     );
   }
 }

@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { WorkspaceProvider } from "@/components/workspace-provider";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { getAuthAccountInfo, getAuthState, getUserDisplayName } from "@/lib/auth";
-import { getSupabaseConfigError, getWorkspaceBootstrap } from "@/lib/diary";
+import { getSupabaseConfigError } from "@/lib/diary";
+import { getWorkspaceSnapshot } from "@/lib/workspace-sync-server";
+import { emptyWorkspaceSyncState } from "@/lib/workspace-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,7 @@ export default async function WorkspaceLayout({
         initialIdSeed="local"
         initialError={configError}
         isConfigured={false}
+        initialWorkspaceSyncState={emptyWorkspaceSyncState}
       >
         <WorkspaceShell
           accountName="Режим настройки"
@@ -39,7 +42,8 @@ export default async function WorkspaceLayout({
     redirect("/login?next=/diary");
   }
 
-  const { entries, metricDefinitions, error } = await getWorkspaceBootstrap(90);
+  const { entries, metricDefinitions, profile, workspaceSync, error } =
+    await getWorkspaceSnapshot(90);
   const displayName = getUserDisplayName(user);
   const accountInfo = getAuthAccountInfo(user);
 
@@ -52,10 +56,8 @@ export default async function WorkspaceLayout({
       isConfigured
       accountEmail={user.email ?? null}
       accountInfo={accountInfo}
-      initialProfile={{
-        firstName: displayName,
-        lastName: "",
-      }}
+      initialProfile={profile}
+      initialWorkspaceSyncState={workspaceSync}
     >
       <WorkspaceShell
         accountName={displayName}

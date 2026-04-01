@@ -15,6 +15,8 @@ type PeriodChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 type AnalyticsAssistantPanelProps = {
@@ -30,9 +32,9 @@ type AnalyticsAssistantPanelProps = {
   onAnalyze: () => Promise<void> | void;
 };
 
-const CHAT_STORAGE_KEY = "diary-period-ai-chat-v1";
-
 function createChatMessage(role: PeriodChatMessage["role"], content: string): PeriodChatMessage {
+  const timestamp = new Date().toISOString();
+
   return {
     id:
       typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -40,6 +42,8 @@ function createChatMessage(role: PeriodChatMessage["role"], content: string): Pe
         : `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     role,
     content,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   };
 }
 
@@ -48,11 +52,8 @@ function buildRangeKey(fromDate: string, toDate: string) {
 }
 
 export function AnalyticsAssistantPanel(props: AnalyticsAssistantPanelProps) {
-  const { accountInfo, profile } = useWorkspace();
+  const { analyticsChats, profile, updateAnalyticsChatThread } = useWorkspace();
   const [chatInput, setChatInput] = useState("");
-  const [chatMessagesByRange, setChatMessagesByRange] = useState<
-    Record<string, PeriodChatMessage[]>
-  >({});
   const [chatState, setChatState] = useState<"idle" | "sending" | "error">("idle");
   const [chatError, setChatError] = useState<string | null>(null);
   const [streamingAssistantId, setStreamingAssistantId] = useState<string | null>(null);
@@ -63,14 +64,9 @@ export function AnalyticsAssistantPanel(props: AnalyticsAssistantPanelProps) {
     () => buildRangeKey(props.fromDate, props.toDate),
     [props.fromDate, props.toDate],
   );
-  const chatStorageKey = useMemo(
-    () =>
-      accountInfo?.userId ? `${CHAT_STORAGE_KEY}:${accountInfo.userId}` : CHAT_STORAGE_KEY,
-    [accountInfo?.userId],
-  );
   const chatMessages = useMemo(
-    () => chatMessagesByRange[rangeKey] ?? [],
-    [chatMessagesByRange, rangeKey],
+    () => analyticsChats[rangeKey] ?? [],
+    [analyticsChats, rangeKey],
   );
   const quickPrompts = useMemo(() => {
     if (props.entries.length >= 10) {
@@ -87,34 +83,6 @@ export function AnalyticsAssistantPanel(props: AnalyticsAssistantPanelProps) {
       "Какой один шаг даст лучший эффект дальше?",
     ];
   }, [props.entries.length]);
-
-  useEffect(() => {
-    setChatMessagesByRange({});
-
-    try {
-      const raw = window.localStorage.getItem(chatStorageKey);
-
-      if (!raw) {
-        return;
-      }
-
-      setChatMessagesByRange(JSON.parse(raw) as Record<string, PeriodChatMessage[]>);
-    } catch {
-      window.localStorage.removeItem(chatStorageKey);
-    }
-  }, [chatStorageKey]);
-
-  useEffect(() => {
-    window.localStorage.setItem(chatStorageKey, JSON.stringify(chatMessagesByRange));
-  }, [chatMessagesByRange, chatStorageKey]);
-
-  useEffect(() => {
-    if (chatStorageKey === CHAT_STORAGE_KEY) {
-      return;
-    }
-
-    window.localStorage.removeItem(CHAT_STORAGE_KEY);
-  }, [chatStorageKey]);
 
   useEffect(() => {
     if (chatState !== "sending") {
@@ -137,10 +105,7 @@ export function AnalyticsAssistantPanel(props: AnalyticsAssistantPanelProps) {
     nextRangeKey: string,
     updater: (messages: PeriodChatMessage[]) => PeriodChatMessage[],
   ) => {
-    setChatMessagesByRange((current) => ({
-      ...current,
-      [nextRangeKey]: updater(current[nextRangeKey] ?? []),
-    }));
+    updateAnalyticsChatThread(nextRangeKey, updater);
   };
 
   const sendChatMessage = async (content: string) => {
@@ -224,7 +189,11 @@ export function AnalyticsAssistantPanel(props: AnalyticsAssistantPanelProps) {
         updateChatForRange(rangeKey, (current) =>
           current.map((message) =>
             message.id === assistantMessage.id
-              ? { ...message, content: assistantContent }
+              ? {
+                  ...message,
+                  content: assistantContent,
+                  updatedAt: new Date().toISOString(),
+                }
               : message,
           ),
         );

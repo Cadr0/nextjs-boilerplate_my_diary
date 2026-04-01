@@ -583,6 +583,39 @@ async function getEntryByIdWithFallback(
     .single();
 }
 
+async function getEntryByDateWithFallback(
+  supabase: SupabaseClient,
+  userId: string,
+  entryDate: string,
+) {
+  const modernOptions: EntrySelectOptions = {
+    includeSummary: true,
+    includeUpdatedAt: true,
+  };
+  const modernResult = await supabase
+    .from("daily_entries")
+    .select(buildEntrySelect(modernOptions))
+    .eq("user_id", userId)
+    .eq("entry_date", entryDate)
+    .maybeSingle();
+
+  if (!modernResult.error || !supportsLegacyEntries(modernResult.error)) {
+    return modernResult;
+  }
+
+  return supabase
+    .from("daily_entries")
+    .select(
+      buildEntrySelect({
+        includeSummary: !isMissingColumn(modernResult.error, "daily_entries", "summary"),
+        includeUpdatedAt: !isMissingColumn(modernResult.error, "daily_entries", "updated_at"),
+      }),
+    )
+    .eq("user_id", userId)
+    .eq("entry_date", entryDate)
+    .maybeSingle();
+}
+
 async function listMemoryItemsForEntryIdsSafe(
   supabase: SupabaseClient,
   userId: string,
@@ -1007,6 +1040,52 @@ function sortDefinitions(definitions: MetricDefinition[]) {
     );
 }
 
+function getMetricDefinitionRevision(definition: MetricDefinition) {
+  return definition.updatedAt ?? definition.createdAt ?? "";
+}
+
+function mergeMetricDefinitionsForSave(
+  currentDefinitions: MetricDefinition[],
+  incomingDefinitions: MetricDefinition[],
+) {
+  const merged = new Map<string, MetricDefinition>();
+
+  for (const definition of currentDefinitions.map(sanitizeMetricDefinition)) {
+    merged.set(definition.id, definition);
+  }
+
+  for (const definition of incomingDefinitions.map(sanitizeMetricDefinition)) {
+    const existing = merged.get(definition.id);
+
+    if (
+      !existing ||
+      getMetricDefinitionRevision(definition) >= getMetricDefinitionRevision(existing)
+    ) {
+      merged.set(definition.id, definition);
+    }
+  }
+
+  return sortDefinitions([...merged.values()]);
+}
+
+function isStaleDiaryWrite(
+  existingEntry: DailyEntryRow | null,
+  clientUpdatedAt?: string,
+) {
+  if (!existingEntry?.updated_at || typeof clientUpdatedAt !== "string") {
+    return false;
+  }
+
+  const clientRevision = Date.parse(clientUpdatedAt);
+  const serverRevision = Date.parse(existingEntry.updated_at);
+
+  if (!Number.isFinite(clientRevision) || !Number.isFinite(serverRevision)) {
+    return false;
+  }
+
+  return clientRevision < serverRevision;
+}
+
 function createMetricValueRows(
   userId: string,
   entryId: string,
@@ -1211,7 +1290,34 @@ export async function getWorkspaceBootstrap(limit = 90) {
 export async function saveDiaryEntry(input: DiaryEntryInput) {
   const user = await requireUser();
   const supabase = await createClient();
-  const metricDefinitions = sortDefinitions(input.metric_definitions);
+  const [currentDefinitionsResult, existingEntryResult] = await Promise.all([
+    listMetricDefinitionsWithFallback(supabase, user.id),
+    getEntryByDateWithFallback(supabase, user.id, input.entry_date),
+  ]);
+
+  if (currentDefinitionsResult.error) {
+    throw new Error(mapDiaryError(currentDefinitionsResult.error));
+  }
+
+  if (existingEntryResult.error) {
+    throw new Error(mapDiaryError(existingEntryResult.error));
+  }
+
+  const existingEntry = (existingEntryResult.data ?? null) as DailyEntryRow | null;
+
+  if (isStaleDiaryWrite(existingEntry, input.client_updated_at)) {
+    throw new Error(
+      "This day was changed on another device. The latest server version has priority; reload and apply your change again.",
+    );
+  }
+
+  const metricDefinitions = mergeMetricDefinitionsForSave(
+    ((currentDefinitionsResult.data ?? []) as unknown as MetricDefinitionRow[]).map(
+      mapMetricDefinition,
+    ),
+    input.metric_definitions,
+  );
+  const entryMetricDefinitionIds = new Set(input.metric_definitions.map((metric) => metric.id));
 
   const definitionRows = metricDefinitions.map((metric, index) => ({
     id: metric.id,
@@ -1250,6 +1356,16 @@ export async function saveDiaryEntry(input: DiaryEntryInput) {
   }
 
   const entry = entryResult.data as unknown as DailyEntryRow;
+  const currentValueResult = await supabase
+    .from("daily_entry_metric_values")
+    .select(entryMetricSelect)
+    .eq("user_id", user.id)
+    .eq("entry_id", entry.id)
+    .order("sort_order_snapshot", { ascending: true });
+
+  if (currentValueResult.error) {
+    throw new Error(mapDiaryError(currentValueResult.error));
+  }
 
   const deleteValuesResult = await supabase
     .from("daily_entry_metric_values")
@@ -1264,14 +1380,31 @@ export async function saveDiaryEntry(input: DiaryEntryInput) {
   const valueRows = createMetricValueRows(
     user.id,
     entry.id,
-    metricDefinitions,
+    metricDefinitions.filter((metric) => entryMetricDefinitionIds.has(metric.id)),
     input.metric_values,
   );
+  const preservedMetricValues = ((currentValueResult.data ?? []) as unknown as EntryMetricValueRow[])
+    .filter((row) => !entryMetricDefinitionIds.has(row.metric_definition_id))
+    .reduce<Record<string, MetricValue>>((result, row) => {
+      result[row.metric_definition_id] = resolveMetricValue(row);
+      return result;
+    }, {});
+  const preservedValueRows = createMetricValueRows(
+    user.id,
+    entry.id,
+    metricDefinitions.filter(
+      (metric) =>
+        !entryMetricDefinitionIds.has(metric.id) &&
+        preservedMetricValues[metric.id] !== undefined,
+    ),
+    preservedMetricValues,
+  );
+  const allValueRows = [...valueRows, ...preservedValueRows];
 
-  if (valueRows.length > 0) {
+  if (allValueRows.length > 0) {
     const insertValuesResult = await supabase
       .from("daily_entry_metric_values")
-      .insert(valueRows);
+      .insert(allValueRows);
 
     if (insertValuesResult.error) {
       throw new Error(mapDiaryError(insertValuesResult.error));
@@ -1286,7 +1419,7 @@ export async function saveDiaryEntry(input: DiaryEntryInput) {
   return {
     entry: mapEntry(
       entry,
-      valueRows.map((row) => ({
+      allValueRows.map((row) => ({
         entry_id: row.entry_id,
         metric_definition_id: row.metric_definition_id,
         value_number: row.value_number,

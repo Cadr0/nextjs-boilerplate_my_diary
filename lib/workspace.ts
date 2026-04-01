@@ -32,6 +32,7 @@ export type DiaryEntryInput = {
   notes: string;
   metric_definitions: MetricDefinition[];
   metric_values: Record<string, MetricValue>;
+  client_updated_at?: string;
 };
 
 export type MetricDefinition = {
@@ -77,6 +78,8 @@ export type WorkspaceDraft = {
   summary: string;
   notes: string;
   metricValues: Record<string, MetricValue>;
+  updatedAt: string;
+  serverUpdatedAt: string | null;
 };
 
 export type WorkoutSet = {
@@ -142,6 +145,7 @@ export type TaskItem = {
   originDate: string;
   completedAt: string | null;
   carryCount: number;
+  updatedAt: string;
 };
 
 export type WorkspaceReminderKind = "sleep";
@@ -153,8 +157,23 @@ export type WorkspaceReminder = {
   body: string;
   scheduledAt: string;
   createdAt: string;
+  updatedAt: string;
   sourceDate: string;
   status: "pending" | "sent";
+};
+
+export type WorkspaceChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PeriodAnalysisSnapshot = {
+  analysisText: string;
+  followUpCandidates: string[];
+  updatedAt: string;
 };
 
 export type WorkspaceProfile = {
@@ -183,7 +202,23 @@ export type PersistedWorkspaceState = {
   reminders: WorkspaceReminder[];
   metricDefinitions: MetricDefinition[];
   profile: WorkspaceProfile;
+  diaryChats: Record<string, WorkspaceChatMessage[]>;
+  analyticsChats: Record<string, WorkspaceChatMessage[]>;
+  workoutChats: Record<string, WorkspaceChatMessage[]>;
+  periodAnalyses: Record<string, PeriodAnalysisSnapshot>;
 };
+
+export type WorkspaceSyncState = Pick<
+  PersistedWorkspaceState,
+  | "workouts"
+  | "workoutRoutines"
+  | "tasks"
+  | "reminders"
+  | "diaryChats"
+  | "analyticsChats"
+  | "workoutChats"
+  | "periodAnalyses"
+>;
 
 type MetricTypeOption = {
   value: MetricInputType;
@@ -790,6 +825,7 @@ export function createMetricFromTemplate(
   idSeed?: string,
 ) {
   const template = getMetricTemplateById(templateId) ?? metricTemplateLibrary[0];
+  const timestamp = new Date().toISOString();
 
   return sanitizeMetricDefinition({
     id: idSeed ? `metric-${idSeed}-${template.id}` : generateId("metric"),
@@ -809,10 +845,14 @@ export function createMetricFromTemplate(
     showInAnalytics: template.showInAnalytics,
     isActive: true,
     carryForward: false,
+    createdAt: idSeed ? undefined : timestamp,
+    updatedAt: idSeed ? undefined : timestamp,
   });
 }
 
 export function createBlankMetric(sortOrder: number) {
+  const timestamp = new Date().toISOString();
+
   return sanitizeMetricDefinition({
     id: generateId("metric"),
     slug: slugify("Новая метрика"),
@@ -831,6 +871,8 @@ export function createBlankMetric(sortOrder: number) {
     showInAnalytics: true,
     isActive: true,
     carryForward: false,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   });
 }
 
@@ -857,11 +899,15 @@ export function createDraftFromEntry(
   metricDefinitions: MetricDefinition[],
   date = entry?.entry_date ?? getTodayIsoDate(),
 ): WorkspaceDraft {
+  const draftTimestamp = entry?.updated_at ?? new Date().toISOString();
+
   return {
     date,
     summary: entry?.summary ?? "",
     notes: entry?.notes ?? "",
     metricValues: buildMetricValueMap(metricDefinitions, entry?.metric_values),
+    updatedAt: draftTimestamp,
+    serverUpdatedAt: entry?.updated_at ?? null,
   };
 }
 
@@ -900,6 +946,10 @@ export function createDefaultWorkspaceState(
       ...defaultProfile,
       ...profileOverrides,
     },
+    diaryChats: {},
+    analyticsChats: {},
+    workoutChats: {},
+    periodAnalyses: {},
   };
 }
 
@@ -996,6 +1046,7 @@ export function buildServerPayload(
     notes: draft.notes,
     metric_definitions: sortedMetricDefinitions,
     metric_values: metricValues,
+    client_updated_at: draft.updatedAt,
   };
 }
 

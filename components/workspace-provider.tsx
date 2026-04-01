@@ -15,11 +15,13 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { AuthAccountInfo } from "@/lib/auth";
 import type { DiaryExtractionResult } from "@/lib/ai/contracts";
 import { buildWorkoutDateSummaries } from "@/lib/ai/workouts/buildWorkoutDateSummaries";
+import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   DiaryEntry,
   MetricDefinition,
   MetricTemplate,
   MetricValue,
+  PeriodAnalysisSnapshot,
   PersistedWorkspaceState,
   SaveState,
   TaskItem,
@@ -27,9 +29,11 @@ import type {
   WorkoutRoutine,
   WorkoutSession,
   WorkoutSet,
+  WorkspaceChatMessage,
   WorkspaceDraft,
   WorkspaceProfile,
   WorkspaceReminder,
+  WorkspaceSyncState,
 } from "@/lib/workspace";
 import {
   WORKSPACE_STORAGE_KEY,
@@ -57,6 +61,11 @@ import {
   serializeServerPayload,
   shiftIsoDate,
 } from "@/lib/workspace";
+import {
+  emptyWorkspaceSyncState,
+  mergeWorkspaceSyncState,
+  pickWorkspaceSyncState,
+} from "@/lib/workspace-sync";
 
 type WorkspaceDay = {
   date: string;
@@ -203,6 +212,26 @@ type WorkspaceContextValue = {
     field: K,
     value: WorkspaceProfile[K],
   ) => void;
+  diaryChats: Record<string, WorkspaceChatMessage[]>;
+  analyticsChats: Record<string, WorkspaceChatMessage[]>;
+  workoutChats: Record<string, WorkspaceChatMessage[]>;
+  periodAnalyses: Record<string, PeriodAnalysisSnapshot>;
+  updateDiaryChatThread: (
+    date: string,
+    updater: (messages: WorkspaceChatMessage[]) => WorkspaceChatMessage[],
+  ) => void;
+  updateAnalyticsChatThread: (
+    rangeKey: string,
+    updater: (messages: WorkspaceChatMessage[]) => WorkspaceChatMessage[],
+  ) => void;
+  updateWorkoutChatThread: (
+    date: string,
+    updater: (messages: WorkspaceChatMessage[]) => WorkspaceChatMessage[],
+  ) => void;
+  setPeriodAnalysis: (
+    rangeKey: string,
+    snapshot: PeriodAnalysisSnapshot | null,
+  ) => void;
   days: WorkspaceDay[];
   serverEntries: DiaryEntry[];
 };
@@ -219,6 +248,7 @@ type WorkspaceProviderProps = {
   accountEmail?: string | null;
   accountInfo?: AuthAccountInfo | null;
   initialProfile?: Partial<WorkspaceProfile>;
+  initialWorkspaceSyncState: WorkspaceSyncState;
 };
 
 type SaveResponse =
@@ -233,6 +263,34 @@ type SaveResponse =
 type MemorySyncResponse =
   | {
       entry: DiaryEntry;
+    }
+  | {
+      error: string;
+    };
+
+type WorkspaceBootstrapResponse =
+  | {
+      entries: DiaryEntry[];
+      metricDefinitions: MetricDefinition[];
+      profile: WorkspaceProfile;
+      workspaceSync: WorkspaceSyncState;
+      error: string | null;
+    }
+  | {
+      error: string;
+    };
+
+type WorkspaceProfileResponse =
+  | {
+      profile: WorkspaceProfile;
+    }
+  | {
+      error: string;
+    };
+
+type WorkspaceSyncResponse =
+  | {
+      state: WorkspaceSyncState;
     }
   | {
       error: string;
@@ -263,51 +321,182 @@ function buildMemoryDraftFingerprint(summary: string, notes: string) {
   });
 }
 
+function isIsoTimestamp(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
+function mergeMetricDefinitions(
+  baseDefinitions: MetricDefinition[],
+  persistedDefinitions: MetricDefinition[],
+) {
+  const merged = new Map<string, MetricDefinition>();
+
+  for (const definition of baseDefinitions) {
+    merged.set(definition.id, sanitizeMetricDefinition(definition));
+  }
+
+  for (const definition of persistedDefinitions.map(sanitizeMetricDefinition)) {
+    const existing = merged.get(definition.id);
+    const incomingUpdatedAt = definition.updatedAt ?? definition.createdAt ?? "";
+    const existingUpdatedAt = existing?.updatedAt ?? existing?.createdAt ?? "";
+
+    if (!existing || incomingUpdatedAt >= existingUpdatedAt) {
+      merged.set(definition.id, definition);
+    }
+  }
+
+  return [...merged.values()].sort(
+    (left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name),
+  );
+}
+
+function normalizeDraft(
+  candidate: Partial<WorkspaceDraft> | undefined,
+  fallback: WorkspaceDraft,
+) {
+  const serverUpdatedAt =
+    typeof candidate?.serverUpdatedAt === "string"
+      ? candidate.serverUpdatedAt
+      : fallback.serverUpdatedAt;
+  const updatedAt = isIsoTimestamp(candidate?.updatedAt)
+    ? new Date(candidate.updatedAt).toISOString()
+    : serverUpdatedAt ?? fallback.updatedAt;
+
+  return {
+    date: typeof candidate?.date === "string" ? candidate.date : fallback.date,
+    summary: typeof candidate?.summary === "string" ? candidate.summary : fallback.summary,
+    notes: typeof candidate?.notes === "string" ? candidate.notes : fallback.notes,
+    metricValues:
+      candidate?.metricValues && typeof candidate.metricValues === "object"
+        ? candidate.metricValues
+        : fallback.metricValues,
+    updatedAt,
+    serverUpdatedAt,
+  } satisfies WorkspaceDraft;
+}
+
+function mergeDraftMaps(
+  baseDrafts: Record<string, WorkspaceDraft>,
+  persistedDrafts: Record<string, WorkspaceDraft>,
+) {
+  const merged: Record<string, WorkspaceDraft> = {};
+  const allDates = new Set([...Object.keys(baseDrafts), ...Object.keys(persistedDrafts)]);
+
+  for (const date of allDates) {
+    const baseDraft = baseDrafts[date];
+    const persistedDraft = persistedDrafts[date];
+
+    if (!baseDraft && persistedDraft) {
+      merged[date] = normalizeDraft(persistedDraft, {
+        date,
+        summary: "",
+        notes: "",
+        metricValues: persistedDraft.metricValues ?? {},
+        updatedAt:
+          persistedDraft.updatedAt ??
+          persistedDraft.serverUpdatedAt ??
+          new Date().toISOString(),
+        serverUpdatedAt: persistedDraft.serverUpdatedAt ?? null,
+      });
+      continue;
+    }
+
+    if (!baseDraft) {
+      continue;
+    }
+
+    if (!persistedDraft) {
+      merged[date] = baseDraft;
+      continue;
+    }
+
+    const normalizedPersisted = normalizeDraft(persistedDraft, baseDraft);
+    const baseRevision = baseDraft.serverUpdatedAt ?? baseDraft.updatedAt;
+
+    merged[date] =
+      normalizedPersisted.updatedAt > baseRevision ? normalizedPersisted : baseDraft;
+  }
+
+  return merged;
+}
+
+function serializeProfileState(profile: WorkspaceProfile) {
+  return JSON.stringify(profile);
+}
+
+function serializeWorkspaceSyncState(state: WorkspaceSyncState) {
+  return JSON.stringify(state);
+}
+
 function mergeWorkspaceState(
   baseState: PersistedWorkspaceState,
   persistedState: PersistedWorkspaceState,
+  canPersistToServer: boolean,
 ) {
+  const mergedSyncState = mergeWorkspaceSyncState(
+    pickWorkspaceSyncState(baseState),
+    pickWorkspaceSyncState(persistedState),
+  );
+
   return {
     version: WORKSPACE_STORAGE_VERSION,
-    drafts: {
-      ...persistedState.drafts,
-      ...baseState.drafts,
-    },
-    workouts:
-      Array.isArray(persistedState.workouts) && persistedState.workouts.length > 0
-        ? sortWorkoutSessions(
-            persistedState.workouts
-              .map((session) => sanitizeWorkoutSession(session))
-              .filter((session): session is WorkoutSession => session !== null),
-          )
-        : baseState.workouts,
-    workoutRoutines:
-      Array.isArray(persistedState.workoutRoutines) && persistedState.workoutRoutines.length > 0
-        ? sortWorkoutRoutines(
-            persistedState.workoutRoutines
-              .map((routine) => sanitizeWorkoutRoutine(routine))
-              .filter((routine): routine is WorkoutRoutine => routine !== null),
-          )
-        : baseState.workoutRoutines,
-    tasks: Array.isArray(persistedState.tasks) ? persistedState.tasks : baseState.tasks,
-    reminders:
-      Array.isArray(persistedState.reminders) && persistedState.reminders.length > 0
-        ? persistedState.reminders
-            .map((reminder) => sanitizeReminder(reminder))
-            .filter((reminder): reminder is WorkspaceReminder => reminder !== null)
-        : baseState.reminders,
-    metricDefinitions:
-      Array.isArray(persistedState.metricDefinitions) &&
-      persistedState.metricDefinitions.length > 0
-        ? persistedState.metricDefinitions.map(sanitizeMetricDefinition)
-        : baseState.metricDefinitions,
+    drafts: mergeDraftMaps(baseState.drafts, persistedState.drafts),
+    workouts: mergedSyncState.workouts,
+    workoutRoutines: mergedSyncState.workoutRoutines,
+    tasks: mergedSyncState.tasks,
+    reminders: mergedSyncState.reminders,
+    metricDefinitions: mergeMetricDefinitions(
+      baseState.metricDefinitions,
+      Array.isArray(persistedState.metricDefinitions)
+        ? persistedState.metricDefinitions
+        : [],
+    ),
     profile: persistedState.profile
       ? {
           ...baseState.profile,
           ...persistedState.profile,
         }
       : baseState.profile,
+    diaryChats: canPersistToServer ? mergedSyncState.diaryChats : persistedState.diaryChats ?? {},
+    analyticsChats: canPersistToServer
+      ? mergedSyncState.analyticsChats
+      : persistedState.analyticsChats ?? {},
+    workoutChats: canPersistToServer
+      ? mergedSyncState.workoutChats
+      : persistedState.workoutChats ?? {},
+    periodAnalyses: canPersistToServer
+      ? mergedSyncState.periodAnalyses
+      : persistedState.periodAnalyses ?? {},
   } satisfies PersistedWorkspaceState;
+}
+
+function buildWorkspaceStateFromSnapshot(args: {
+  entries: DiaryEntry[];
+  metricDefinitions: MetricDefinition[];
+  profile: Partial<WorkspaceProfile> | undefined;
+  workspaceSync: WorkspaceSyncState;
+  idSeed: string;
+  canPersistToServer: boolean;
+}) {
+  const baseState = createDefaultWorkspaceState(
+    args.entries,
+    args.metricDefinitions,
+    args.profile,
+    args.idSeed,
+  );
+
+  return mergeWorkspaceState(
+    baseState,
+    {
+      ...baseState,
+      profile: {
+        ...baseState.profile,
+        ...args.profile,
+      },
+      ...mergeWorkspaceSyncState(emptyWorkspaceSyncState, args.workspaceSync),
+    },
+    args.canPersistToServer,
+  );
 }
 
 function sortEntries(entries: DiaryEntry[]) {
@@ -389,200 +578,6 @@ function buildDraftForDate(
   };
 }
 
-function sanitizeReminder(value: unknown): WorkspaceReminder | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as Partial<WorkspaceReminder>;
-
-  if (
-    typeof candidate.id !== "string" ||
-    candidate.kind !== "sleep" ||
-    typeof candidate.title !== "string" ||
-    typeof candidate.body !== "string" ||
-    typeof candidate.scheduledAt !== "string" ||
-    typeof candidate.createdAt !== "string" ||
-    typeof candidate.sourceDate !== "string"
-  ) {
-    return null;
-  }
-
-  const scheduledAt = Date.parse(candidate.scheduledAt);
-  const createdAt = Date.parse(candidate.createdAt);
-
-  if (!Number.isFinite(scheduledAt) || !Number.isFinite(createdAt)) {
-    return null;
-  }
-
-  return {
-    id: candidate.id,
-    kind: "sleep",
-    title: candidate.title.trim() || "Diary AI",
-    body: candidate.body.trim() || "Пора готовиться ко сну.",
-    scheduledAt: new Date(scheduledAt).toISOString(),
-    createdAt: new Date(createdAt).toISOString(),
-    sourceDate: candidate.sourceDate,
-    status: candidate.status === "sent" ? "sent" : "pending",
-  };
-}
-
-function sanitizeWorkoutSet(value: unknown): WorkoutSet | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as Partial<WorkoutSet>;
-
-  if (typeof candidate.id !== "string") {
-    return null;
-  }
-
-  return {
-    id: candidate.id,
-    load: typeof candidate.load === "string" ? candidate.load : "",
-    reps: typeof candidate.reps === "string" ? candidate.reps : "",
-    note: typeof candidate.note === "string" ? candidate.note : "",
-    completedAt:
-      typeof candidate.completedAt === "string" && Number.isFinite(Date.parse(candidate.completedAt))
-        ? new Date(candidate.completedAt).toISOString()
-        : null,
-  };
-}
-
-function sanitizeWorkoutExercise(value: unknown): WorkoutExercise | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as Partial<WorkoutExercise>;
-
-  if (typeof candidate.id !== "string" || typeof candidate.name !== "string") {
-    return null;
-  }
-
-  const sets = Array.isArray(candidate.sets)
-    ? candidate.sets
-        .map((set) => sanitizeWorkoutSet(set))
-        .filter((set): set is WorkoutSet => set !== null)
-    : [];
-
-  return {
-    id: candidate.id,
-    name: candidate.name.trim() || "Новое упражнение",
-    note: typeof candidate.note === "string" ? candidate.note : "",
-    sets: sets.length > 0 ? sets : [createWorkoutSet()],
-    completedAt:
-      typeof candidate.completedAt === "string" && Number.isFinite(Date.parse(candidate.completedAt))
-        ? new Date(candidate.completedAt).toISOString()
-        : null,
-  };
-}
-
-function sanitizeWorkoutSession(value: unknown): WorkoutSession | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as Partial<WorkoutSession>;
-
-  if (
-    typeof candidate.id !== "string" ||
-    typeof candidate.date !== "string" ||
-    typeof candidate.createdAt !== "string" ||
-    typeof candidate.updatedAt !== "string"
-  ) {
-    return null;
-  }
-
-  const createdAt = Date.parse(candidate.createdAt);
-  const updatedAt = Date.parse(candidate.updatedAt);
-
-  if (!Number.isFinite(createdAt) || !Number.isFinite(updatedAt)) {
-    return null;
-  }
-
-  return {
-    id: candidate.id,
-    date: candidate.date,
-    title:
-      typeof candidate.title === "string" && candidate.title.trim().length > 0
-        ? candidate.title.trim()
-        : "Силовая тренировка",
-    focus: typeof candidate.focus === "string" ? candidate.focus : "",
-    exercises: Array.isArray(candidate.exercises)
-      ? candidate.exercises
-          .map((exercise) => sanitizeWorkoutExercise(exercise))
-          .filter((exercise): exercise is WorkoutExercise => exercise !== null)
-      : [],
-    routineId: typeof candidate.routineId === "string" ? candidate.routineId : null,
-    startedAt:
-      typeof candidate.startedAt === "string" && Number.isFinite(Date.parse(candidate.startedAt))
-        ? new Date(candidate.startedAt).toISOString()
-        : new Date(createdAt).toISOString(),
-    completedAt:
-      typeof candidate.completedAt === "string" && Number.isFinite(Date.parse(candidate.completedAt))
-        ? new Date(candidate.completedAt).toISOString()
-        : null,
-    createdAt: new Date(createdAt).toISOString(),
-    updatedAt: new Date(updatedAt).toISOString(),
-  };
-}
-
-function sanitizeWorkoutRoutine(value: unknown): WorkoutRoutine | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as Partial<WorkoutRoutine>;
-
-  if (
-    typeof candidate.id !== "string" ||
-    typeof candidate.name !== "string" ||
-    typeof candidate.createdAt !== "string" ||
-    typeof candidate.updatedAt !== "string"
-  ) {
-    return null;
-  }
-
-  const createdAt = Date.parse(candidate.createdAt);
-  const updatedAt = Date.parse(candidate.updatedAt);
-
-  if (!Number.isFinite(createdAt) || !Number.isFinite(updatedAt)) {
-    return null;
-  }
-
-  const exercises = Array.isArray(candidate.exercises)
-    ? candidate.exercises
-        .map((exercise) => sanitizeWorkoutExercise(exercise))
-        .filter((exercise): exercise is WorkoutExercise => exercise !== null)
-        .map((exercise) => ({
-          id: exercise.id,
-          name: exercise.name,
-          note: exercise.note,
-          sets: exercise.sets.map((set) => ({
-            id: set.id,
-            load: set.load,
-            reps: set.reps,
-            note: set.note,
-          })),
-        }))
-    : [];
-
-  return {
-    id: candidate.id,
-    name: candidate.name.trim() || "Моя тренировка",
-    focus: typeof candidate.focus === "string" ? candidate.focus : "",
-    exercises,
-    createdAt: new Date(createdAt).toISOString(),
-    updatedAt: new Date(updatedAt).toISOString(),
-    lastUsedAt:
-      typeof candidate.lastUsedAt === "string" && Number.isFinite(Date.parse(candidate.lastUsedAt))
-        ? new Date(candidate.lastUsedAt).toISOString()
-        : null,
-  };
-}
-
 function sortWorkoutSessions(sessions: WorkoutSession[]) {
   return [...sessions].sort((left, right) => {
     if (left.date === right.date) {
@@ -590,6 +585,20 @@ function sortWorkoutSessions(sessions: WorkoutSession[]) {
     }
 
     return right.date.localeCompare(left.date);
+  });
+}
+
+function sortWorkspaceChatMessages(messages: WorkspaceChatMessage[]) {
+  return [...messages].sort((left, right) => {
+    if (left.createdAt === right.createdAt) {
+      if (left.updatedAt === right.updatedAt) {
+        return left.id.localeCompare(right.id);
+      }
+
+      return left.updatedAt.localeCompare(right.updatedAt);
+    }
+
+    return left.createdAt.localeCompare(right.createdAt);
   });
 }
 
@@ -616,19 +625,23 @@ export function WorkspaceProvider({
   accountEmail = null,
   accountInfo = null,
   initialProfile,
+  initialWorkspaceSyncState,
 }: WorkspaceProviderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get("date") ?? getTodayIsoDate();
+  const canPersistToServer = isConfigured && !initialError;
 
   const initialStateRef = useRef(
-    createDefaultWorkspaceState(
-      initialEntries,
-      initialMetricDefinitions,
-      initialProfile,
-      initialIdSeed,
-    ),
+    buildWorkspaceStateFromSnapshot({
+      entries: initialEntries,
+      metricDefinitions: initialMetricDefinitions,
+      profile: initialProfile,
+      workspaceSync: initialWorkspaceSyncState,
+      idSeed: initialIdSeed,
+      canPersistToServer,
+    }),
   );
   const [selectedDate, setSelectedDateState] = useState(requestedDate);
   const [selectedWorkoutSessionId, setSelectedWorkoutSessionId] = useState<string | null>(null);
@@ -642,11 +655,16 @@ export function WorkspaceProvider({
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const lastServerRefreshRef = useRef(0);
-  const canPersistToServer = isConfigured && !initialError;
+  const refreshTimeoutRef = useRef<number | null>(null);
+  const bootstrapAbortRef = useRef<AbortController | null>(null);
   const storageKey = accountInfo?.userId
     ? `${WORKSPACE_STORAGE_KEY}:${accountInfo.userId}`
     : WORKSPACE_STORAGE_KEY;
   const microphoneMigrationKey = `${storageKey}:microphone-enabled-default-v1`;
+  const supabase = useMemo(
+    () => (canPersistToServer ? createSupabaseBrowserClient() : null),
+    [canPersistToServer],
+  );
 
   const savedFingerprints = useRef<Record<string, string>>(
     Object.fromEntries(
@@ -660,6 +678,12 @@ export function WorkspaceProvider({
       ]),
     ),
   );
+  const savedProfileFingerprint = useRef(
+    serializeProfileState(initialStateRef.current.profile),
+  );
+  const savedWorkspaceSyncFingerprint = useRef(
+    serializeWorkspaceSyncState(pickWorkspaceSyncState(initialStateRef.current)),
+  );
   const syncedMemoryFingerprints = useRef<Record<string, string>>(
     Object.fromEntries(
       initialEntries
@@ -671,10 +695,92 @@ export function WorkspaceProvider({
     ),
   );
   const pendingMemoryFingerprints = useRef<Record<string, string>>({});
+  const serverSnapshotState = useMemo(
+    () =>
+      buildWorkspaceStateFromSnapshot({
+        entries: initialEntries,
+        metricDefinitions: initialMetricDefinitions,
+        profile: initialProfile,
+        workspaceSync: initialWorkspaceSyncState,
+        idSeed: initialIdSeed,
+        canPersistToServer,
+      }),
+    [
+      canPersistToServer,
+      initialEntries,
+      initialIdSeed,
+      initialMetricDefinitions,
+      initialProfile,
+      initialWorkspaceSyncState,
+    ],
+  );
 
   useEffect(() => {
     setSelectedDateState(requestedDate);
   }, [requestedDate]);
+
+  const applyServerSnapshot = useEffectEvent(
+    (snapshot: {
+      entries: DiaryEntry[];
+      metricDefinitions: MetricDefinition[];
+      profile: WorkspaceProfile;
+      workspaceSync: WorkspaceSyncState;
+      error: string | null;
+    }) => {
+      const nextServerState = buildWorkspaceStateFromSnapshot({
+        entries: snapshot.entries,
+        metricDefinitions: snapshot.metricDefinitions,
+        profile: snapshot.profile,
+        workspaceSync: snapshot.workspaceSync,
+        idSeed: initialIdSeed,
+        canPersistToServer,
+      });
+
+      setServerEntries(sortEntries(snapshot.entries));
+      setWorkspaceState((current) =>
+        mergeWorkspaceState(nextServerState, current, canPersistToServer),
+      );
+      setError(isConfigured ? snapshot.error : null);
+      savedProfileFingerprint.current = serializeProfileState(nextServerState.profile);
+      savedWorkspaceSyncFingerprint.current = serializeWorkspaceSyncState(
+        pickWorkspaceSyncState(nextServerState),
+      );
+      savedFingerprints.current = {
+        ...savedFingerprints.current,
+        ...Object.fromEntries(
+          snapshot.entries.map((entry) => [
+            entry.entry_date,
+            buildEntryFingerprint(
+              entry,
+              entry.entry_date,
+              nextServerState.metricDefinitions,
+            ),
+          ]),
+        ),
+      };
+      syncedMemoryFingerprints.current = {
+        ...syncedMemoryFingerprints.current,
+        ...Object.fromEntries(
+          snapshot.entries
+            .filter((entry) => entry.memory_items.length > 0)
+            .map((entry) => [
+              entry.entry_date,
+              buildMemoryDraftFingerprint(entry.summary, entry.notes),
+            ]),
+        ),
+      };
+    },
+  );
+
+  useEffect(() => {
+    applyServerSnapshot({
+      entries: initialEntries,
+      metricDefinitions: initialMetricDefinitions,
+      profile: serverSnapshotState.profile,
+      workspaceSync: pickWorkspaceSyncState(serverSnapshotState),
+      error: initialError,
+    });
+  }, [initialEntries, initialError, initialMetricDefinitions, serverSnapshotState]);
 
   useEffect(() => {
     setIsHydrated(true);
@@ -692,11 +798,13 @@ export function WorkspaceProvider({
         return;
       }
 
-      setWorkspaceState((current) => mergeWorkspaceState(current, parsedState));
+      setWorkspaceState((current) =>
+        mergeWorkspaceState(current, parsedState, canPersistToServer),
+      );
     } catch {
       window.localStorage.removeItem(storageKey);
     }
-  }, [storageKey]);
+  }, [canPersistToServer, storageKey]);
 
   useEffect(() => {
     if (!isHydrated) {
@@ -775,6 +883,7 @@ export function WorkspaceProvider({
             ? {
                 ...reminder,
                 status: "sent",
+                updatedAt: new Date().toISOString(),
               }
             : reminder,
         ),
@@ -956,6 +1065,84 @@ export function WorkspaceProvider({
   const hasUnsavedChanges =
     canPersistToServer &&
     savedFingerprints.current[selectedDate] !== selectedPayloadFingerprint;
+  const profileFingerprint = useMemo(
+    () => serializeProfileState(workspaceState.profile),
+    [workspaceState.profile],
+  );
+  const workspaceSyncFingerprint = useMemo(
+    () =>
+      serializeWorkspaceSyncState(
+        pickWorkspaceSyncState(workspaceState),
+      ),
+    [workspaceState],
+  );
+
+  const refreshWorkspaceSnapshot = useEffectEvent(async () => {
+    if (!canPersistToServer) {
+      return;
+    }
+
+    bootstrapAbortRef.current?.abort();
+    const controller = new AbortController();
+    bootstrapAbortRef.current = controller;
+
+    try {
+      const response = await fetch("/api/workspace/bootstrap", {
+        method: "GET",
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      const result = (await response.json()) as WorkspaceBootstrapResponse;
+
+      if (!response.ok || !("entries" in result)) {
+        throw new Error(("error" in result ? result.error : null) ?? "Failed to refresh workspace.");
+      }
+
+      applyServerSnapshot({
+        entries: result.entries,
+        metricDefinitions: result.metricDefinitions,
+        profile: result.profile,
+        workspaceSync: result.workspaceSync,
+        error: result.error ?? null,
+      });
+    } catch (refreshError) {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      setError(
+        refreshError instanceof Error
+          ? refreshError.message
+          : "РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±РЅРѕРІРёС‚СЊ СЂР°Р±РѕС‡РµРµ РїСЂРѕСЃС‚СЂР°РЅСЃС‚РІРѕ.",
+      );
+    } finally {
+      if (bootstrapAbortRef.current === controller) {
+        bootstrapAbortRef.current = null;
+      }
+    }
+  });
+
+  const queueWorkspaceRefresh = useEffectEvent((delay = 250) => {
+    if (refreshTimeoutRef.current !== null) {
+      window.clearTimeout(refreshTimeoutRef.current);
+    }
+
+    refreshTimeoutRef.current = window.setTimeout(() => {
+      refreshTimeoutRef.current = null;
+      void refreshWorkspaceSnapshot();
+    }, delay);
+  });
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current !== null) {
+        window.clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
+
+      bootstrapAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     if (!canPersistToServer) {
@@ -978,7 +1165,7 @@ export function WorkspaceProvider({
       }
 
       lastServerRefreshRef.current = now;
-      router.refresh();
+      queueWorkspaceRefresh(0);
     };
 
     const handleVisibilityChange = () => {
@@ -994,7 +1181,63 @@ export function WorkspaceProvider({
       window.removeEventListener("focus", refreshFromServer);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [canPersistToServer, hasUnsavedChanges, router, saveState]);
+  }, [canPersistToServer, hasUnsavedChanges, saveState]);
+
+  useEffect(() => {
+    if (!supabase || !accountInfo?.userId) {
+      return;
+    }
+
+    const scheduleRefresh = () => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+
+      queueWorkspaceRefresh(150);
+    };
+    const tables = [
+      "daily_entries",
+      "metric_definitions",
+      "daily_entry_metric_values",
+      "memory_items",
+      "profiles",
+      "workspace_sync_state",
+    ];
+    const channel = tables.reduce(
+      (currentChannel, table) =>
+        currentChannel.on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table,
+            filter: `user_id=eq.${accountInfo.userId}`,
+          },
+          scheduleRefresh,
+        ),
+      supabase.channel(`workspace-sync:${accountInfo.userId}`),
+    );
+
+    channel.subscribe();
+
+    return () => {
+      if (refreshTimeoutRef.current !== null) {
+        window.clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
+
+      bootstrapAbortRef.current?.abort();
+      void supabase.removeChannel(channel);
+    };
+  }, [accountInfo?.userId, supabase]);
+
+  useEffect(() => {
+    if (!error?.includes("another device")) {
+      return;
+    }
+
+    queueWorkspaceRefresh(0);
+  }, [error]);
 
   const saveSelectedPayload = async (
     payloadFingerprint: string,
@@ -1023,9 +1266,10 @@ export function WorkspaceProvider({
       const result = (await response.json()) as SaveResponse;
 
       if (!response.ok || !("entry" in result)) {
-        throw new Error("error" in result ? result.error : "Не удалось сохранить запись.");
+        throw new Error(("error" in result ? result.error : null) ?? "Failed to refresh workspace.");
       }
 
+      const nextMetricDefinitions = result.metricDefinitions.map(sanitizeMetricDefinition);
       savedFingerprints.current[payload.entry_date] = payloadFingerprint;
       setServerEntries((current) =>
         sortEntries([
@@ -1035,7 +1279,15 @@ export function WorkspaceProvider({
       );
       setWorkspaceState((current) => ({
         ...current,
-        metricDefinitions: result.metricDefinitions.map(sanitizeMetricDefinition),
+        metricDefinitions: nextMetricDefinitions,
+        drafts: {
+          ...current.drafts,
+          [payload.entry_date]: createDraftFromEntry(
+            result.entry,
+            nextMetricDefinitions,
+            payload.entry_date,
+          ),
+        },
       }));
       setSaveState("saved");
 
@@ -1162,6 +1414,113 @@ export function WorkspaceProvider({
     selectedPayloadFingerprint,
   ]);
 
+  const syncProfileToServer = useEffectEvent(async (profile: WorkspaceProfile) => {
+    try {
+      const sentFingerprint = serializeProfileState(profile);
+      const response = await fetch("/api/workspace/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ profile }),
+      });
+      const result = (await response.json()) as WorkspaceProfileResponse;
+
+      if (!response.ok || !("profile" in result)) {
+        throw new Error(
+          "error" in result ? result.error : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°С‚СЊ РїСЂРѕС„РёР»СЊ.",
+        );
+      }
+
+      setWorkspaceState((current) => ({
+        ...current,
+        profile:
+          serializeProfileState(current.profile) === sentFingerprint
+            ? {
+                ...current.profile,
+                ...result.profile,
+              }
+            : current.profile,
+      }));
+      savedProfileFingerprint.current = serializeProfileState(result.profile);
+    } catch (profileError) {
+      setError(
+        profileError instanceof Error
+          ? profileError.message
+          : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°С‚СЊ РїСЂРѕС„РёР»СЊ.",
+      );
+    }
+  });
+
+  useEffect(() => {
+    if (!isHydrated || !canPersistToServer) {
+      return;
+    }
+
+    if (profileFingerprint === savedProfileFingerprint.current) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void syncProfileToServer(workspaceState.profile);
+    }, 500);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [canPersistToServer, isHydrated, profileFingerprint, workspaceState.profile]);
+
+  const syncWorkspaceStateToServer = useEffectEvent(async (state: WorkspaceSyncState) => {
+    try {
+      const response = await fetch("/api/workspace/sync", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ state }),
+      });
+      const result = (await response.json()) as WorkspaceSyncResponse;
+
+      if (!response.ok || !("state" in result)) {
+        throw new Error(
+          "error" in result
+            ? result.error
+            : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°С‚СЊ РґР°РЅРЅС‹Рµ.",
+        );
+      }
+
+      savedWorkspaceSyncFingerprint.current = serializeWorkspaceSyncState(result.state);
+      setWorkspaceState((current) => ({
+        ...current,
+        ...mergeWorkspaceSyncState(pickWorkspaceSyncState(current), result.state),
+      }));
+    } catch (workspaceSyncError) {
+      setError(
+        workspaceSyncError instanceof Error
+          ? workspaceSyncError.message
+          : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°С‚СЊ РґР°РЅРЅС‹Рµ.",
+      );
+    }
+  });
+
+  useEffect(() => {
+    if (!isHydrated || !canPersistToServer) {
+      return;
+    }
+
+    if (workspaceSyncFingerprint === savedWorkspaceSyncFingerprint.current) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void syncWorkspaceStateToServer(pickWorkspaceSyncState(workspaceState));
+    }, 800);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [canPersistToServer, isHydrated, workspaceState, workspaceSyncFingerprint]);
+
   const updateDraft = (updater: (draft: WorkspaceDraft) => WorkspaceDraft) => {
     setWorkspaceState((current) => {
       const existingDraft =
@@ -1172,12 +1531,18 @@ export function WorkspaceProvider({
           current.metricDefinitions,
           current.drafts,
         );
+      const nextDraft = updater(existingDraft);
 
       return {
         ...current,
         drafts: {
           ...current.drafts,
-          [selectedDate]: updater(existingDraft),
+          [selectedDate]: {
+            ...nextDraft,
+            date: selectedDate,
+            updatedAt: new Date().toISOString(),
+            serverUpdatedAt: nextDraft.serverUpdatedAt ?? existingDraft.serverUpdatedAt,
+          },
         },
       };
     });
@@ -1328,11 +1693,21 @@ export function WorkspaceProvider({
     });
   };
 
+  const touchMetricDefinition = (metric: MetricDefinition) => {
+    const timestamp = new Date().toISOString();
+
+    return sanitizeMetricDefinition({
+      ...metric,
+      createdAt: metric.createdAt ?? timestamp,
+      updatedAt: timestamp,
+    });
+  };
+
   const createMetric = (templateId?: string) => {
     const nextSortOrder = metricDefinitions.length;
     const metric = templateId
-      ? createMetricFromTemplate(templateId, nextSortOrder)
-      : createBlankMetric(nextSortOrder);
+      ? touchMetricDefinition(createMetricFromTemplate(templateId, nextSortOrder))
+      : touchMetricDefinition(createBlankMetric(nextSortOrder));
 
     saveMetricDefinition(metric);
 
@@ -1343,10 +1718,15 @@ export function WorkspaceProvider({
     setWorkspaceState((current) => ({
       ...current,
       metricDefinitions: (() => {
+        const nextTimestamp = new Date().toISOString();
         const existingIndex = current.metricDefinitions.findIndex(
           (definition) => definition.id === metric.id,
         );
-        const sanitizedMetric = sanitizeMetricDefinition(metric);
+        const sanitizedMetric = sanitizeMetricDefinition({
+          ...metric,
+          createdAt: metric.createdAt ?? nextTimestamp,
+          updatedAt: nextTimestamp,
+        });
         const nextDefinitions =
           existingIndex === -1
             ? [...current.metricDefinitions, sanitizedMetric]
@@ -1384,6 +1764,7 @@ export function WorkspaceProvider({
 
   const reorderMetric = (activeId: string, overId: string) => {
     setWorkspaceState((current) => {
+      const timestamp = new Date().toISOString();
       const activeIndex = current.metricDefinitions.findIndex(
         (metric) => metric.id === activeId,
       );
@@ -1397,20 +1778,22 @@ export function WorkspaceProvider({
       const [metric] = reordered.splice(activeIndex, 1);
       reordered.splice(overIndex, 0, metric);
 
-      return {
-        ...current,
-        metricDefinitions: reordered.map((definition, index) =>
-          sanitizeMetricDefinition({
-            ...definition,
-            sortOrder: index,
-          }),
-        ),
-      };
-    });
+        return {
+          ...current,
+          metricDefinitions: reordered.map((definition, index) =>
+            sanitizeMetricDefinition({
+              ...definition,
+              sortOrder: index,
+              updatedAt: timestamp,
+            }),
+          ),
+        };
+      });
   };
 
   const updateMetricDefinition = (metricId: string, patch: MetricDefinitionPatch) => {
     setWorkspaceState((current) => {
+      const timestamp = new Date().toISOString();
       const nextDefinitions = current.metricDefinitions.map((metric) => {
         if (metric.id !== metricId) {
           return metric;
@@ -1419,6 +1802,7 @@ export function WorkspaceProvider({
         return sanitizeMetricDefinition({
           ...metric,
           ...patch,
+          updatedAt: timestamp,
         });
       });
 
@@ -1428,6 +1812,7 @@ export function WorkspaceProvider({
           sanitizeMetricDefinition({
             ...metric,
             sortOrder: index,
+            updatedAt: metric.id === metricId ? timestamp : metric.updatedAt,
           }),
         ),
       };
@@ -1528,6 +1913,7 @@ export function WorkspaceProvider({
         "Пора готовиться ко сну: выключите экраны, завершите дела и переходите к отдыху.",
       scheduledAt: scheduledAt.toISOString(),
       createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
       sourceDate: sourceDate ?? selectedDate,
       status: "pending",
     };
@@ -2077,6 +2463,8 @@ export function WorkspaceProvider({
       return;
     }
 
+    const timestamp = new Date().toISOString();
+
     setWorkspaceState((current) => ({
       ...current,
       tasks: [
@@ -2087,6 +2475,7 @@ export function WorkspaceProvider({
           originDate: selectedDate,
           completedAt: null,
           carryCount: 0,
+          updatedAt: timestamp,
         },
         ...current.tasks,
       ],
@@ -2094,13 +2483,16 @@ export function WorkspaceProvider({
   };
 
   const toggleTask = (taskId: string) => {
+    const timestamp = new Date().toISOString();
+
     setWorkspaceState((current) => ({
       ...current,
       tasks: current.tasks.map((task) =>
         task.id === taskId
           ? {
               ...task,
-              completedAt: task.completedAt ? null : new Date().toISOString(),
+              completedAt: task.completedAt ? null : timestamp,
+              updatedAt: timestamp,
             }
           : task,
       ),
@@ -2108,6 +2500,8 @@ export function WorkspaceProvider({
   };
 
   const moveTaskToNextDay = (taskId: string) => {
+    const timestamp = new Date().toISOString();
+
     setWorkspaceState((current) => ({
       ...current,
       tasks: current.tasks.map((task) =>
@@ -2117,6 +2511,7 @@ export function WorkspaceProvider({
               scheduledDate: shiftIsoDate(task.scheduledDate, 1),
               carryCount: task.carryCount + 1,
               completedAt: null,
+              updatedAt: timestamp,
             }
           : task,
       ),
@@ -2124,6 +2519,8 @@ export function WorkspaceProvider({
   };
 
   const moveTaskToSelectedDate = (taskId: string) => {
+    const timestamp = new Date().toISOString();
+
     setWorkspaceState((current) => ({
       ...current,
       tasks: current.tasks.map((task) =>
@@ -2133,6 +2530,7 @@ export function WorkspaceProvider({
               scheduledDate: selectedDate,
               carryCount:
                 task.scheduledDate === selectedDate ? task.carryCount : task.carryCount + 1,
+              updatedAt: timestamp,
             }
           : task,
       ),
@@ -2150,6 +2548,65 @@ export function WorkspaceProvider({
         [field]: value,
       },
     }));
+  };
+
+  const updateChatThread = (
+    field: "diaryChats" | "analyticsChats" | "workoutChats",
+    key: string,
+    updater: (messages: WorkspaceChatMessage[]) => WorkspaceChatMessage[],
+  ) => {
+    setWorkspaceState((current) => ({
+      ...current,
+      [field]: {
+        ...current[field],
+        [key]: sortWorkspaceChatMessages(updater(current[field][key] ?? [])),
+      },
+    }));
+  };
+
+  const updateDiaryChatThread = (
+    date: string,
+    updater: (messages: WorkspaceChatMessage[]) => WorkspaceChatMessage[],
+  ) => {
+    updateChatThread("diaryChats", date, updater);
+  };
+
+  const updateAnalyticsChatThread = (
+    rangeKey: string,
+    updater: (messages: WorkspaceChatMessage[]) => WorkspaceChatMessage[],
+  ) => {
+    updateChatThread("analyticsChats", rangeKey, updater);
+  };
+
+  const updateWorkoutChatThread = (
+    date: string,
+    updater: (messages: WorkspaceChatMessage[]) => WorkspaceChatMessage[],
+  ) => {
+    updateChatThread("workoutChats", date, updater);
+  };
+
+  const setPeriodAnalysis = (
+    rangeKey: string,
+    snapshot: PeriodAnalysisSnapshot | null,
+  ) => {
+    setWorkspaceState((current) => {
+      const nextPeriodAnalyses = { ...current.periodAnalyses };
+
+      if (!snapshot || !snapshot.analysisText.trim()) {
+        delete nextPeriodAnalyses[rangeKey];
+      } else {
+        nextPeriodAnalyses[rangeKey] = {
+          analysisText: snapshot.analysisText,
+          followUpCandidates: snapshot.followUpCandidates,
+          updatedAt: snapshot.updatedAt,
+        };
+      }
+
+      return {
+        ...current,
+        periodAnalyses: nextPeriodAnalyses,
+      };
+    });
   };
 
   const availableMetricTemplates = metricTemplateLibrary;
@@ -2319,6 +2776,14 @@ export function WorkspaceProvider({
     scheduleSleepReminder,
     profile: workspaceState.profile,
     updateProfile,
+    diaryChats: workspaceState.diaryChats,
+    analyticsChats: workspaceState.analyticsChats,
+    workoutChats: workspaceState.workoutChats,
+    periodAnalyses: workspaceState.periodAnalyses,
+    updateDiaryChatThread,
+    updateAnalyticsChatThread,
+    updateWorkoutChatThread,
+    setPeriodAnalysis,
     days,
     serverEntries,
   };
@@ -2335,4 +2800,6 @@ export function useWorkspace() {
 
   return value;
 }
+
+
 
