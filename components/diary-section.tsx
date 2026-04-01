@@ -16,33 +16,27 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { createPortal } from "react-dom";
 import type {
   MouseEvent as ReactMouseEvent,
-  ReactNode,
   TouchEvent as ReactTouchEvent,
 } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { DiaryAssistantPanel } from "@/components/diary-assistant-panel";
-import { AccountSecurityPanel } from "@/components/account-security-panel";
 import { DayEntryComposer } from "@/components/day-entry-composer";
-import { InstallAppButton } from "@/components/install-app-button";
-import { LogoutButton } from "@/components/logout-button";
+import { WorkspaceSectionShell } from "@/components/workspace-shell";
 import {
   WorkspaceSidebarFrame,
-  WorkspaceUserCard,
+  WorkspaceSidebarSection,
 } from "@/components/workspace-sidebar";
+import { WorkspaceUserControls } from "@/components/workspace-user-controls";
 import { useWorkspace } from "@/components/workspace-provider";
 import type {
   MetricDefinition,
   MetricTemplate,
   MetricValue,
-  WorkspaceProfile,
 } from "@/lib/workspace";
 import {
-  aiModelOptions,
   createBlankMetric,
   formatHistoryDate,
   formatHumanDate,
@@ -189,8 +183,6 @@ type MetricModalState =
     }
   | null;
 
-type SettingsTab = "general" | "profile" | "assistant" | "account";
-
 const metricIconOptions = [
   "❤️",
   "🍃",
@@ -212,25 +204,8 @@ const metricIconOptions = [
   "💼",
 ];
 
-function getProviderLabel(provider: string | undefined) {
-  if (provider === "google") {
-    return "Google";
-  }
-
-  if (provider === "email") {
-    return "Email";
-  }
-
-  return provider ?? "unknown";
-}
-
 export function DiarySection() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const {
-    accountEmail,
-    accountInfo,
     analysisError,
     archiveMetric,
     availableMetricTemplates,
@@ -238,31 +213,19 @@ export function DiarySection() {
     error,
     hasUnsavedChanges,
     metricDefinitions,
-    profile,
     reorderMetric,
     saveMetricDefinition,
     saveState,
     selectedDate,
     selectedDraft,
-    serverEntries,
     setSelectedDate,
     updateMetricValue,
-    updateProfile,
     updateSummary,
     visibleMetricDefinitions,
   } = useWorkspace();
 
   const [metricModal, setMetricModal] = useState<MetricModalState>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>("general");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [microphonePermission, setMicrophonePermission] = useState<
-    "unknown" | "prompt" | "granted" | "denied"
-  >("unknown");
-  const edgeTouchStart = useRef<number | null>(null);
-  const drawerTouchStart = useRef<number | null>(null);
-  const drawerTouchCurrent = useRef<number | null>(null);
 
   const sensors = useSensors(
     useSensor(NonInteractiveMouseSensor, {
@@ -278,10 +241,6 @@ export function DiarySection() {
     }),
   );
 
-  const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
-  const profileDisplayName =
-    [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
-  const portalTarget = typeof document === "undefined" ? null : document.body;
   const saveStatusTitle =
     saveState === "error"
       ? error ?? "Не удалось сохранить изменения."
@@ -295,7 +254,6 @@ export function DiarySection() {
 
   const closeMobileSidebar = () => {
     setIsMobileSidebarOpen(false);
-    setIsUserMenuOpen(false);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -309,7 +267,7 @@ export function DiarySection() {
   };
 
   useEffect(() => {
-    if (!isSettingsOpen && !metricModal && !isMobileSidebarOpen) {
+    if (!metricModal) {
       return;
     }
 
@@ -319,134 +277,11 @@ export function DiarySection() {
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [isMobileSidebarOpen, isSettingsOpen, metricModal]);
-
-  useEffect(() => {
-    if (
-      typeof window === "undefined" ||
-      typeof navigator === "undefined" ||
-      !("permissions" in navigator)
-    ) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const syncPermission = async () => {
-      try {
-        const status = await navigator.permissions.query({
-          name: "microphone" as PermissionName,
-        });
-
-        if (!cancelled) {
-          setMicrophonePermission(status.state);
-        }
-
-        status.onchange = () => {
-          if (!cancelled) {
-            setMicrophonePermission(status.state);
-          }
-        };
-      } catch {
-        if (!cancelled) {
-          setMicrophonePermission("unknown");
-        }
-      }
-    };
-
-    void syncPermission();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const requestMicrophonePermission = async () => {
-    if (
-      typeof navigator === "undefined" ||
-      !navigator.mediaDevices?.getUserMedia
-    ) {
-      setMicrophonePermission("unknown");
-      return false;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach((track) => track.stop());
-      setMicrophonePermission("granted");
-      return true;
-    } catch {
-      setMicrophonePermission("denied");
-      return false;
-    }
-  };
-
-  const handleMicrophoneToggle = async () => {
-    if (profile.microphoneEnabled) {
-      updateProfile("microphoneEnabled", false);
-      return;
-    }
-
-    const granted = await requestMicrophonePermission();
-    updateProfile("microphoneEnabled", granted);
-  };
+  }, [metricModal]);
 
   const goToRelativeDay = (offset: number) => {
     setSelectedDate(shiftIsoDate(selectedDate, offset));
   };
-
-  const openSettings = (tab: SettingsTab = "general") => {
-    setSettingsInitialTab(tab);
-    setIsMobileSidebarOpen(false);
-    setIsUserMenuOpen(false);
-    window.setTimeout(() => {
-      setIsSettingsOpen(true);
-    }, 0);
-  };
-
-  const closeSettings = () => {
-    setIsSettingsOpen(false);
-
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (!params.has("settings")) {
-      return;
-    }
-
-    params.delete("settings");
-    const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-    router.replace(nextUrl, {
-      scroll: false,
-    });
-  };
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const requestedTab = new URLSearchParams(window.location.search).get("settings");
-
-    if (
-      requestedTab !== "general" &&
-      requestedTab !== "profile" &&
-      requestedTab !== "assistant" &&
-      requestedTab !== "account"
-    ) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setSettingsInitialTab(requestedTab);
-      setIsSettingsOpen(true);
-      setIsMobileSidebarOpen(false);
-      setIsUserMenuOpen(false);
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, []);
 
   const sidebarContent = (
     <WorkspaceSidebarFrame
@@ -466,24 +301,13 @@ export function DiarySection() {
         ) : null
       }
       footer={
-        <WorkspaceUserCard
-          initials={initials}
-          name={profileDisplayName}
+        <WorkspaceUserControls
+          onOpenSettings={closeMobileSidebar}
           subtitle="Профиль, приложение и выход"
-          active={isUserMenuOpen}
-          onClick={() => {
-            setIsUserMenuOpen((current) => !current);
-          }}
         />
       }
     >
-      <div className="mt-4 min-h-0 flex-1 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
-        <div className="mb-2 flex items-center justify-between px-1">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-            Дни
-          </p>
-          <span className="text-xs text-[var(--muted)]">{days.length}</span>
-        </div>
+      <WorkspaceSidebarSection label="Дни" meta={days.length} className="min-h-0 flex-1">
         <div className="grid max-h-[52vh] gap-1.5 overflow-y-auto pr-1">
           {days.slice(0, 40).map((day) => (
             <button
@@ -513,57 +337,18 @@ export function DiarySection() {
             </button>
           ))}
         </div>
-      </div>
-
-      {isUserMenuOpen ? (
-        <DiaryUserMenu
-          accountEmail={accountEmail}
-          profile={profile}
-          embedded
-          onClose={() => setIsUserMenuOpen(false)}
-          onOpenSettings={openSettings}
-        />
-      ) : null}
+      </WorkspaceSidebarSection>
     </WorkspaceSidebarFrame>
   );
 
   return (
     <>
-      <div
-        className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]"
-        onTouchStart={(event) => {
-          if (window.innerWidth >= 1280 || isMobileSidebarOpen) {
-            return;
-          }
-
-          const touchX = event.touches[0]?.clientX ?? 0;
-
-          if (touchX <= 24) {
-            edgeTouchStart.current = touchX;
-          }
-        }}
-        onTouchMove={(event) => {
-          if (window.innerWidth >= 1280 || isMobileSidebarOpen || edgeTouchStart.current === null) {
-            return;
-          }
-
-          const touchX = event.touches[0]?.clientX ?? 0;
-
-          if (touchX - edgeTouchStart.current > 54) {
-            setIsMobileSidebarOpen(true);
-            edgeTouchStart.current = null;
-          }
-        }}
-        onTouchEnd={() => {
-          edgeTouchStart.current = null;
-        }}
-      >
-        <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
-          {sidebarContent}
-        </aside>
-
-        <div className="grid gap-4">
-          <div className="surface-card sticky top-3 z-20 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-[24px] px-4 py-3 xl:hidden">
+      <WorkspaceSectionShell
+        isMobileSidebarOpen={isMobileSidebarOpen}
+        onMobileSidebarOpenChange={setIsMobileSidebarOpen}
+        sidebar={sidebarContent}
+        mobileHeader={
+          <div className="surface-card sticky top-3 z-20 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-[24px] px-4 py-3">
             <div className="flex justify-start">
               <button
                 type="button"
@@ -618,6 +403,8 @@ export function DiarySection() {
               </Link>
             </div>
           </div>
+        }
+      >
 
           <div className="surface-card rounded-[28px] p-3 sm:rounded-[34px] sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -753,43 +540,7 @@ export function DiarySection() {
           </div>
 
           <DiaryAssistantPanel />
-        </div>
-      </div>
-
-      {isMobileSidebarOpen ? (
-        <div className="fixed inset-0 z-40 xl:hidden">
-          <button
-            type="button"
-            className="absolute inset-0 bg-[rgba(24,33,29,0.2)]"
-            aria-label="Закрыть боковую панель"
-            onClick={closeMobileSidebar}
-          />
-          <aside
-            className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col overflow-hidden rounded-r-[28px] p-4"
-            onTouchStart={(event) => {
-              drawerTouchStart.current = event.touches[0]?.clientX ?? null;
-              drawerTouchCurrent.current = drawerTouchStart.current;
-            }}
-            onTouchMove={(event) => {
-              drawerTouchCurrent.current = event.touches[0]?.clientX ?? null;
-            }}
-            onTouchEnd={() => {
-              if (
-                drawerTouchStart.current !== null &&
-                drawerTouchCurrent.current !== null &&
-                drawerTouchStart.current - drawerTouchCurrent.current > 54
-              ) {
-                closeMobileSidebar();
-              }
-
-              drawerTouchStart.current = null;
-              drawerTouchCurrent.current = null;
-            }}
-          >
-            <div className="min-h-0 flex-1 overflow-hidden">{sidebarContent}</div>
-          </aside>
-        </div>
-      ) : null}
+      </WorkspaceSectionShell>
 
       {metricModal ? (
         <MetricBuilderModal
@@ -811,24 +562,6 @@ export function DiarySection() {
           }}
         />
       ) : null}
-
-      {isSettingsOpen && portalTarget
-        ? createPortal(
-            <DiarySettingsModal
-              accountEmail={accountEmail}
-              accountInfo={accountInfo}
-              entryCount={serverEntries.length}
-              metricCount={metricDefinitions.length}
-              initialTab={settingsInitialTab}
-              microphonePermission={microphonePermission}
-              profile={profile}
-              onClose={closeSettings}
-              onChange={updateProfile}
-              onMicrophoneToggle={() => void handleMicrophoneToggle()}
-            />,
-            portalTarget,
-          )
-        : null}
 
     </>
   );
@@ -1604,716 +1337,6 @@ function MetricBuilderModal({
   );
 }
 
-function DiarySettingsModal({
-  accountEmail,
-  accountInfo,
-  entryCount,
-  metricCount,
-  initialTab,
-  microphonePermission,
-  profile,
-  onClose,
-  onChange,
-  onMicrophoneToggle,
-}: {
-  accountEmail: string | null;
-  accountInfo: { userId: string; email: string | null; provider: string; emailConfirmed: boolean } | null;
-  entryCount: number;
-  metricCount: number;
-  initialTab: SettingsTab;
-  microphonePermission: "unknown" | "prompt" | "granted" | "denied";
-  profile: WorkspaceProfile;
-  onClose: () => void;
-  onChange: <K extends keyof WorkspaceProfile>(field: K, value: WorkspaceProfile[K]) => void;
-  onMicrophoneToggle: () => void;
-}) {
-  const [tab, setTab] = useState<SettingsTab>(initialTab);
-  const [notificationPermission, setNotificationPermission] =
-    useState<NotificationPermission | "unsupported">(() =>
-      typeof Notification === "undefined" ? "unsupported" : Notification.permission,
-    );
-  const [notificationTestStatus, setNotificationTestStatus] = useState<{
-    tone: "success" | "error";
-    text: string;
-  } | null>(null);
-  const providerLabel = getProviderLabel(accountInfo?.provider);
-  const profileName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
-  const microphonePermissionLabel =
-    microphonePermission === "granted"
-      ? "Разрешение браузера: доступ открыт"
-      : microphonePermission === "denied"
-        ? "Разрешение браузера: доступ запрещён"
-        : microphonePermission === "prompt"
-          ? "Разрешение браузера: нужно подтверждение"
-          : "Разрешение браузера: статус недоступен";
-  const notificationPermissionLabel =
-    notificationPermission === "granted"
-      ? "Разрешение браузера: уведомления разрешены"
-      : notificationPermission === "denied"
-        ? "Разрешение браузера: уведомления запрещены"
-        : notificationPermission === "default"
-          ? "Разрешение браузера: нужно подтверждение"
-          : "Разрешение браузера: статус недоступен";
-
-  const requestNotificationPermission = async (): Promise<
-    NotificationPermission | "unsupported"
-  > => {
-    if (typeof Notification === "undefined") {
-      return "unsupported" as const;
-    }
-
-    const permission = await Notification.requestPermission();
-    setNotificationPermission(permission);
-    return permission;
-  };
-
-  const sendTestNotification = async () => {
-    if (typeof Notification === "undefined") {
-      setNotificationTestStatus({
-        tone: "error",
-        text: "Браузер не поддерживает системные уведомления.",
-      });
-      return;
-    }
-
-    if (!profile.notificationsEnabled) {
-      setNotificationTestStatus({
-        tone: "error",
-        text: "Сначала включите переключатель «Получать уведомления».",
-      });
-      return;
-    }
-
-    let permission: NotificationPermission | "unsupported" = Notification.permission;
-
-    if (permission === "default") {
-      permission = await requestNotificationPermission();
-    }
-
-    if (permission !== "granted") {
-      setNotificationTestStatus({
-        tone: "error",
-        text: "Разрешите уведомления в браузере и повторите тест.",
-      });
-      return;
-    }
-
-    try {
-      new Notification("Diary AI", {
-        body: "Тестовое уведомление: система работает корректно.",
-        tag: `diary-notification-test-${Date.now()}`,
-      });
-      setNotificationTestStatus({
-        tone: "success",
-        text: "Тест отправлен. Если карточка появилась, уведомления работают.",
-      });
-    } catch {
-      setNotificationTestStatus({
-        tone: "error",
-        text: "Не удалось показать уведомление. Проверьте настройки браузера/ОС.",
-      });
-    }
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [onClose]);
-
-  useEffect(() => {
-    setTab(initialTab);
-  }, [initialTab]);
-
-  const tabs: Array<{ id: SettingsTab; label: string }> = [
-    { id: "general", label: "Общее" },
-    { id: "profile", label: "Профиль" },
-    { id: "assistant", label: "Ассистент" },
-    { id: "account", label: "Учетная запись" },
-  ];
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(25,31,30,0.18)] px-2 py-2 sm:px-4 sm:py-6"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose();
-        }
-      }}
-    >
-      <div className="surface-card flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-[min(100vw-1rem,640px)] flex-col overflow-hidden rounded-[24px] border border-white/80 bg-[rgba(255,250,246,0.96)] shadow-[0_30px_70px_rgba(24,33,29,0.16)] sm:h-[min(90vh,760px)] sm:max-h-[90dvh] sm:max-w-5xl sm:flex-row sm:rounded-[34px]">
-        <div className="shrink-0 border-b border-[var(--border)] bg-[rgba(247,249,246,0.82)] p-3 sm:flex sm:w-[290px] sm:max-w-[290px] sm:flex-col sm:border-b-0 sm:border-r sm:p-4">
-          <div className="mb-2 flex items-center justify-between sm:mb-4 sm:block">
-            <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)] sm:hidden">
-              Настройки
-            </h2>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-xl text-[var(--foreground)] transition hover:bg-white sm:h-11 sm:w-11 sm:rounded-2xl"
-              aria-label="Закрыть настройки"
-            >
-              <CloseIcon />
-            </button>
-          </div>
-
-          <div className="flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-1 sm:gap-2 sm:overflow-visible sm:pb-0">
-            {tabs.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setTab(item.id)}
-                className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-left text-[0.76rem] leading-4 transition sm:min-w-0 sm:rounded-[18px] sm:px-4 sm:py-3 sm:text-base sm:leading-6 ${
-                  tab === item.id
-                    ? "bg-white text-[var(--foreground)] shadow-[0_10px_20px_rgba(24,33,29,0.08)]"
-                    : "text-[var(--muted)] hover:bg-white/70"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-8">
-          {tab === "general" ? (
-            <div className="grid min-h-full content-start gap-3 sm:gap-6">
-              <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">
-                Общее
-              </h2>
-              <SettingsRow
-                label="Язык"
-                hint="Влияет на подписи интерфейса и сообщения ассистента."
-                control={
-                  <select
-                    value={profile.locale}
-                    onChange={(event) => onChange("locale", event.target.value)}
-                    className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
-                  >
-                    <option value="ru-RU">Русский</option>
-                    <option value="en-US">English</option>
-                  </select>
-                }
-              />
-              <SettingsRow
-                label="Часовой пояс"
-                hint="Нужен для корректного времени в уведомлениях и анализе дня."
-                control={
-                  <input
-                    value={profile.timezone}
-                    onChange={(event) => onChange("timezone", event.target.value)}
-                    className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
-                  />
-                }
-              />
-              <SettingsRow
-                label="Компактные метрики"
-                hint="Уменьшает размер карточек метрик в дневнике."
-                control={
-                  <ToggleSwitch
-                    active={profile.compactMetrics}
-                    onToggle={() => onChange("compactMetrics", !profile.compactMetrics)}
-                  />
-                }
-              />
-              <SettingsRow
-                label="Доступ к микрофону"
-                hint="Разрешает голосовой ввод для заполнения текста и метрик."
-                control={
-                  <div className="grid w-full gap-1.5 text-left sm:justify-items-end sm:gap-2 sm:text-right">
-                    <ToggleSwitch
-                      active={profile.microphoneEnabled}
-                      onToggle={onMicrophoneToggle}
-                    />
-                    <span className="w-full text-[10px] leading-3.5 text-[var(--muted)] sm:max-w-[220px] sm:text-xs">
-                      {microphonePermissionLabel}
-                    </span>
-                  </div>
-                }
-              />
-              <SettingsRow
-                label="Получать уведомления"
-                hint="Включает умные напоминания и системные уведомления."
-                control={
-                  <ToggleSwitch
-                    active={profile.notificationsEnabled}
-                    onToggle={() =>
-                      onChange("notificationsEnabled", !profile.notificationsEnabled)
-                    }
-                  />
-                }
-              />
-              <SettingsRow
-                label="Разрешение уведомлений"
-                hint="Запрашивает доступ браузера и проверяет доставку тестового уведомления."
-                control={
-                  <div className="grid w-full gap-1.5 text-left sm:justify-items-end sm:gap-2 sm:text-right">
-                    <div className="grid w-full gap-1.5 sm:w-auto sm:grid-cols-2">
-                      <button
-                        type="button"
-                        onClick={() => void requestNotificationPermission()}
-                        className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:min-h-11 sm:px-4 sm:text-sm"
-                      >
-                        Разрешить в браузере
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void sendTestNotification()}
-                        className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:min-h-11 sm:px-4 sm:text-sm"
-                      >
-                        Тест уведомления
-                      </button>
-                    </div>
-                    <span className="w-full text-[10px] leading-3.5 text-[var(--muted)] sm:max-w-[220px] sm:text-xs">
-                      {notificationPermissionLabel}
-                    </span>
-                    {notificationTestStatus ? (
-                      <span
-                        className={`w-full text-[10px] leading-3.5 sm:max-w-[220px] sm:text-xs ${
-                          notificationTestStatus.tone === "success"
-                            ? "text-[var(--accent)]"
-                            : "text-[rgb(136,47,63)]"
-                        }`}
-                      >
-                        {notificationTestStatus.text}
-                      </span>
-                    ) : null}
-                  </div>
-                }
-              />
-            </div>
-          ) : null}
-
-          {tab === "profile" ? (
-            <div className="grid min-h-full content-start gap-3 sm:gap-6">
-              <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">
-                Профиль
-              </h2>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <SettingsField
-                  label="Имя"
-                  value={profile.firstName}
-                  onChange={(value) => onChange("firstName", value)}
-                />
-                <SettingsField
-                  label="Фамилия"
-                  value={profile.lastName}
-                  onChange={(value) => onChange("lastName", value)}
-                />
-              </div>
-              <SettingsTextarea
-                label="Фокус"
-                value={profile.focus}
-                onChange={(value) => onChange("focus", value)}
-              />
-              <SettingsTextarea
-                label="О себе"
-                value={profile.bio}
-                onChange={(value) => onChange("bio", value)}
-              />
-              <SettingsTextarea
-                label="Цель"
-                value={profile.wellbeingGoal}
-                onChange={(value) => onChange("wellbeingGoal", value)}
-              />
-            </div>
-          ) : null}
-
-          {tab === "assistant" ? (
-            <div className="grid min-h-full content-start gap-3 sm:gap-6">
-              <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">
-                Ассистент
-              </h2>
-              <SettingsRow
-                label="Модель"
-                hint="Выбор модели для AI-ответов в чате и анализах."
-                control={
-                  <select
-                    value={profile.aiModel}
-                    onChange={(event) => onChange("aiModel", event.target.value)}
-                    className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
-                  >
-                    {aiModelOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                }
-              />
-              <SettingsRow
-                label="Тон"
-                hint="Задает стиль ответов ассистента."
-                control={
-                  <select
-                    value={profile.chatTone}
-                    onChange={(event) => onChange("chatTone", event.target.value)}
-                    className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
-                  >
-                    <option value="supportive">Поддерживающий</option>
-                    <option value="direct">Прямой</option>
-                    <option value="coach">Coach</option>
-                  </select>
-                }
-              />
-            </div>
-          ) : null}
-
-          {tab === "account" ? (
-            <div className="grid min-h-full content-start gap-3 sm:gap-6">
-              <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">
-                Учетная запись
-              </h2>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <SettingsReadonlyField
-                  label="Email активной сессии"
-                  value={accountInfo?.email ?? accountEmail ?? "Нет данных"}
-                />
-                <SettingsReadonlyField
-                  label="Provider"
-                  value={providerLabel}
-                />
-                <SettingsReadonlyField
-                  label="User ID"
-                  value={accountInfo?.userId ?? "Нет данных"}
-                />
-                <SettingsReadonlyField
-                  label="Email подтвержден"
-                  value={
-                    accountInfo ? (accountInfo.emailConfirmed ? "Да" : "Нет") : "Нет данных"
-                  }
-                />
-                <SettingsReadonlyField
-                  label="Имя в профиле"
-                  value={profileName || "Не заполнено"}
-                />
-                <SettingsReadonlyField
-                  label="Локаль и часовой пояс"
-                  value={`${profile.locale} · ${profile.timezone}`}
-                />
-              </div>
-              <div className="grid gap-4 rounded-[24px] border border-[var(--border)] bg-white/80 p-4 sm:grid-cols-2">
-                <div className="grid gap-1">
-                  <span className="text-sm text-[var(--muted)]">Записей в аккаунте</span>
-                  <strong className="text-2xl font-semibold text-[var(--foreground)]">
-                    {entryCount}
-                  </strong>
-                </div>
-                <div className="grid gap-1">
-                  <span className="text-sm text-[var(--muted)]">Активных метрик</span>
-                  <strong className="text-2xl font-semibold text-[var(--foreground)]">
-                    {metricCount}
-                  </strong>
-                </div>
-              </div>
-              <AccountSecurityPanel
-                email={accountInfo?.email ?? accountEmail}
-                provider={accountInfo?.provider ?? null}
-              />
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SettingsRow({
-  label,
-  hint,
-  control,
-}: {
-  label: string;
-  hint?: string;
-  control: ReactNode;
-}) {
-  return (
-    <div className="grid grid-cols-1 items-start gap-2 rounded-[16px] border border-[var(--border)] bg-white/86 p-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4 sm:rounded-none sm:border-0 sm:border-b sm:bg-transparent sm:px-0 sm:pb-5 sm:pt-0">
-      <div className="flex items-center gap-1.5 sm:pt-1">
-        <p className="text-[0.78rem] font-medium leading-4 text-[var(--foreground)] sm:text-xl sm:leading-7">
-          {label}
-        </p>
-        {hint ? <SettingsInfoHint text={hint} /> : null}
-      </div>
-      <div className="min-w-0 max-w-full justify-self-stretch sm:justify-self-end">{control}</div>
-    </div>
-  );
-}
-
-function SettingsInfoHint({ text }: { text: string }) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <span className="relative inline-flex">
-      <button
-        type="button"
-        onClick={() => setIsOpen((current) => !current)}
-        onBlur={() => setIsOpen(false)}
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--muted)] transition hover:text-[var(--foreground)]"
-        aria-label="Показать подсказку"
-      >
-        <InfoIcon />
-      </button>
-      {isOpen ? (
-        <span className="absolute left-full top-1/2 z-30 ml-2 w-52 -translate-y-1/2 rounded-xl border border-[var(--border)] bg-white px-2.5 py-2 text-[10px] leading-4 text-[var(--foreground)] shadow-[0_18px_30px_rgba(24,33,29,0.16)] sm:w-60 sm:text-xs">
-          {text}
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-function SettingsField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="grid min-w-0 gap-1.5">
-      <span className="text-[10px] font-medium text-[var(--foreground)] sm:text-sm">{label}</span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="min-h-9 w-full min-w-0 rounded-[14px] border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-12 sm:rounded-[18px] sm:px-4 sm:text-sm"
-      />
-    </label>
-  );
-}
-
-function DiaryUserMenu({
-  accountEmail,
-  embedded = false,
-  profile,
-  onClose,
-  onOpenSettings,
-}: {
-  accountEmail: string | null;
-  embedded?: boolean;
-  profile: WorkspaceProfile;
-  onClose: () => void;
-  onOpenSettings: (tab: SettingsTab) => void;
-}) {
-  const profileName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
-  const profileHandle = accountEmail ? `@${accountEmail.split("@")[0]}` : "@diary";
-  const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
-  const embeddedMenuRef = useRef<HTMLDivElement | null>(null);
-
-  // For embedded mobile/desktop sidebar menu we intentionally avoid global "outside click"
-  // handlers because they can swallow tap/click on menu actions in some browsers.
-
-  useEffect(() => {
-    if (embedded) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [embedded, onClose]);
-
-  if (embedded) {
-    return (
-      <div
-        ref={embeddedMenuRef}
-        className="mt-3 rounded-[24px] border border-[var(--border)] bg-white/92 p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] sm:rounded-[26px] sm:p-4"
-        onPointerDown={(event) => {
-          event.stopPropagation();
-        }}
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white sm:h-11 sm:w-11">
-            {initials}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-[1.05rem] font-semibold text-[var(--foreground)] sm:text-base">{profileName}</p>
-            <p className="truncate text-xs text-[var(--muted)]">{profileHandle}</p>
-          </div>
-        </div>
-
-        <div className="mt-3 h-px bg-[var(--border)] sm:mt-4" />
-
-        <div className="mt-2.5 grid gap-0.5 sm:mt-3 sm:gap-1">
-          <UserMenuButton
-            icon={<UserIcon />}
-            label="Профиль"
-            onClick={() => onOpenSettings("profile")}
-          />
-          <UserMenuButton
-            icon={<SettingsIcon />}
-            label="Настройки"
-            onClick={() => onOpenSettings("general")}
-          />
-          <UserMenuButton
-            icon={<ShieldIcon />}
-            label="Учетная запись"
-            onClick={() => onOpenSettings("account")}
-          />
-          <UserMenuButton
-            icon={<RobotMenuIcon />}
-            label="Ассистент"
-            onClick={() => onOpenSettings("assistant")}
-          />
-        </div>
-
-        <div className="mt-3 h-px bg-[var(--border)] sm:mt-4" />
-
-        <div className="mt-3 grid gap-2 sm:mt-4 sm:gap-3">
-          <InstallAppButton className="justify-center rounded-[18px] border border-[var(--border)] bg-white px-4 py-2.5 text-left text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:rounded-[20px] sm:py-3" />
-          <LogoutButton
-            className="inline-flex min-h-11 items-center justify-center rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgb(136,47,63)] hover:text-[rgb(136,47,63)] disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:rounded-[20px]"
-            label="Выйти"
-          />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(25,31,30,0.18)] px-3 py-4 sm:items-start sm:justify-end sm:px-6"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose();
-        }
-      }}
-    >
-      <div className="surface-card w-full max-w-[380px] rounded-[30px] border border-white/80 bg-[rgba(255,250,246,0.98)] p-5 shadow-[0_34px_80px_rgba(24,33,29,0.18)] sm:mt-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white">
-            {initials}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-[1.1rem] font-semibold text-[var(--foreground)]">{profileName}</p>
-            <p className="truncate text-sm text-[var(--muted)]">{profileHandle}</p>
-          </div>
-        </div>
-
-        <div className="mt-5 h-px bg-[var(--border)]" />
-
-        <div className="mt-4 grid gap-2">
-          <UserMenuButton
-            icon={<UserIcon />}
-            label="Профиль"
-            onClick={() => onOpenSettings("profile")}
-          />
-          <UserMenuButton
-            icon={<SettingsIcon />}
-            label="Настройки"
-            onClick={() => onOpenSettings("general")}
-          />
-          <UserMenuButton
-            icon={<ShieldIcon />}
-            label="Учетная запись"
-            onClick={() => onOpenSettings("account")}
-          />
-          <UserMenuButton
-            icon={<RobotMenuIcon />}
-            label="Ассистент"
-            onClick={() => onOpenSettings("assistant")}
-          />
-        </div>
-
-        <div className="mt-5 h-px bg-[var(--border)]" />
-
-        <div className="mt-4 grid gap-3">
-          <InstallAppButton className="justify-center rounded-[20px] border border-[var(--border)] bg-white px-4 py-3 text-left text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]" />
-          <LogoutButton
-            className="inline-flex min-h-12 items-center justify-center rounded-[20px] border border-[var(--border)] bg-white px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgb(136,47,63)] hover:text-[rgb(136,47,63)] disabled:cursor-not-allowed disabled:opacity-60"
-            label="Выйти"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function UserMenuButton({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex min-h-11 items-center gap-2.5 rounded-[18px] px-2.5 text-left text-[0.98rem] text-[var(--foreground)] transition hover:bg-white/80 sm:min-h-12 sm:gap-3 sm:rounded-[20px] sm:px-3 sm:text-[1.05rem]"
-    >
-      <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)] sm:h-9 sm:w-9">
-        {icon}
-      </span>
-      <span>{label}</span>
-    </button>
-  );
-}
-
-function SettingsReadonlyField({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <label className="grid min-w-0 gap-1.5">
-      <span className="text-[10px] font-medium text-[var(--foreground)] sm:text-sm">{label}</span>
-      <input
-        value={value}
-        readOnly
-        className="min-h-9 w-full min-w-0 rounded-[14px] border border-[var(--border)] bg-[rgba(244,247,244,0.92)] px-3 text-[11px] text-[var(--muted)] outline-none sm:min-h-12 sm:rounded-[18px] sm:px-4 sm:text-sm"
-      />
-    </label>
-  );
-}
-
-function SettingsTextarea({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="grid min-w-0 gap-1.5">
-      <span className="text-[10px] font-medium text-[var(--foreground)] sm:text-sm">{label}</span>
-      <AutoGrowTextarea
-        value={value}
-        onChange={onChange}
-        minRows={3}
-        className="w-full min-w-0 rounded-[14px] border border-[var(--border)] bg-white px-3 py-2.5 text-[11px] leading-5 text-[var(--foreground)] outline-none sm:rounded-[18px] sm:px-4 sm:py-3 sm:text-sm sm:leading-6"
-      />
-    </label>
-  );
-}
-
 function ToggleSwitch({
   active,
   disabled,
@@ -2390,16 +1413,6 @@ function MetricIcon({ icon }: { icon: string }) {
 
       return <SparkIcon />;
   }
-}
-
-function InfoIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3" stroke="currentColor" strokeWidth="1.8">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 10.2v5.2" />
-      <circle cx="12" cy="7.5" r="0.8" fill="currentColor" stroke="none" />
-    </svg>
-  );
 }
 
 function EditIcon() {
@@ -2620,45 +1633,6 @@ function ScaleIcon() {
       <rect x="4" y="5" width="16" height="14" rx="4" />
       <path d="M8 10a4 4 0 0 1 8 0" />
       <path d="m12 10 2-2" />
-    </svg>
-  );
-}
-
-function UserIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
-      <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
-      <path d="M5 20a7 7 0 0 1 14 0" />
-    </svg>
-  );
-}
-
-function SettingsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
-      <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
-      <path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.4.8a7.6 7.6 0 0 0-1.7-1L14.4 3h-4.8l-.4 2.8a7.6 7.6 0 0 0-1.7 1l-2.4-.8-2 3.4 2 1.6a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.4-.8a7.6 7.6 0 0 0 1.7 1l.4 2.8h4.8l.4-2.8a7.6 7.6 0 0 0 1.7-1l2.4.8 2-3.4-2-1.6c.1-.3.1-.7.1-1Z" />
-    </svg>
-  );
-}
-
-function ShieldIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
-      <path d="M12 3 5 6v5c0 4.4 2.7 7.8 7 10 4.3-2.2 7-5.6 7-10V6l-7-3Z" />
-      <path d="m9.5 12 1.7 1.7 3.3-3.7" />
-    </svg>
-  );
-}
-
-function RobotMenuIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
-      <rect x="5" y="8" width="14" height="9" rx="3" />
-      <path d="M12 4v3" />
-      <path d="M9 12h.01" />
-      <path d="M15 12h.01" />
-      <path d="M8.5 15h7" />
     </svg>
   );
 }

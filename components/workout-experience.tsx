@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { BrandGlyph } from "@/components/brand-glyph";
-import { WorkspaceSidebarFrame } from "@/components/workspace-sidebar";
+import { WorkspaceSectionShell } from "@/components/workspace-shell";
+import { WorkspaceSidebarFrame, WorkspaceSidebarSection } from "@/components/workspace-sidebar";
 import { WorkoutAssistantPanel } from "@/components/workout-assistant-panel";
 import { WorkspaceUserControls } from "@/components/workspace-user-controls";
 import { EmptyState } from "@/components/workspace-ui";
@@ -758,7 +759,6 @@ function WorkoutSidebarContent({
   workouts,
   profileName,
   profileSubtitle,
-  initials,
   onSelectDate,
   onCloseSidebar,
   onOpenSettings,
@@ -772,7 +772,6 @@ function WorkoutSidebarContent({
   workouts: WorkoutSession[];
   profileName: string;
   profileSubtitle: string;
-  initials: string;
   onSelectDate: (date: string) => void;
   onCloseSidebar?: () => void;
   onOpenSettings?: () => void;
@@ -816,47 +815,12 @@ function WorkoutSidebarContent({
       }
       footer={
         <WorkspaceUserControls
-          subtitle={profileSubtitle}
           onOpenSettings={onOpenSettings}
+          subtitle={profileName.trim().length > 0 ? profileSubtitle : profileSubtitle}
         />
       }
     >
-      <div className="hidden">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]">
-            <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_10px_20px_rgba(32,77,67,0.24)]" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">Diary AI</p>
-            <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">Тренировки</p>
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-2">
-          <Link
-            href="/diary"
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          >
-            Дневник
-          </Link>
-          <div className="inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--accent)] px-3 text-sm font-medium text-white">
-            Тренировки
-          </div>
-          <Link
-            href="/analytics"
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          >
-            Период
-          </Link>
-        </div>
-      </div>
-
-      <div className="mt-4 min-h-0 flex-1 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
-        <div className="mb-2 flex items-center justify-between px-1">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">Дни</p>
-          <span className="text-xs text-[var(--muted)]">{days.length}</span>
-        </div>
-
+      <WorkspaceSidebarSection label="Дни" meta={days.length}>
         <div className="grid max-h-[52vh] gap-1.5 overflow-y-auto pr-1 xl:max-h-none">
           {days.slice(0, 40).map((day) => (
             <button
@@ -883,42 +847,8 @@ function WorkoutSidebarContent({
             </button>
           ))}
         </div>
-      </div>
-
-      <Link
-        href="/profile?tab=general"
-        className="hidden"
-      >
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white">
-          {initials}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-semibold text-[var(--foreground)]">{profileName}</p>
-          <p className="mt-1 text-xs text-[var(--muted)]">{profileSubtitle}</p>
-        </div>
-      </Link>
+      </WorkspaceSidebarSection>
     </WorkspaceSidebarFrame>
-  );
-}
-
-function DiaryWorkoutSidebar(props: {
-  days: Array<{
-    date: string;
-    summary: string;
-    notesPreview: string;
-  }>;
-  selectedDate: string;
-  workouts: WorkoutSession[];
-  profileName: string;
-  profileSubtitle: string;
-  initials: string;
-  onSelectDate: (date: string) => void;
-  onOpenSettings?: () => void;
-}) {
-  return (
-    <aside className="surface-card hidden h-[calc(100vh-2rem)] self-start flex-col overflow-hidden rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
-      <WorkoutSidebarContent {...props} />
-    </aside>
   );
 }
 
@@ -1606,12 +1536,6 @@ export function WorkoutExperience() {
   const profileName =
     [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Профиль";
   const profileSubtitle = "История, программы и быстрый доступ";
-  const initials = profileName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("") || "A";
   const selectedDateCompletedCount = sessionsForSelectedDate.filter((session) => session.completedAt).length;
   const latestCompletedSession = useMemo(
     () =>
@@ -1625,43 +1549,36 @@ export function WorkoutExperience() {
     [workouts],
   );
 
-  useEffect(() => {
-    if (!isMobileSidebarOpen) {
-      return;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isMobileSidebarOpen]);
-
   const closeMobileSidebar = () => {
     setIsMobileSidebarOpen(false);
   };
 
   return (
-    <div className="grid gap-4 overflow-x-hidden xl:grid-cols-[280px_minmax(0,1fr)] xl:items-start">
-      <DiaryWorkoutSidebar
-        days={days}
-        selectedDate={selectedDate}
-        workouts={workouts}
-        profileName={profileName}
-        profileSubtitle={profileSubtitle}
-        initials={initials}
-        onSelectDate={(date) => {
-          setSelectedDate(date);
-          setScreen("list");
-          setExerciseIndex(0);
-        }}
-        onOpenSettings={closeMobileSidebar}
-      />
-
-      <div className="grid min-w-0 gap-5 overflow-x-hidden">
-        {resolvedScreen === "list" ? (
-        <div className="surface-card sticky top-3 z-20 grid min-w-0 max-w-full grid-cols-[40px_minmax(0,1fr)_88px] items-center gap-2 rounded-[24px] px-3 py-3 xl:hidden">
+    <WorkspaceSectionShell
+      isMobileSidebarOpen={isMobileSidebarOpen}
+      onMobileSidebarOpenChange={setIsMobileSidebarOpen}
+      sidebar={
+        <WorkoutSidebarContent
+          days={days}
+          selectedDate={selectedDate}
+          workouts={workouts}
+          profileName={profileName}
+          profileSubtitle={profileSubtitle}
+          onSelectDate={(date) => {
+            setSelectedDate(date);
+            setScreen("list");
+            setExerciseIndex(0);
+            closeMobileSidebar();
+          }}
+          onCloseSidebar={closeMobileSidebar}
+          onOpenSettings={closeMobileSidebar}
+        />
+      }
+      className="overflow-x-hidden xl:items-start"
+      contentClassName="gap-5 overflow-x-hidden"
+      mobileHeader={
+        resolvedScreen === "list" ? (
+          <div className="surface-card sticky top-3 z-20 grid min-w-0 max-w-full grid-cols-[40px_minmax(0,1fr)_88px] items-center gap-2 rounded-[24px] px-3 py-3">
           <div className="flex justify-start">
             <button
               type="button"
@@ -1734,8 +1651,10 @@ export function WorkoutExperience() {
               <TrendUpIcon className="h-5 w-5" />
             </button>
           </div>
-        </div>
-        ) : null}
+          </div>
+        ) : null
+      }
+    >
 
         {resolvedScreen === "player" && activeSession ? (
           <WorkoutPlayer
@@ -1990,7 +1909,6 @@ export function WorkoutExperience() {
             )}
           </>
         ) : null}
-      </div>
 
       {isBuilderOpen ? (
         <WorkoutBuilderModal
@@ -2011,49 +1929,7 @@ export function WorkoutExperience() {
       {detailSession ? (
         <SummaryDetailsModal session={detailSession} onClose={() => setDetailSessionId(null)} />
       ) : null}
-
-      {isMobileSidebarOpen ? (
-        <div className="fixed inset-0 z-40 xl:hidden">
-          <button
-            type="button"
-            className="absolute inset-0 bg-[rgba(24,33,29,0.2)]"
-            aria-label="Закрыть боковую панель"
-            onClick={closeMobileSidebar}
-          />
-          <aside className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col overflow-hidden rounded-r-[28px] p-4">
-            <div className="hidden">
-              <button
-                type="button"
-                onClick={closeMobileSidebar}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
-                aria-label="Закрыть боковую панель"
-              >
-                <CloseIcon className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <WorkoutSidebarContent
-                days={days}
-                selectedDate={selectedDate}
-                workouts={workouts}
-                profileName={profileName}
-                profileSubtitle={profileSubtitle}
-                initials={initials}
-                onSelectDate={(date) => {
-                  setSelectedDate(date);
-                  setScreen("list");
-                  setExerciseIndex(0);
-                  closeMobileSidebar();
-                }}
-                onCloseSidebar={closeMobileSidebar}
-                onOpenSettings={closeMobileSidebar}
-              />
-            </div>
-          </aside>
-        </div>
-      ) : null}
-    </div>
+    </WorkspaceSectionShell>
   );
 }
 

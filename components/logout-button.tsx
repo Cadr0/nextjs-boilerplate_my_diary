@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { clearDiaryClientStorage } from "@/lib/client-storage";
 import { createClient } from "@/lib/supabase/client";
+import { getSupabaseConfigError } from "@/lib/supabase/env";
 
 export function LogoutButton({
   className,
@@ -20,12 +21,16 @@ export function LogoutButton({
     setIsPending(true);
 
     try {
-      const supabase = createClient();
-      await supabase.auth.signOut();
+      if (!getSupabaseConfigError()) {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+      }
+    } catch {
+      // Fall back to a local logout so missing auth config never traps the user in UI flows.
+    } finally {
       clearDiaryClientStorage();
       router.replace("/");
       router.refresh();
-    } finally {
       setIsPending(false);
     }
   }

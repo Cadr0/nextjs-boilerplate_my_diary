@@ -14,6 +14,63 @@ import { aiModelOptions } from "@/lib/workspace";
 import type { WorkspaceProfile } from "@/lib/workspace";
 
 type SettingsTab = "general" | "profile" | "assistant" | "account";
+type MenuPlacement = "top" | "bottom";
+type UserMenuPosition = {
+  left: number;
+  top: number;
+  width: number;
+  placement: MenuPlacement;
+};
+
+const USER_MENU_MAX_WIDTH = 320;
+const USER_MENU_GAP = 10;
+const USER_MENU_MARGIN = 12;
+
+function getProfileName(profile: WorkspaceProfile) {
+  return [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
+}
+
+function getProfileInitials(profile: WorkspaceProfile) {
+  const initials = [profile.firstName, profile.lastName]
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.slice(0, 1).toUpperCase())
+    .join("");
+
+  return initials || "D";
+}
+
+function resolveUserMenuPosition(
+  anchor: DOMRect,
+  menuHeight: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): UserMenuPosition {
+  const width = Math.min(USER_MENU_MAX_WIDTH, viewportWidth - USER_MENU_MARGIN * 2);
+  const left = Math.min(
+    Math.max(anchor.right - width, USER_MENU_MARGIN),
+    viewportWidth - width - USER_MENU_MARGIN,
+  );
+  const canOpenAbove = anchor.top >= menuHeight + USER_MENU_GAP + USER_MENU_MARGIN;
+  const canOpenBelow =
+    viewportHeight - anchor.bottom >= menuHeight + USER_MENU_GAP + USER_MENU_MARGIN;
+  const placement: MenuPlacement = canOpenBelow || !canOpenAbove ? "bottom" : "top";
+  const unclampedTop =
+    placement === "bottom"
+      ? anchor.bottom + USER_MENU_GAP
+      : anchor.top - menuHeight - USER_MENU_GAP;
+  const top = Math.min(
+    Math.max(unclampedTop, USER_MENU_MARGIN),
+    viewportHeight - menuHeight - USER_MENU_MARGIN,
+  );
+
+  return {
+    left,
+    top,
+    width,
+    placement,
+  };
+}
 
 export function WorkspaceUserControls({
   subtitle = "Профиль, приложение и выход",
@@ -37,13 +94,16 @@ export function WorkspaceUserControls({
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>("general");
+  const [menuPosition, setMenuPosition] = useState<UserMenuPosition | null>(null);
   const [microphonePermission, setMicrophonePermission] = useState<
     "unknown" | "prompt" | "granted" | "denied"
   >("unknown");
 
-  const profileName =
-    [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
-  const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
+  const triggerRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuActionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const profileName = getProfileName(profile);
+  const initials = getProfileInitials(profile);
   const portalTarget = typeof document === "undefined" ? null : document.body;
 
   useEffect(() => {
@@ -141,6 +201,10 @@ export function WorkspaceUserControls({
     });
   };
 
+  const registerMenuAction = (index: number, element: HTMLButtonElement | null) => {
+    menuActionRefs.current[index] = element;
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -169,23 +233,131 @@ export function WorkspaceUserControls({
     };
   }, [onOpenSettings]);
 
+  useEffect(() => {
+    if (!isSettingsOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isSettingsOpen]);
+
+  useEffect(() => {
+    if (!isUserMenuOpen || !triggerRef.current || !portalTarget) {
+      return;
+    }
+
+    const updateMenuPosition = () => {
+      if (!triggerRef.current) {
+        return;
+      }
+
+      const anchor = triggerRef.current.getBoundingClientRect();
+      const menuHeight = menuRef.current?.offsetHeight ?? 0;
+
+      setMenuPosition(
+        resolveUserMenuPosition(anchor, menuHeight, window.innerWidth, window.innerHeight),
+      );
+    };
+
+    const focusFirstMenuItem = () => {
+      menuActionRefs.current[0]?.focus();
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (
+        (triggerRef.current && target instanceof Node && triggerRef.current.contains(target)) ||
+        (menuRef.current && target instanceof Node && menuRef.current.contains(target))
+      ) {
+        return;
+      }
+
+      setIsUserMenuOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsUserMenuOpen(false);
+        triggerRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+        return;
+      }
+
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+        return;
+      }
+
+      const currentIndex = menuActionRefs.current.findIndex(
+        (element) => element === document.activeElement,
+      );
+
+      if (currentIndex === -1) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const nextIndex =
+        event.key === "ArrowDown"
+          ? (currentIndex + 1) % menuActionRefs.current.length
+          : (currentIndex - 1 + menuActionRefs.current.length) % menuActionRefs.current.length;
+
+      menuActionRefs.current[nextIndex]?.focus();
+    };
+
+    updateMenuPosition();
+
+    const frameId = window.requestAnimationFrame(() => {
+      updateMenuPosition();
+      focusFirstMenuItem();
+    });
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [isUserMenuOpen, portalTarget]);
+
   return (
     <>
-      {isUserMenuOpen ? (
-        <WorkspaceUserMenu
-          accountEmail={accountEmail}
-          profile={profile}
-          onOpenSettings={openSettings}
+      <div ref={triggerRef} className="relative">
+        <WorkspaceUserCard
+          initials={initials}
+          name={profileName}
+          subtitle={subtitle}
+          active={isUserMenuOpen}
+          ariaExpanded={isUserMenuOpen}
+          ariaHasPopup
+          onClick={() => setIsUserMenuOpen((current) => !current)}
         />
-      ) : null}
+      </div>
 
-      <WorkspaceUserCard
-        initials={initials}
-        name={profileName}
-        subtitle={subtitle}
-        active={isUserMenuOpen}
-        onClick={() => setIsUserMenuOpen((current) => !current)}
-      />
+      {isUserMenuOpen && portalTarget
+        ? createPortal(
+            <WorkspaceUserMenu
+              accountEmail={accountEmail}
+              menuRef={menuRef}
+              position={menuPosition}
+              profile={profile}
+              onRegisterAction={registerMenuAction}
+              onOpenSettings={openSettings}
+            />,
+            portalTarget,
+          )
+        : null}
 
       {isSettingsOpen && portalTarget
         ? createPortal(
@@ -553,23 +725,36 @@ function WorkspaceSettingsModal({
 
 function WorkspaceUserMenu({
   accountEmail,
+  menuRef,
+  position,
   profile,
+  onRegisterAction,
   onOpenSettings,
 }: {
   accountEmail: string | null;
+  menuRef: React.MutableRefObject<HTMLDivElement | null>;
+  position: UserMenuPosition | null;
   profile: WorkspaceProfile;
+  onRegisterAction: (index: number, element: HTMLButtonElement | null) => void;
   onOpenSettings: (tab: SettingsTab) => void;
 }) {
-  const profileName =
-    [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
+  const profileName = getProfileName(profile);
   const profileHandle = accountEmail ? `@${accountEmail.split("@")[0]}` : "@diary";
-  const initials = profile.firstName?.slice(0, 1).toUpperCase() || "D";
-  const embeddedMenuRef = useRef<HTMLDivElement | null>(null);
+  const initials = getProfileInitials(profile);
 
   return (
     <div
-      ref={embeddedMenuRef}
-      className="mt-3 rounded-[24px] border border-[var(--border)] bg-white/92 p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] sm:rounded-[26px] sm:p-4"
+      ref={menuRef}
+      role="menu"
+      aria-label="Меню пользователя"
+      className={`fixed z-50 rounded-[28px] border border-white/80 bg-[rgba(255,250,246,0.98)] p-3 shadow-[0_30px_70px_rgba(24,33,29,0.16)] transition duration-150 ${
+        position?.placement === "top" ? "origin-bottom-right" : "origin-top-right"
+      } ${position ? "opacity-100 scale-100" : "opacity-0 scale-[0.98]"}`}
+      style={{
+        left: position?.left ?? USER_MENU_MARGIN,
+        top: position?.top ?? USER_MENU_MARGIN,
+        width: position?.width ?? USER_MENU_MAX_WIDTH,
+      }}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
@@ -586,10 +771,30 @@ function WorkspaceUserMenu({
       <div className="mt-3 h-px bg-[var(--border)] sm:mt-4" />
 
       <div className="mt-2.5 grid gap-0.5 sm:mt-3 sm:gap-1">
-        <UserMenuButton icon={<UserIcon />} label="Профиль" onClick={() => onOpenSettings("profile")} />
-        <UserMenuButton icon={<SettingsIcon />} label="Настройки" onClick={() => onOpenSettings("general")} />
-        <UserMenuButton icon={<ShieldIcon />} label="Учетная запись" onClick={() => onOpenSettings("account")} />
-        <UserMenuButton icon={<RobotMenuIcon />} label="Ассистент" onClick={() => onOpenSettings("assistant")} />
+        <UserMenuButton
+          buttonRef={(element) => onRegisterAction(0, element)}
+          icon={<UserIcon />}
+          label="Профиль"
+          onClick={() => onOpenSettings("profile")}
+        />
+        <UserMenuButton
+          buttonRef={(element) => onRegisterAction(1, element)}
+          icon={<SettingsIcon />}
+          label="Настройки"
+          onClick={() => onOpenSettings("general")}
+        />
+        <UserMenuButton
+          buttonRef={(element) => onRegisterAction(2, element)}
+          icon={<ShieldIcon />}
+          label="Учетная запись"
+          onClick={() => onOpenSettings("account")}
+        />
+        <UserMenuButton
+          buttonRef={(element) => onRegisterAction(3, element)}
+          icon={<RobotMenuIcon />}
+          label="Ассистент"
+          onClick={() => onOpenSettings("assistant")}
+        />
       </div>
 
       <div className="mt-3 h-px bg-[var(--border)] sm:mt-4" />
@@ -742,16 +947,24 @@ function ToggleSwitch({
 }
 
 function UserMenuButton({
+  buttonRef,
   icon,
   label,
   onClick,
 }: {
+  buttonRef?: (element: HTMLButtonElement | null) => void;
   icon: ReactNode;
   label: string;
   onClick: () => void;
 }) {
   return (
-    <button type="button" onClick={onClick} className="flex min-h-11 items-center gap-2.5 rounded-[18px] px-2.5 text-left text-[0.98rem] text-[var(--foreground)] transition hover:bg-white/80 sm:min-h-12 sm:gap-3 sm:rounded-[20px] sm:px-3 sm:text-[1.05rem]">
+    <button
+      ref={buttonRef}
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className="flex min-h-11 items-center gap-2.5 rounded-[18px] px-2.5 text-left text-[0.98rem] text-[var(--foreground)] transition hover:bg-white/80 focus:bg-white/80 focus:outline-none sm:min-h-12 sm:gap-3 sm:rounded-[20px] sm:px-3 sm:text-[1.05rem]"
+    >
       <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)] sm:h-9 sm:w-9">
         {icon}
       </span>

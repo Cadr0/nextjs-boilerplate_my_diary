@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { AnalyticsAssistantPanel } from "@/components/analytics-assistant-panel";
-import { BrandGlyph } from "@/components/brand-glyph";
-import { WorkspaceSidebarFrame } from "@/components/workspace-sidebar";
+import { WorkspaceSectionShell } from "@/components/workspace-shell";
+import { WorkspaceSidebarFrame, WorkspaceSidebarSection } from "@/components/workspace-sidebar";
 import { WorkspaceUserControls } from "@/components/workspace-user-controls";
 import { useWorkspace } from "@/components/workspace-provider";
 import { buildWorkoutDateSummaries } from "@/lib/ai/workouts/buildWorkoutDateSummaries";
@@ -354,48 +354,10 @@ export function AnalyticsSection() {
         />
       }
     >
-      <div className="hidden">
-        <div className="hidden">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white">
-            <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_10px_20px_rgba(32,77,67,0.24)]" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
-              Analytics
-            </p>
-            <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-              Период
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-2">
-          <Link
-            href="/diary"
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          >
-            Дневник
-          </Link>
-          <Link
-            href="/workouts"
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          >
-            Тренировки
-          </Link>
-          <div className="inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--accent)] px-3 text-sm font-medium text-white">
-            Период
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
-        <div className="mb-3 flex items-center justify-between px-1">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-            Быстрый диапазон
-          </p>
-          <span className="text-xs text-[var(--muted)]">{deferredEntries.length} дней</span>
-        </div>
-
+      <WorkspaceSidebarSection
+        label="Быстрый диапазон"
+        meta={`${deferredEntries.length} дней`}
+      >
         <div className="grid gap-2">
           {QUICK_RANGE_PRESETS.map((preset) => {
             const isActive = activeRangePreset === preset.id;
@@ -427,10 +389,10 @@ export function AnalyticsSection() {
                   </span>
                 </div>
               </button>
-            );
+              );
           })}
         </div>
-      </div>
+      </WorkspaceSidebarSection>
 
       <div className="mt-4 rounded-[24px] border border-[rgba(47,111,97,0.12)] bg-[linear-gradient(145deg,rgba(47,111,97,0.1),rgba(255,255,255,0.9))] p-4">
         <p className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--accent)]">
@@ -476,13 +438,13 @@ export function AnalyticsSection() {
 
   return (
     <>
-      <div className="grid gap-4 xl:grid-cols-[290px_minmax(0,1fr)]">
-        <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
-          {sidebarContent}
-        </aside>
-
-        <div className="grid gap-4">
-          <div className="surface-card sticky top-3 z-20 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 rounded-[24px] px-4 py-3 xl:hidden">
+      <WorkspaceSectionShell
+        isMobileSidebarOpen={isMobileSidebarOpen}
+        onMobileSidebarOpenChange={setIsMobileSidebarOpen}
+        sidebar={sidebarContent}
+        sidebarColumnClassName="xl:grid-cols-[290px_minmax(0,1fr)]"
+        mobileHeader={
+          <div className="surface-card sticky top-3 z-20 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 rounded-[24px] px-4 py-3">
             <button
               type="button"
               onClick={() => setIsMobileSidebarOpen(true)}
@@ -502,48 +464,49 @@ export function AnalyticsSection() {
               <DiaryPanelIcon />
             </Link>
           </div>
+        }
+      >
+        <SectionCard className="rounded-[32px] p-5 sm:p-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <SectionHeader
+          eyebrow="Analytics"
+          title="Аналитика по периоду"
+          description="Выбери диапазон дат, проверь сохраненные записи и запускай AI-анализ только по явной кнопке."
+        />
 
-          <SectionCard className="rounded-[32px] p-5 sm:p-6">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <SectionHeader
-            eyebrow="Analytics"
-            title="Аналитика по периоду"
-            description="Выбери диапазон дат, проверь сохраненные записи и запускай AI-анализ только по явной кнопке."
-          />
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/diary"
-              className="hidden min-h-11 items-center rounded-full border border-[var(--border)] bg-white/92 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] xl:inline-flex"
-            >
-              Вернуться в дневник
-            </Link>
-            <button
-              type="button"
-              onClick={() => setView("trends")}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                view === "trends"
-                  ? "bg-[var(--accent)] text-white"
-                  : "border border-[var(--border)] bg-white/92 text-[var(--foreground)]"
-              }`}
-            >
-              Тренды
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("list")}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                view === "list"
-                  ? "bg-[var(--accent)] text-white"
-                  : "border border-[var(--border)] bg-white/92 text-[var(--foreground)]"
-              }`}
-            >
-              Список записей
-            </button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/diary"
+            className="hidden min-h-11 items-center rounded-full border border-[var(--border)] bg-white/92 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] xl:inline-flex"
+          >
+            Вернуться в дневник
+          </Link>
+          <button
+            type="button"
+            onClick={() => setView("trends")}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              view === "trends"
+                ? "bg-[var(--accent)] text-white"
+                : "border border-[var(--border)] bg-white/92 text-[var(--foreground)]"
+            }`}
+          >
+            Тренды
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("list")}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              view === "list"
+                ? "bg-[var(--accent)] text-white"
+                : "border border-[var(--border)] bg-white/92 text-[var(--foreground)]"
+            }`}
+          >
+            Список записей
+          </button>
         </div>
+      </div>
 
-        <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] lg:items-end">
+      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] lg:items-end">
           <label className="grid gap-2">
             <span className="text-sm font-medium text-[var(--foreground)]">От</span>
             <input
@@ -581,30 +544,30 @@ export function AnalyticsSection() {
           записей и графиков не вызывает AI-запросы. Текстовые метрики участвуют в AI-разборе
           периода, но не строятся на графиках.
         </div>
-          </SectionCard>
+        </SectionCard>
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <CompactMetricStat label="Сохранённых дней" value={String(deferredEntries.length)} />
-            <CompactMetricStat
-              label="Среднее настроение"
-              value={formatAverage(average(moodValues), moodMetric?.unit)}
-            />
-            <CompactMetricStat
-              label="Средняя энергия"
-              value={formatAverage(average(energyValues), energyMetric?.unit)}
-            />
-            <CompactMetricStat
-              label="Средний стресс"
-              value={formatAverage(average(stressValues), stressMetric?.unit)}
-            />
-            <CompactMetricStat
-              label="Средний сон"
-              value={formatAverage(average(sleepValues), sleepMetric?.unit)}
-            />
-          </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <CompactMetricStat label="Сохранённых дней" value={String(deferredEntries.length)} />
+          <CompactMetricStat
+            label="Среднее настроение"
+            value={formatAverage(average(moodValues), moodMetric?.unit)}
+          />
+          <CompactMetricStat
+            label="Средняя энергия"
+            value={formatAverage(average(energyValues), energyMetric?.unit)}
+          />
+          <CompactMetricStat
+            label="Средний стресс"
+            value={formatAverage(average(stressValues), stressMetric?.unit)}
+          />
+          <CompactMetricStat
+            label="Средний сон"
+            value={formatAverage(average(sleepValues), sleepMetric?.unit)}
+          />
+        </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,0.75fr)]">
-            <SectionCard className="rounded-[30px] p-4 sm:p-5">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,0.75fr)]">
+          <SectionCard className="rounded-[30px] p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
@@ -721,47 +684,22 @@ export function AnalyticsSection() {
               </div>
             )}
           </div>
-            </SectionCard>
+          </SectionCard>
 
-            <AnalyticsAssistantPanel
-              fromDate={rangeStart}
-              toDate={rangeEnd}
-              entries={rangePayload}
-              summary={periodSummary}
-              workoutSummaries={rangeWorkoutSummaries}
-              analysisText={analysisText}
-              followUpCandidates={analysisFollowUps}
-              analysisState={analysisState}
-              analysisError={analysisError}
-              onAnalyze={() => runPeriodAnalysis()}
-            />
-          </div>
-        </div>
-      </div>
-
-      {isMobileSidebarOpen ? (
-        <div className="fixed inset-0 z-40 xl:hidden">
-          <button
-            type="button"
-            className="absolute inset-0 bg-[rgba(24,33,29,0.2)]"
-            onClick={() => setIsMobileSidebarOpen(false)}
-            aria-label="Закрыть боковую панель"
+          <AnalyticsAssistantPanel
+            fromDate={rangeStart}
+            toDate={rangeEnd}
+            entries={rangePayload}
+            summary={periodSummary}
+            workoutSummaries={rangeWorkoutSummaries}
+            analysisText={analysisText}
+            followUpCandidates={analysisFollowUps}
+            analysisState={analysisState}
+            analysisError={analysisError}
+            onAnalyze={() => runPeriodAnalysis()}
           />
-          <aside className="surface-card absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col overflow-hidden rounded-r-[28px] p-4">
-            <div className="hidden">
-              <button
-                type="button"
-                onClick={() => setIsMobileSidebarOpen(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl text-[var(--foreground)]"
-                aria-label="Закрыть боковую панель"
-              >
-                <CloseIcon />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-hidden">{sidebarContent}</div>
-          </aside>
         </div>
-      ) : null}
+      </WorkspaceSectionShell>
     </>
   );
 }

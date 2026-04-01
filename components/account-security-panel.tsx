@@ -3,9 +3,10 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
-import { clearDiaryClientStorage } from "@/lib/client-storage";
 import { LogoutButton } from "@/components/logout-button";
+import { clearDiaryClientStorage } from "@/lib/client-storage";
 import { createClient } from "@/lib/supabase/client";
+import { getSupabaseConfigError } from "@/lib/supabase/env";
 
 type AccountSecurityPanelProps = {
   email: string | null;
@@ -59,7 +60,11 @@ export function AccountSecurityPanel({
   provider,
 }: AccountSecurityPanelProps) {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
+  const authConfigError = useMemo(() => getSupabaseConfigError(), []);
+  const supabase = useMemo(
+    () => (authConfigError ? null : createClient()),
+    [authConfigError],
+  );
   const isEmailAuth = provider === "email";
 
   const [resetPending, setResetPending] = useState(false);
@@ -72,6 +77,11 @@ export function AccountSecurityPanel({
   const [status, setStatus] = useState<string | null>(null);
 
   async function handleSendResetLink() {
+    if (!supabase) {
+      setError(authConfigError ?? "Настройки аккаунта временно недоступны.");
+      return;
+    }
+
     if (!email) {
       setError("У активной сессии нет email, поэтому письмо для восстановления отправить нельзя.");
       return;
@@ -101,6 +111,11 @@ export function AccountSecurityPanel({
 
   async function handleChangePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!supabase) {
+      setError(authConfigError ?? "Настройки аккаунта временно недоступны.");
+      return;
+    }
 
     if (newPassword.length < 6) {
       setError("Пароль должен быть не короче 6 символов.");
@@ -136,6 +151,11 @@ export function AccountSecurityPanel({
   }
 
   async function handleDeleteAccount() {
+    if (!supabase) {
+      setError(authConfigError ?? "Настройки аккаунта временно недоступны.");
+      return;
+    }
+
     if (!email || deleteConfirmation.trim().toLowerCase() !== email.toLowerCase()) {
       setError("Для удаления аккаунта введи текущий email целиком.");
       return;
@@ -189,7 +209,19 @@ export function AccountSecurityPanel({
         </div>
       ) : null}
 
-      {isEmailAuth ? (
+      {authConfigError ? (
+        <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-6 text-amber-900">
+          Настройки аккаунта недоступны, пока не настроены{" "}
+          <code className="rounded bg-white/70 px-1 py-0.5 text-xs">
+            NEXT_PUBLIC_SUPABASE_URL
+          </code>{" "}
+          и{" "}
+          <code className="rounded bg-white/70 px-1 py-0.5 text-xs">
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+          </code>
+          .
+        </div>
+      ) : isEmailAuth ? (
         <div className="grid gap-4 rounded-[24px] border border-[var(--border)] bg-white/80 p-4">
           <div>
             <h3 className="text-lg font-semibold text-[var(--foreground)]">Пароль</h3>
@@ -255,28 +287,36 @@ export function AccountSecurityPanel({
           </p>
         </div>
 
-        <label className="grid gap-2">
-          <span className="text-sm font-medium text-[rgb(110,41,58)]">
-            Введи email для подтверждения
-          </span>
-          <input
-            type="email"
-            value={deleteConfirmation}
-            onChange={(event) => setDeleteConfirmation(event.target.value)}
-            placeholder={email ?? "email текущего аккаунта"}
-            className="min-h-12 rounded-[18px] border border-[rgba(208,138,149,0.3)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
-          />
-        </label>
+        {!authConfigError ? (
+          <label className="grid gap-2">
+            <span className="text-sm font-medium text-[rgb(110,41,58)]">
+              Введи email для подтверждения
+            </span>
+            <input
+              type="email"
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              placeholder={email ?? "email текущего аккаунта"}
+              className="min-h-12 rounded-[18px] border border-[rgba(208,138,149,0.3)] bg-white px-4 text-sm text-[var(--foreground)] outline-none"
+            />
+          </label>
+        ) : (
+          <div className="rounded-[18px] border border-[rgba(208,138,149,0.22)] bg-white/70 px-4 py-3 text-sm leading-6 text-[rgb(136,47,63)]">
+            Без Supabase auth удаление аккаунта из этого окна отключено, чтобы настройки не ломали основной интерфейс.
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => void handleDeleteAccount()}
-            disabled={deletePending}
-            className="rounded-full bg-[rgb(136,47,63)] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {deletePending ? "Удаляем..." : "Удалить аккаунт и данные"}
-          </button>
+          {!authConfigError ? (
+            <button
+              type="button"
+              onClick={() => void handleDeleteAccount()}
+              disabled={deletePending}
+              className="rounded-full bg-[rgb(136,47,63)] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {deletePending ? "Удаляем..." : "Удалить аккаунт и данные"}
+            </button>
+          ) : null}
           <LogoutButton />
         </div>
       </div>
