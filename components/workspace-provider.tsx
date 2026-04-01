@@ -16,6 +16,22 @@ import type { AuthAccountInfo } from "@/lib/auth";
 import type { DiaryExtractionResult } from "@/lib/ai/contracts";
 import { buildWorkoutDateSummaries } from "@/lib/ai/workouts/buildWorkoutDateSummaries";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/client";
+import {
+  buildWorkoutSessionSummary,
+  cloneRoutineExerciseToSession,
+  createWorkoutExercise as createWorkoutExerciseRecord,
+  createWorkoutLog,
+  createWorkoutRoutine as createWorkoutRoutineRecord,
+  createWorkoutSession as createWorkoutSessionRecord,
+  getWorkoutSessionPreviewLines,
+  sanitizeWorkoutExerciseConfig,
+  syncWorkoutLogs,
+  syncWorkoutRoutineLogs,
+} from "@/lib/workouts";
+import type {
+  WorkoutExerciseConfig,
+  WorkoutTrackingPresetId,
+} from "@/lib/workouts";
 import type {
   DiaryEntry,
   MetricDefinition,
@@ -44,10 +60,6 @@ import {
   createDefaultWorkspaceState,
   createDraftFromEntry,
   createMetricFromTemplate,
-  createWorkoutExercise,
-  createWorkoutRoutine as createWorkoutRoutineRecord,
-  createWorkoutSession,
-  createWorkoutSet,
   formatCompactDate,
   findMetricDefinitionBySemantic,
   getAnalyticsMetricDefinitions,
@@ -156,37 +168,46 @@ type WorkspaceContextValue = {
     name: string,
     options?: {
       note?: string;
-      initialSets?: Array<Partial<Pick<WorkoutSet, "load" | "reps" | "note">>>;
+      presetId?: WorkoutTrackingPresetId;
+      config?: Partial<WorkoutExerciseConfig>;
+      logs?: Array<Partial<Pick<WorkoutSet, "values" | "note" | "completedAt">>>;
     },
   ) => string;
   updateWorkoutExercise: (
     exerciseId: string,
-    patch: Partial<Pick<WorkoutExercise, "name" | "note">>,
+    patch: Partial<Pick<WorkoutExercise, "name" | "note">> & {
+      config?: Partial<WorkoutExerciseConfig>;
+    },
   ) => void;
   removeWorkoutExercise: (exerciseId: string) => void;
   addWorkoutSet: (
     exerciseId: string,
-    preset?: Partial<Pick<WorkoutSet, "load" | "reps" | "note">>,
+    preset?: Partial<Pick<WorkoutSet, "values" | "note" | "completedAt">>,
   ) => string;
   updateWorkoutSet: (
     exerciseId: string,
     setId: string,
-    patch: Partial<Pick<WorkoutSet, "load" | "reps" | "note">>,
+    patch: Partial<WorkoutSet>,
   ) => void;
   duplicateWorkoutSet: (
     exerciseId: string,
     setId?: string,
-    patch?: Partial<Pick<WorkoutSet, "load" | "reps" | "note">>,
+    patch?: Partial<WorkoutSet>,
   ) => string | null;
   removeWorkoutSet: (exerciseId: string, setId: string) => void;
   toggleWorkoutSetCompleted: (exerciseId: string, setId: string) => void;
   toggleWorkoutExerciseCompleted: (exerciseId: string) => void;
   createWorkoutRoutine: (input: {
+    id?: string;
     name: string;
     focus?: string;
     exercises: Array<{
+      id?: string;
       name: string;
       note?: string;
+      presetId?: WorkoutTrackingPresetId;
+      config?: Partial<WorkoutExerciseConfig>;
+      logs?: Array<Partial<Pick<WorkoutSet, "values" | "note">>>;
     }>;
   }) => string | null;
   saveWorkoutAsRoutine: (name?: string) => string | null;
@@ -971,6 +992,48 @@ export function WorkspaceProvider({
     [selectedDate, selectedWorkoutSessionId, workoutSessionsForDate, workspaceState.workouts],
   );
 
+  const normalizeWorkoutExerciseState = (
+    exercise: WorkoutExercise,
+    options: {
+      preserveCompletedAt?: boolean;
+    } = {},
+  ) => {
+    const config = sanitizeWorkoutExerciseConfig(exercise.config);
+    const logs = syncWorkoutLogs(config, exercise.logs ?? []);
+    const allCompleted = logs.length > 0 && logs.every((log) => Boolean(log.completedAt));
+
+    return {
+      ...exercise,
+      config,
+      logs,
+      completedAt:
+        allCompleted && options.preserveCompletedAt
+          ? exercise.completedAt ?? logs[logs.length - 1]?.completedAt ?? new Date().toISOString()
+          : null,
+    } satisfies WorkoutExercise;
+  };
+
+  const normalizeWorkoutSessionState = (
+    session: WorkoutSession,
+    options: {
+      preserveCompletedAt?: boolean;
+      preserveExerciseCompletion?: boolean;
+    } = {},
+  ) => {
+    const exercises = session.exercises.map((exercise) =>
+      normalizeWorkoutExerciseState(exercise, {
+        preserveCompletedAt: options.preserveExerciseCompletion,
+      }),
+    );
+
+    return {
+      ...session,
+      exercises,
+      summary: buildWorkoutSessionSummary({ exercises }),
+      completedAt: options.preserveCompletedAt ? session.completedAt : null,
+    } satisfies WorkoutSession;
+  };
+
   const updateSelectedWorkoutSession = (
     updater: (session: WorkoutSession) => WorkoutSession,
   ) => {
@@ -982,12 +1045,18 @@ export function WorkspaceProvider({
           (session) =>
             session.id === selectedWorkoutSessionId && session.date === selectedDate,
         ) ?? null;
-      const baseSession = existingSession ?? createWorkoutSession(selectedDate);
-      const updatedSession = {
-        ...updater(baseSession),
-        date: selectedDate,
-        updatedAt: new Date().toISOString(),
-      };
+      const baseSession = existingSession ?? createWorkoutSessionRecord(selectedDate);
+      const updatedSession = normalizeWorkoutSessionState(
+        {
+          ...updater(baseSession),
+          date: selectedDate,
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          preserveCompletedAt: false,
+          preserveExerciseCompletion: true,
+        },
+      );
 
       nextSessionId = updatedSession.id;
 
@@ -1951,14 +2020,20 @@ export function WorkspaceProvider({
     name: string,
     options: {
       note?: string;
-      initialSets?: Array<Partial<Pick<WorkoutSet, "load" | "reps" | "note">>>;
+      presetId?: WorkoutTrackingPresetId;
+      config?: Partial<WorkoutExerciseConfig>;
+      logs?: Array<Partial<Pick<WorkoutSet, "values" | "note" | "completedAt">>>;
     } = {},
   ) => {
-    const nextExercise = createWorkoutExercise(name, options);
+    const nextExercise = createWorkoutExerciseRecord(name, {
+      note: options.note,
+      presetId: options.presetId,
+      config: options.config,
+      logs: options.logs,
+    });
 
     updateSelectedWorkoutSession((session) => ({
       ...session,
-      completedAt: null,
       exercises: [...session.exercises, nextExercise],
     }));
 
@@ -1967,7 +2042,9 @@ export function WorkspaceProvider({
 
   const updateWorkoutExercise = (
     exerciseId: string,
-    patch: Partial<Pick<WorkoutExercise, "name" | "note">>,
+    patch: Partial<Pick<WorkoutExercise, "name" | "note">> & {
+      config?: Partial<WorkoutExerciseConfig>;
+    },
   ) => {
     updateSelectedWorkoutSession((session) => ({
       ...session,
@@ -1975,7 +2052,15 @@ export function WorkspaceProvider({
         exercise.id === exerciseId
           ? {
               ...exercise,
-              ...patch,
+              name: patch.name ?? exercise.name,
+              note: patch.note ?? exercise.note,
+              config: patch.config
+                ? sanitizeWorkoutExerciseConfig({
+                    ...exercise.config,
+                    ...patch.config,
+                    fields: patch.config.fields ?? exercise.config.fields,
+                  })
+                : exercise.config,
             }
           : exercise,
       ),
@@ -2007,11 +2092,11 @@ export function WorkspaceProvider({
         workouts: sortWorkoutSessions(
           current.workouts.map((session) =>
             session.id === existingSession.id
-              ? {
+              ? normalizeWorkoutSessionState({
                   ...session,
                   exercises: nextExercises,
                   updatedAt: new Date().toISOString(),
-                }
+                })
               : session,
           ),
         ),
@@ -2021,19 +2106,27 @@ export function WorkspaceProvider({
 
   const addWorkoutSet = (
     exerciseId: string,
-    preset: Partial<Pick<WorkoutSet, "load" | "reps" | "note">> = {},
+    preset: Partial<Pick<WorkoutSet, "values" | "note" | "completedAt">> = {},
   ) => {
-    const nextSet = createWorkoutSet(preset);
+    const sourceExercise =
+      selectedWorkoutSession?.exercises.find((exercise) => exercise.id === exerciseId) ?? null;
+
+    if (!sourceExercise) {
+      return "";
+    }
+
+    const nextSet = createWorkoutLog(sourceExercise.config, preset);
 
     updateSelectedWorkoutSession((session) => ({
       ...session,
-      completedAt: null,
       exercises: session.exercises.map((exercise) =>
         exercise.id === exerciseId
           ? {
               ...exercise,
-              completedAt: null,
-              sets: [...exercise.sets, nextSet],
+              logs:
+                exercise.config.entryMode === "single"
+                  ? [nextSet]
+                  : [...exercise.logs, nextSet],
             }
           : exercise,
       ),
@@ -2045,20 +2138,25 @@ export function WorkspaceProvider({
   const updateWorkoutSet = (
     exerciseId: string,
     setId: string,
-    patch: Partial<Pick<WorkoutSet, "load" | "reps" | "note">>,
+    patch: Partial<WorkoutSet>,
   ) => {
     updateSelectedWorkoutSession((session) => ({
       ...session,
-      completedAt: null,
       exercises: session.exercises.map((exercise) =>
         exercise.id === exerciseId
           ? {
               ...exercise,
-              sets: exercise.sets.map((set) =>
+              logs: exercise.logs.map((set) =>
                 set.id === setId
                   ? {
                       ...set,
                       ...patch,
+                      values: patch.values
+                        ? {
+                            ...set.values,
+                            ...patch.values,
+                          }
+                        : set.values,
                     }
                   : set,
               ),
@@ -2071,14 +2169,14 @@ export function WorkspaceProvider({
   const duplicateWorkoutSet = (
     exerciseId: string,
     setId?: string,
-    patch: Partial<Pick<WorkoutSet, "load" | "reps" | "note">> = {},
+    patch: Partial<WorkoutSet> = {},
   ) => {
     const sourceExercise =
       selectedWorkoutSession?.exercises.find((exercise) => exercise.id === exerciseId) ?? null;
     const sourceSet = sourceExercise
       ? setId
-        ? sourceExercise.sets.find((set) => set.id === setId) ?? null
-        : sourceExercise.sets[sourceExercise.sets.length - 1] ?? null
+        ? sourceExercise.logs.find((set) => set.id === setId) ?? null
+        : sourceExercise.logs[sourceExercise.logs.length - 1] ?? null
       : null;
 
     if (!sourceExercise || !sourceSet) {
@@ -2086,29 +2184,30 @@ export function WorkspaceProvider({
     }
 
     return addWorkoutSet(exerciseId, {
-      load: patch.load ?? sourceSet.load,
-      reps: patch.reps ?? sourceSet.reps,
+      values: {
+        ...sourceSet.values,
+        ...(patch.values ?? {}),
+      },
       note: patch.note ?? sourceSet.note,
+      completedAt: patch.completedAt ?? null,
     });
   };
 
   const removeWorkoutSet = (exerciseId: string, setId: string) => {
     updateSelectedWorkoutSession((session) => ({
       ...session,
-      completedAt: null,
       exercises: session.exercises.map((exercise) => {
         if (exercise.id !== exerciseId) {
           return exercise;
         }
 
-        const nextSets = exercise.sets.filter((set) => set.id !== setId);
-        const sets = nextSets.length > 0 ? nextSets : [createWorkoutSet()];
-        const allCompleted = sets.every((set) => Boolean(set.completedAt));
+        const nextLogs = exercise.logs.filter((set) => set.id !== setId);
+        const logs =
+          nextLogs.length > 0 ? nextLogs : [createWorkoutLog(exercise.config)];
 
         return {
           ...exercise,
-          sets,
-          completedAt: allCompleted ? exercise.completedAt ?? new Date().toISOString() : null,
+          logs,
         };
       }),
     }));
@@ -2117,14 +2216,13 @@ export function WorkspaceProvider({
   const toggleWorkoutSetCompleted = (exerciseId: string, setId: string) => {
     updateSelectedWorkoutSession((session) => ({
       ...session,
-      completedAt: null,
       exercises: session.exercises.map((exercise) => {
         if (exercise.id !== exerciseId) {
           return exercise;
         }
 
         const timestamp = new Date().toISOString();
-        const nextSets = exercise.sets.map((set) =>
+        const nextLogs = exercise.logs.map((set) =>
           set.id === setId
             ? {
                 ...set,
@@ -2132,12 +2230,10 @@ export function WorkspaceProvider({
               }
             : set,
         );
-        const allCompleted = nextSets.length > 0 && nextSets.every((set) => Boolean(set.completedAt));
 
         return {
           ...exercise,
-          sets: nextSets,
-          completedAt: allCompleted ? exercise.completedAt ?? timestamp : null,
+          logs: nextLogs,
         };
       }),
     }));
@@ -2146,7 +2242,6 @@ export function WorkspaceProvider({
   const toggleWorkoutExerciseCompleted = (exerciseId: string) => {
     updateSelectedWorkoutSession((session) => ({
       ...session,
-      completedAt: null,
       exercises: session.exercises.map((exercise) => {
         if (exercise.id !== exerciseId) {
           return exercise;
@@ -2158,7 +2253,7 @@ export function WorkspaceProvider({
         return {
           ...exercise,
           completedAt: isCompleted ? null : timestamp,
-          sets: exercise.sets.map((set) => ({
+          logs: exercise.logs.map((set) => ({
             ...set,
             completedAt: isCompleted ? null : set.completedAt ?? timestamp,
           })),
@@ -2168,18 +2263,27 @@ export function WorkspaceProvider({
   };
 
   const createWorkoutRoutine = (input: {
+    id?: string;
     name: string;
     focus?: string;
     exercises: Array<{
+      id?: string;
       name: string;
       note?: string;
+      presetId?: WorkoutTrackingPresetId;
+      config?: Partial<WorkoutExerciseConfig>;
+      logs?: Array<Partial<Pick<WorkoutSet, "values" | "note">>>;
     }>;
   }) => {
     const routineName = input.name.trim();
     const exercises = input.exercises
       .map((exercise) => ({
+        id: exercise.id,
         name: exercise.name.trim(),
         note: exercise.note ?? "",
+        presetId: exercise.presetId,
+        config: exercise.config,
+        logs: exercise.logs,
       }))
       .filter((exercise) => exercise.name.length > 0);
 
@@ -2187,17 +2291,31 @@ export function WorkspaceProvider({
       return null;
     }
 
-    const nextRoutine = createWorkoutRoutineRecord(routineName, {
+    const existingRoutine = input.id
+      ? workspaceState.workoutRoutines.find((routine) => routine.id === input.id) ?? null
+      : null;
+    const timestamp = new Date().toISOString();
+    const nextRoutineBase = createWorkoutRoutineRecord(routineName, {
       focus: input.focus,
-      exercises: exercises.map((exercise) => ({
-        ...exercise,
-        sets: [{ load: "", reps: "", note: "" }],
-      })),
+      exercises,
     });
+    const nextRoutine: WorkoutRoutine = {
+      ...nextRoutineBase,
+      id: existingRoutine?.id ?? nextRoutineBase.id,
+      createdAt: existingRoutine?.createdAt ?? nextRoutineBase.createdAt,
+      updatedAt: timestamp,
+      lastUsedAt: existingRoutine?.lastUsedAt ?? nextRoutineBase.lastUsedAt,
+    };
 
     setWorkspaceState((current) => ({
       ...current,
-      workoutRoutines: sortWorkoutRoutines([nextRoutine, ...current.workoutRoutines]),
+      workoutRoutines: sortWorkoutRoutines(
+        existingRoutine
+          ? current.workoutRoutines.map((routine) =>
+              routine.id === nextRoutine.id ? nextRoutine : routine,
+            )
+          : [nextRoutine, ...current.workoutRoutines],
+      ),
     }));
 
     return nextRoutine.id;
@@ -2215,22 +2333,22 @@ export function WorkspaceProvider({
       sourceSession.title.trim() ||
       workspaceState.workoutRoutines.find((routine) => routine.id === sourceSession.routineId)?.name ||
       "Моя тренировка";
+    const existingRoutine =
+      sourceSession.routineId
+        ? workspaceState.workoutRoutines.find((routine) => routine.id === sourceSession.routineId) ?? null
+        : null;
     const timestamp = new Date().toISOString();
     const serializedExercises = sourceSession.exercises.map((exercise) => ({
       id: exercise.id,
       name: exercise.name,
       note: exercise.note,
-      sets: exercise.sets.map((set) => ({
+      config: exercise.config,
+      logs: exercise.logs.map((set) => ({
         id: set.id,
-        load: set.load,
-        reps: set.reps,
+        values: set.values,
         note: set.note,
       })),
     }));
-    const existingRoutine =
-      sourceSession.routineId
-        ? workspaceState.workoutRoutines.find((routine) => routine.id === sourceSession.routineId) ?? null
-        : null;
     const nextRoutineId = existingRoutine?.id ?? createWorkoutRoutineRecord(routineName).id;
 
     setWorkspaceState((current) => {
@@ -2264,13 +2382,13 @@ export function WorkspaceProvider({
         workouts: sortWorkoutSessions(
           current.workouts.map((session) =>
             session.id === sourceSession.id
-              ? {
+              ? normalizeWorkoutSessionState({
                   ...session,
                   title: routineName,
                   focus: sourceSession.focus,
                   routineId: nextRoutine.id,
                   updatedAt: timestamp,
-                }
+                })
               : session,
           ),
         ),
@@ -2289,8 +2407,8 @@ export function WorkspaceProvider({
     }
 
     const timestamp = new Date().toISOString();
-    const nextSession = {
-      ...createWorkoutSession(selectedDate, {
+    const nextSession = normalizeWorkoutSessionState({
+      ...createWorkoutSessionRecord(selectedDate, {
         title: routine.name,
         focus: routine.focus,
         routineId: routine.id,
@@ -2300,22 +2418,10 @@ export function WorkspaceProvider({
       routineId: routine.id,
       startedAt: timestamp,
       completedAt: null,
-      exercises: routine.exercises.map((exercise) => ({
-        id: exercise.id,
-        name: exercise.name,
-        note: exercise.note,
-        completedAt: null,
-        sets: exercise.sets.map((set) => ({
-          id: set.id,
-          load: set.load,
-          reps: set.reps,
-          note: set.note,
-          completedAt: null,
-        })),
-      })),
+      exercises: routine.exercises.map((exercise) => cloneRoutineExerciseToSession(exercise)),
       createdAt: timestamp,
       updatedAt: timestamp,
-    } satisfies WorkoutSession;
+    });
 
     setWorkspaceState((current) => ({
       ...current,
@@ -2352,21 +2458,20 @@ export function WorkspaceProvider({
           return session;
         }
 
-        return {
-          ...session,
-          completedAt: timestamp,
-          updatedAt: timestamp,
-          exercises: session.exercises.map((exercise) => {
-            const allCompleted =
-              exercise.sets.length > 0 && exercise.sets.every((set) => Boolean(set.completedAt));
-
-            return {
-              ...exercise,
-              completedAt: allCompleted ? exercise.completedAt ?? timestamp : null,
-            };
-          }),
-        };
+        return normalizeWorkoutSessionState(
+          {
+            ...session,
+            completedAt: timestamp,
+            updatedAt: timestamp,
+          },
+          {
+            preserveCompletedAt: true,
+            preserveExerciseCompletion: true,
+          },
+        );
       });
+      const completedSession =
+        nextWorkouts.find((session) => session.id === sourceSession.id) ?? sourceSession;
 
       if (!sourceSession.routineId) {
         return {
@@ -2382,18 +2487,21 @@ export function WorkspaceProvider({
 
         return {
           ...routine,
-          name: sourceSession.title.trim() || routine.name,
-          focus: sourceSession.focus,
-          exercises: sourceSession.exercises.map((exercise) => ({
+          name: completedSession.title.trim() || routine.name,
+          focus: completedSession.focus,
+          exercises: completedSession.exercises.map((exercise) => ({
             id: exercise.id,
             name: exercise.name,
             note: exercise.note,
-            sets: exercise.sets.map((set) => ({
-              id: set.id,
-              load: set.load,
-              reps: set.reps,
-              note: set.note,
-            })),
+            config: exercise.config,
+            logs: syncWorkoutRoutineLogs(
+              sanitizeWorkoutExerciseConfig(exercise.config),
+              exercise.logs.map((set) => ({
+                id: set.id,
+                values: set.values,
+                note: set.note,
+              })),
+            ),
           })),
           lastUsedAt: timestamp,
           updatedAt: timestamp,
@@ -2644,19 +2752,8 @@ export function WorkspaceProvider({
         compactDate: formatCompactDate(session.date),
         title: session.title.trim() || "Силовая тренировка",
         exerciseCount: session.exercises.length,
-        setCount: session.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0),
-        previewLines: session.exercises.slice(0, 2).map((exercise) => {
-          const sets = exercise.sets
-            .slice(0, 3)
-            .map((set) => {
-              const load = set.load.trim() || "вес";
-              const reps = set.reps.trim() || "повт.";
-              return `${load} × ${reps}`;
-            })
-            .join(" · ");
-
-          return sets ? `${exercise.name} · ${sets}` : exercise.name;
-        }),
+        setCount: session.summary.totalLogs,
+        previewLines: getWorkoutSessionPreviewLines(session),
       })),
     [workspaceState.workouts],
   );

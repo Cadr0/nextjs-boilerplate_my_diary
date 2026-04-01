@@ -9,11 +9,6 @@ export type WorkoutDateSummary = {
   tonnage: number;
 };
 
-function parseWorkoutNumber(value: string) {
-  const parsed = Number.parseFloat(value.replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 function roundWorkoutValue(value: number) {
   return Number.isInteger(value) ? value : Number(value.toFixed(1));
 }
@@ -40,10 +35,7 @@ function sortWorkoutDateSummaries(summaries: WorkoutDateSummary[]) {
 
 export function buildWorkoutDateSummaries(
   sessions: WorkoutSession[],
-  options?: {
-    from?: string;
-    to?: string;
-  },
+  options?: { from?: string; to?: string },
 ) {
   const summaries = new Map<string, WorkoutDateSummary>();
 
@@ -70,17 +62,8 @@ export function buildWorkoutDateSummaries(
     current.trained = true;
     current.sessionsCount += 1;
     current.exerciseCount += session.exercises.length;
-
-    for (const exercise of session.exercises) {
-      for (const set of exercise.sets) {
-        if (!set.completedAt) {
-          continue;
-        }
-
-        current.totalSets += 1;
-        current.tonnage += parseWorkoutNumber(set.load) * parseWorkoutNumber(set.reps);
-      }
-    }
+    current.totalSets += session.summary.completedLogs;
+    current.tonnage += session.summary.totalVolumeKg;
 
     summaries.set(session.date, current);
   }
@@ -176,7 +159,7 @@ export function buildWorkoutSummaryContextText(args: {
 
     return [
       `Workout summary for ${summary.date}:`,
-      `- trained: yes`,
+      "- trained: yes",
       `- sessions_count: ${summary.sessionsCount}`,
       `- exercise_count: ${summary.exerciseCount}`,
       `- total_sets: ${summary.totalSets}`,

@@ -1,49 +1,53 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { BrandGlyph } from "@/components/brand-glyph";
+import { WorkoutAssistantPanel } from "@/components/workout-assistant-panel";
 import { WorkspaceSectionShell } from "@/components/workspace-shell";
 import { WorkspaceSidebarFrame, WorkspaceSidebarSection } from "@/components/workspace-sidebar";
-import { WorkoutAssistantPanel } from "@/components/workout-assistant-panel";
 import { WorkspaceUserControls } from "@/components/workspace-user-controls";
-import { EmptyState } from "@/components/workspace-ui";
+import { EmptyState, SectionCard, SectionHeader, StatCard } from "@/components/workspace-ui";
 import { useWorkspace } from "@/components/workspace-provider";
+import {
+  createWorkoutExerciseConfig,
+  formatDurationLabel,
+  getWorkoutComparisonMetric,
+  getWorkoutExerciseHighlights,
+  getWorkoutFieldDefinition,
+  getWorkoutLogHeadline,
+  getWorkoutPresetDefinition,
+  getWorkoutSessionHighlights,
+  sanitizeWorkoutExerciseConfig,
+  workoutExerciseLibrary,
+  workoutFieldLibrary,
+  workoutTrackingPresets,
+} from "@/lib/workouts";
 import { getTodayIsoDate } from "@/lib/workspace";
-import type { WorkoutExercise, WorkoutRoutine, WorkoutSession, WorkoutSet } from "@/lib/workspace";
+import type {
+  WorkoutEntryMode,
+  WorkoutExercise,
+  WorkoutExerciseConfig,
+  WorkoutFieldConfig,
+  WorkoutMetricKey,
+  WorkoutRoutine,
+  WorkoutSession,
+  WorkoutSet,
+  WorkoutTrackingPresetId,
+} from "@/lib/workspace";
 
-type ScreenState = "list" | "player" | "summary";
-
-type BuilderDraft = {
+type BuilderExerciseDraft = {
+  id: string;
   name: string;
-  exerciseName: string;
-  exercises: string[];
+  note: string;
+  config: WorkoutExerciseConfig;
 };
 
-type SessionMetrics = {
-  totalSets: number;
-  totalReps: number;
-  totalVolume: number;
+type RoutineBuilderDraft = {
+  id?: string;
+  name: string;
+  focus: string;
+  exercises: BuilderExerciseDraft[];
 };
-
-type ComparisonSummary = {
-  title: string;
-  detail: string;
-  percentage: string;
-};
-
-type RecommendationCard = {
-  title: string;
-  detail: string;
-  tone: "success" | "info" | "focus";
-};
-
-const shortDateFormatter = new Intl.DateTimeFormat("ru-RU", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-});
 
 const longDateFormatter = new Intl.DateTimeFormat("ru-RU", {
   day: "numeric",
@@ -51,34 +55,38 @@ const longDateFormatter = new Intl.DateTimeFormat("ru-RU", {
   year: "numeric",
 });
 
-const compactHistoryDateFormatter = new Intl.DateTimeFormat("ru-RU", {
+const shortDateFormatter = new Intl.DateTimeFormat("ru-RU", {
   day: "numeric",
   month: "short",
 });
 
-function parseNumericValue(value: string) {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return null;
+function createLocalId(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}-${crypto.randomUUID()}`;
   }
 
-  const match = trimmed.match(/[+-]?\d+(?:[.,]\d+)?/);
-
-  if (!match) {
-    return null;
-  }
-
-  const parsed = Number.parseFloat(match[0].replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function formatShortDate(value: string) {
-  return shortDateFormatter.format(new Date(`${value}T12:00:00`));
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function formatLongDate(value: string) {
   return longDateFormatter.format(new Date(`${value}T12:00:00`));
+}
+
+function formatShortDate(value: string) {
+  return shortDateFormatter.format(new Date(`${value}T12:00:00`)).replace(".", "");
+}
+
+function formatNumber(value: number, digits = 1) {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+
+  const formatted =
+    digits === 0
+      ? Math.round(value).toString()
+      : value.toFixed(digits).replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1");
+
+  return formatted.replace(".", ",");
 }
 
 function getSidebarDateLabel(value: string) {
@@ -98,107 +106,88 @@ function getSidebarDateLabel(value: string) {
   return formatLongDate(value);
 }
 
-function getHeadingDateLabel(value: string) {
-  const today = getTodayIsoDate();
-
-  if (value === today) {
-    return `Сегодня, ${formatLongDate(value)}`;
-  }
-
-  return formatLongDate(value);
+function getPresetPrimaryKeys(presetId: WorkoutTrackingPresetId) {
+  return getWorkoutPresetDefinition(presetId).primaryFields.map((field) =>
+    typeof field === "string" ? field : field.key,
+  );
 }
 
-function formatHistoryDateLabel(value: string) {
-  const today = getTodayIsoDate();
-  const yesterday = new Date(`${today}T12:00:00`);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayIso = yesterday.toISOString().slice(0, 10);
-
-  if (value === today) {
-    return "Сегодня";
-  }
-
-  if (value === yesterdayIso) {
-    return "Вчера";
-  }
-
-  return compactHistoryDateFormatter.format(new Date(`${value}T12:00:00`)).replace(".", "");
-}
-
-function formatMetricValue(value: number, fractionDigits = 0) {
-  const rounded =
-    fractionDigits > 0
-      ? value.toFixed(fractionDigits).replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1")
-      : Math.round(value).toString();
-
-  return rounded.replace(".", ",");
-}
-
-function getPluralForm(value: number, one: string, few: string, many: string) {
-  const mod10 = value % 10;
-  const mod100 = value % 100;
-
-  if (mod10 === 1 && mod100 !== 11) {
-    return one;
-  }
-
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
-    return few;
-  }
-
-  return many;
-}
-
-function formatExerciseCount(value: number) {
-  return `${value} ${getPluralForm(value, "упражнение", "упражнения", "упражнений")}`;
-}
-
-function formatWorkoutCount(value: number) {
-  return `${value} ${getPluralForm(value, "тренировка", "тренировки", "тренировок")}`;
-}
-
-function getCompletedSets(exercise: WorkoutExercise) {
-  return exercise.sets.filter((set) => Boolean(set.completedAt));
-}
-
-function getSetVolume(set: WorkoutSet) {
-  const load = parseNumericValue(set.load) ?? 0;
-  const reps = parseNumericValue(set.reps) ?? 0;
-
-  return load * reps;
-}
-
-function getExerciseVolume(exercise: WorkoutExercise) {
-  return getCompletedSets(exercise).reduce((sum, set) => sum + getSetVolume(set), 0);
-}
-
-function getExerciseMaxWeight(exercise: WorkoutExercise) {
-  return Math.max(0, ...getCompletedSets(exercise).map((set) => parseNumericValue(set.load) ?? 0));
-}
-
-function getSessionMetrics(session: WorkoutSession | null): SessionMetrics {
-  if (!session) {
-    return {
-      totalSets: 0,
-      totalReps: 0,
-      totalVolume: 0,
-    };
-  }
-
-  const completedSets = session.exercises.flatMap((exercise) => getCompletedSets(exercise));
+function buildFieldConfig(
+  key: WorkoutMetricKey,
+  order: number,
+  current?: WorkoutFieldConfig,
+): WorkoutFieldConfig {
+  const definition = getWorkoutFieldDefinition(key);
 
   return {
-    totalSets: completedSets.length,
-    totalReps: completedSets.reduce((sum, set) => sum + (parseNumericValue(set.reps) ?? 0), 0),
-    totalVolume: completedSets.reduce((sum, set) => sum + getSetVolume(set), 0),
+    key,
+    label: current?.label ?? definition.label,
+    unit: current?.unit ?? definition.unit ?? "",
+    placeholder: current?.placeholder ?? definition.placeholder,
+    required: current?.required ?? false,
+    defaultValue: current?.defaultValue ?? "",
+    targetValue: current?.targetValue ?? "",
+    order,
+    options: current?.options ?? definition.options,
   };
 }
 
-function getPreviousComparableSession(
-  session: WorkoutSession | null,
-  workouts: WorkoutSession[],
+function buildConfigWithKeys(
+  presetId: WorkoutTrackingPresetId,
+  keys: WorkoutMetricKey[],
+  current?: WorkoutExerciseConfig,
+  overrides: Partial<WorkoutExerciseConfig> = {},
 ) {
-  if (!session) {
+  const uniqueKeys = Array.from(new Set(keys));
+  const previousByKey = new Map((current?.fields ?? []).map((field) => [field.key, field]));
+
+  return sanitizeWorkoutExerciseConfig({
+    ...(current ?? createWorkoutExerciseConfig(presetId)),
+    ...overrides,
+    presetId,
+    fields: uniqueKeys.map((key, index) => buildFieldConfig(key, index, previousByKey.get(key))),
+  });
+}
+
+function createExerciseDraft(template?: (typeof workoutExerciseLibrary)[number]): BuilderExerciseDraft {
+  const presetId = template?.presetId ?? "strength";
+  const keys =
+    template?.suggestedFields.length && template.suggestedFields.length > 0
+      ? template.suggestedFields
+      : createWorkoutExerciseConfig(presetId).fields.map((field) => field.key);
+
+  return {
+    id: createLocalId("builder-exercise"),
+    name: template?.name ?? "",
+    note: template?.note ?? "",
+    config: buildConfigWithKeys(presetId, keys),
+  };
+}
+
+function createRoutineDraft(routine?: WorkoutRoutine): RoutineBuilderDraft {
+  if (!routine) {
+    return {
+      name: "",
+      focus: "",
+      exercises: [createExerciseDraft()],
+    };
+  }
+
+  return {
+    id: routine.id,
+    name: routine.name,
+    focus: routine.focus,
+    exercises: routine.exercises.map((exercise) => ({
+      id: exercise.id,
+      name: exercise.name,
+      note: exercise.note,
+      config: sanitizeWorkoutExerciseConfig(exercise.config),
+    })),
+  };
+}
+
+function getPreviousComparableSession(session: WorkoutSession | null, workouts: WorkoutSession[]) {
+  if (!session?.completedAt) {
     return null;
   }
 
@@ -215,144 +204,28 @@ function getPreviousComparableSession(
 
         return candidate.title.trim().toLowerCase() === session.title.trim().toLowerCase();
       })
-      .sort((left, right) => right.date.localeCompare(left.date))[0] ?? null
+      .sort((left, right) =>
+        (right.completedAt ?? right.date).localeCompare(left.completedAt ?? left.date),
+      )[0] ?? null
   );
-}
-
-function getComparisonSummary(
-  session: WorkoutSession | null,
-  previousSession: WorkoutSession | null,
-): ComparisonSummary {
-  if (!session) {
-    return {
-      title: "Сравнение появится после первой завершенной тренировки",
-      detail: "Когда появится повторная сессия, здесь будет понятная динамика по объёму.",
-      percentage: "—",
-    };
-  }
-
-  if (!previousSession) {
-    return {
-      title: "Это первая точка отсчета для этой программы",
-      detail: "Следующая похожая тренировка даст базу для сравнения общего объёма.",
-      percentage: "Новый старт",
-    };
-  }
-
-  const current = getSessionMetrics(session);
-  const previous = getSessionMetrics(previousSession);
-  const delta = current.totalVolume - previous.totalVolume;
-  const percent =
-    previous.totalVolume > 0
-      ? `${delta >= 0 ? "+" : ""}${formatMetricValue((delta / previous.totalVolume) * 100, 1)}%`
-      : delta >= 0
-        ? "+100%"
-        : "0%";
-
-  return {
-    title:
-      delta >= 0
-        ? "Сравнение с прошлой тренировкой"
-        : "Объём ниже прошлой похожей тренировки",
-    detail:
-      delta === 0
-        ? "Общий тоннаж совпал с прошлым результатом."
-        : `${delta > 0 ? "Увеличение" : "Снижение"} общего объёма на ${formatMetricValue(
-            Math.abs(delta),
-          )} кг.`,
-    percentage: percent,
-  };
-}
-
-function getRecommendations(
-  session: WorkoutSession | null,
-  previousSession: WorkoutSession | null,
-): RecommendationCard[] {
-  if (!session) {
-    return [];
-  }
-
-  const metrics = getSessionMetrics(session);
-  const previousMetrics = getSessionMetrics(previousSession);
-  const averageReps = metrics.totalSets > 0 ? metrics.totalReps / metrics.totalSets : 0;
-
-  const items: RecommendationCard[] = [];
-
-  if (previousSession && metrics.totalVolume > previousMetrics.totalVolume) {
-    items.push({
-      title: "Отличный прогресс!",
-      detail: `Общий объём вырос на ${formatMetricValue(
-        metrics.totalVolume - previousMetrics.totalVolume,
-      )} кг. Можно сохранять текущую структуру цикла.`,
-      tone: "success",
-    });
-  } else if (!previousSession) {
-    items.push({
-      title: "Сохрани это как базовую точку",
-      detail: "Следующая такая же тренировка позволит быстро увидеть динамику по весу и повторениям.",
-      tone: "info",
-    });
-  }
-
-  items.push(
-    metrics.totalSets < 8
-      ? {
-          title: "Можно добавить объём",
-          detail: "Если восстановление хорошее, попробуй добавить ещё 1-2 рабочих подхода в ключевых упражнениях.",
-          tone: "info",
-        }
-      : {
-          title: "Объём тренировки выглядит рабочим",
-          detail: "Текущий объём уже достаточен, главный фокус теперь на качестве повторений и стабильной технике.",
-          tone: "focus",
-        },
-  );
-
-  if (averageReps >= 15) {
-    items.push({
-      title: "Повтори цикл с чуть большим весом",
-      detail: "Среднее количество повторений высокое. Это хороший момент, чтобы постепенно поднимать нагрузку.",
-      tone: "focus",
-    });
-  } else {
-    items.push({
-      title: "Сохраняй плотность работы",
-      detail: "Следи, чтобы рабочие подходы оставались ровными по повторениям без резких провалов между сетами.",
-      tone: "success",
-    });
-  }
-
-  return items.slice(0, 4);
-}
-
-function getToneClasses(tone: RecommendationCard["tone"]) {
-  if (tone === "success") {
-    return "border-[rgba(91,187,124,0.2)] bg-[rgba(240,251,242,0.94)] text-[rgb(18,120,59)]";
-  }
-
-  if (tone === "focus") {
-    return "border-[rgba(142,114,231,0.16)] bg-[rgba(248,244,255,0.94)] text-[rgb(107,57,209)]";
-  }
-
-  return "border-[rgba(88,129,202,0.18)] bg-[rgba(242,247,255,0.94)] text-[rgb(49,96,174)]";
 }
 
 function SurfaceButton({
   children,
+  onClick,
   variant = "primary",
   className,
   disabled,
-  onClick,
 }: {
   children: React.ReactNode;
+  onClick?: () => void;
   variant?: "primary" | "secondary" | "ghost";
   className?: string;
   disabled?: boolean;
-  onClick: () => void;
 }) {
   const tones =
     variant === "secondary"
-      ? "border border-[var(--border)] bg-white/90 text-[var(--foreground)] hover:border-[var(--accent)]"
+      ? "border border-[var(--border)] bg-white/92 text-[var(--foreground)] hover:border-[var(--accent)]"
       : variant === "ghost"
         ? "border border-transparent bg-[rgba(21,52,43,0.05)] text-[var(--foreground)] hover:bg-[rgba(21,52,43,0.08)]"
         : "border border-transparent bg-[var(--accent)] text-white shadow-[0_18px_34px_rgba(47,111,97,0.22)] hover:brightness-105";
@@ -362,7 +235,7 @@ function SurfaceButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex min-h-12 items-center justify-center gap-3 rounded-[20px] px-5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${tones} ${className ?? ""}`}
+      className={`inline-flex min-h-11 items-center justify-center rounded-[18px] px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${tones} ${className ?? ""}`}
     >
       {children}
     </button>
@@ -372,11 +245,9 @@ function SurfaceButton({
 function ModalShell({
   children,
   onClose,
-  maxWidthClass = "sm:max-w-4xl",
 }: {
   children: React.ReactNode;
   onClose: () => void;
-  maxWidthClass?: string;
 }) {
   return (
     <div
@@ -384,7 +255,7 @@ function ModalShell({
       onClick={onClose}
     >
       <div
-        className={`surface-card flex h-[100dvh] w-full flex-col overflow-hidden rounded-none border border-white/70 bg-[rgba(255,251,247,0.98)] shadow-[0_34px_80px_rgba(24,33,29,0.2)] sm:h-auto sm:max-h-[92dvh] ${maxWidthClass} sm:rounded-[34px]`}
+        className="surface-card flex h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-none border border-white/70 bg-[rgba(255,251,247,0.98)] shadow-[0_34px_80px_rgba(24,33,29,0.2)] sm:h-auto sm:max-h-[92dvh] sm:rounded-[34px]"
         onClick={(event) => event.stopPropagation()}
       >
         {children}
@@ -393,492 +264,119 @@ function ModalShell({
   );
 }
 
-function WorkoutRoutineCard({
-  routine,
-  isExpanded,
-  isActive,
-  isBlocked,
-  isCompletedForDay,
-  onToggleExpand,
-  onStart,
-}: {
-  routine: WorkoutRoutine;
-  isExpanded: boolean;
-  isActive: boolean;
-  isBlocked: boolean;
-  isCompletedForDay: boolean;
-  onToggleExpand: () => void;
-  onStart: () => void;
-}) {
-  return (
-    <article
-      className={`surface-card rounded-[28px] border p-5 sm:p-6 ${
-        isActive
-          ? "border-[rgba(47,111,97,0.8)] shadow-[0_18px_38px_rgba(47,111,97,0.12)]"
-          : "border-[var(--border)]"
-      }`}
-    >
-      <div className="flex items-start gap-4">
-        <div className="flex h-18 w-18 shrink-0 items-center justify-center rounded-[24px] bg-[var(--accent)]/95 text-white">
-          <DumbbellIcon className="h-8 w-8" />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-3">
-            <h3 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-              {routine.name}
-            </h3>
-            {isActive ? (
-              <span className="rounded-full bg-[rgba(47,111,97,0.12)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
-                Активна сейчас
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-2 flex items-center gap-2 text-sm text-[var(--muted)]">
-            <CalendarIcon className="h-4 w-4" />
-            Создано {formatShortDate(routine.createdAt.slice(0, 10))}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={onToggleExpand}
-          className="inline-flex items-center gap-3 rounded-full bg-[rgba(21,52,43,0.05)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[rgba(21,52,43,0.08)]"
-        >
-          <span>{formatExerciseCount(routine.exercises.length)}</span>
-          {isExpanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
-        </button>
-
-        {isCompletedForDay ? (
-          <span className="text-sm text-[var(--muted)]">На выбранную дату тренировка уже завершена</span>
-        ) : isBlocked ? (
-          <span className="text-sm text-[var(--muted)]">Сначала заверши текущую тренировку на этой дате</span>
-        ) : null}
-      </div>
-
-      {isExpanded ? (
-        <div className="mt-5 border-t border-[var(--border)] pt-4">
-          <ul className="grid gap-3">
-            {routine.exercises.map((exercise, index) => (
-              <li key={exercise.id} className="flex items-center gap-3 text-sm text-[var(--foreground)]">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[rgba(21,52,43,0.05)] text-xs font-semibold text-[var(--muted)]">
-                  {index + 1}
-                </span>
-                <span>{exercise.name}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      <SurfaceButton
-        onClick={onStart}
-        disabled={isBlocked || isCompletedForDay}
-        className="mt-6 w-full"
-      >
-        {isActive ? "Продолжить тренировку" : "Начать тренировку"}
-      </SurfaceButton>
-    </article>
-  );
-}
-
-function WorkoutSessionCard({
-  session,
-  selected,
-  onOpen,
-  onOpenDetails,
-}: {
-  session: WorkoutSession;
-  selected: boolean;
-  onOpen: () => void;
-  onOpenDetails: () => void;
-}) {
-  const metrics = getSessionMetrics(session);
-  const isCompleted = Boolean(session.completedAt);
-
-  return (
-    <article
-      className={`rounded-[28px] border p-5 transition sm:p-6 ${
-        selected
-          ? "border-[rgba(47,111,97,0.75)] bg-[rgba(255,255,255,0.96)] shadow-[0_18px_36px_rgba(47,111,97,0.12)]"
-          : "border-[var(--border)] bg-white/88"
-      }`}
-    >
-      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-[var(--accent)] text-white">
-              <DumbbellIcon className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="truncate text-[1.35rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[1.6rem]">
-                {session.title || "Тренировка"}
-              </h3>
-              <p className="mt-1 flex items-center gap-2 text-sm text-[var(--muted)]">
-                <CalendarIcon className="h-4 w-4" />
-                {formatShortDate(session.date)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <span
-          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
-            isCompleted
-              ? "bg-[rgba(47,111,97,0.12)] text-[var(--accent)]"
-              : "bg-[rgba(217,163,86,0.12)] text-[rgb(164,111,31)]"
-          }`}
-        >
-          {isCompleted ? "Завершена" : "В процессе"}
-        </span>
-      </div>
-
-      <div className="mt-5 flex flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-        <span className="inline-flex items-center rounded-full bg-[rgba(21,52,43,0.05)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]">
-          {formatExerciseCount(session.exercises.length)}
-        </span>
-        <span className="text-sm text-[var(--muted)]">
-          {metrics.totalSets} подходов · {formatMetricValue(metrics.totalVolume / 1000, 1)} т
-        </span>
-      </div>
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <SurfaceButton onClick={onOpen} className="w-full">
-          {isCompleted ? "Открыть итог" : "Продолжить"}
-        </SurfaceButton>
-        <SurfaceButton variant="secondary" onClick={onOpenDetails} className="w-full">
-          Детали
-        </SurfaceButton>
-      </div>
-    </article>
-  );
-}
-
-export function WorkoutSidebar({
-  screen,
-  activeSession,
-  completedSession,
-  history,
-  profileName,
-  profileSubtitle,
-  initials,
-  onShowList,
-  onShowActive,
-  onShowSummary,
-  onOpenHistorySession,
-}: {
-  screen: ScreenState;
-  activeSession: WorkoutSession | null;
-  completedSession: WorkoutSession | null;
-  history: WorkoutSession[];
-  profileName: string;
-  profileSubtitle: string;
-  initials: string;
-  onShowList: () => void;
-  onShowActive: () => void;
-  onShowSummary: () => void;
-  onOpenHistorySession: (sessionId: string) => void;
-}) {
-  return (
-    <aside className="surface-card hidden h-[calc(100vh-2rem)] flex-col rounded-[32px] p-4 xl:sticky xl:top-4 xl:flex">
-      <div className="rounded-[24px] border border-[var(--border)] bg-white/90 p-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]">
-              <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_10px_20px_rgba(32,77,67,0.24)]" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">Diary AI</p>
-              <p className="text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-                Тренировки
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-2">
-            <Link
-              href="/diary"
-              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-            >
-              Дневник
-            </Link>
-            <div className="inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--accent)] px-3 text-sm font-medium text-white">
-              Тренировки
-            </div>
-            <Link
-              href="/analytics"
-              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-            >
-              Период
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 min-h-0 flex-1 rounded-[28px] border border-[var(--border)] bg-white/78 p-3">
-        <div className="mb-2 px-1">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-            Навигация
-          </p>
-        </div>
-
-        <div className="grid gap-2">
-          <SidebarNavButton
-            title="Программы"
-            caption="Список и конструктор"
-            active={screen === "list"}
-            onClick={onShowList}
-          />
-          {activeSession ? (
-            <SidebarNavButton
-              title={activeSession.title || "Текущая тренировка"}
-              caption="Продолжить текущую сессию"
-              active={screen === "player"}
-              onClick={onShowActive}
-            />
-          ) : null}
-          {completedSession ? (
-            <SidebarNavButton
-              title={completedSession.title || "Итог тренировки"}
-              caption="Открыть итог за выбранную дату"
-              active={screen === "summary"}
-              onClick={onShowSummary}
-            />
-          ) : null}
-        </div>
-
-        <div className="my-4 h-px bg-[rgba(21,52,43,0.08)]" />
-
-        <div className="mb-2 flex items-center justify-between px-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--foreground)]">
-            История
-          </p>
-          <span className="text-xs text-[var(--muted)]">{history.length}</span>
-        </div>
-        <p className="px-1 text-sm text-[var(--muted)]">Дни тренировки</p>
-
-        {history.length > 0 ? (
-          <div className="mt-4 grid max-h-[52vh] gap-1.5 overflow-y-auto pr-1">
-            {history.map((session) => {
-              const metrics = getSessionMetrics(session);
-
-              return (
-                <button
-                  key={session.id}
-                  type="button"
-                  onClick={() => onOpenHistorySession(session.id)}
-                  className={`grid gap-2 rounded-[20px] px-3 py-3 text-left transition ${
-                    completedSession?.id === session.id
-                      ? "bg-[var(--accent)] text-white shadow-[0_14px_30px_rgba(47,111,97,0.22)]"
-                      : "text-[var(--foreground)] hover:bg-[rgba(47,111,97,0.08)]"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="truncate text-base font-semibold tracking-[-0.03em]">
-                      {session.title || "Тренировка"}
-                    </p>
-                    <span
-                      className={`flex h-9 min-w-9 items-center justify-center rounded-full px-3 text-sm font-semibold ${
-                        completedSession?.id === session.id
-                          ? "bg-white/18 text-white"
-                          : "bg-[rgba(21,52,43,0.08)] text-[var(--muted)]"
-                      }`}
-                    >
-                      {metrics.totalSets}
-                    </span>
-                  </div>
-                  <p
-                    className={`flex items-center gap-2 text-sm ${
-                      completedSession?.id === session.id ? "text-white/80" : "text-[var(--muted)]"
-                    }`}
-                  >
-                    <ClockIcon className="h-5 w-5" />
-                    {formatHistoryDateLabel(session.date)}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="mt-5">
-            <EmptyState copy="Заверши первую тренировку, и здесь появится история с быстрым доступом к деталям." />
-          </div>
-        )}
-
-      </div>
-
-      <button
-        type="button"
-        onClick={onShowList}
-        className="mt-4 flex items-center gap-3 rounded-[24px] border border-[var(--border)] bg-white/90 p-4 text-left transition hover:border-[rgba(47,111,97,0.24)]"
-      >
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white">
-          {initials}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-semibold text-[var(--foreground)]">{profileName}</p>
-          <p className="mt-1 text-xs text-[var(--muted)]">{profileSubtitle}</p>
-        </div>
-      </button>
-    </aside>
-  );
-}
-
-function SidebarNavButton({
-  title,
-  caption,
-  active,
-  onClick,
-}: {
-  title: string;
-  caption: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-[22px] border px-4 py-4 text-left transition ${
-        active
-          ? "border-[rgba(47,111,97,0.2)] bg-[rgba(47,111,97,0.08)]"
-          : "border-[var(--border)] bg-white/92 hover:border-[rgba(47,111,97,0.16)] hover:bg-white"
-      }`}
-    >
-      <p className="text-base font-semibold text-[var(--foreground)]">{title}</p>
-      <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{caption}</p>
-    </button>
-  );
-}
-
-function WorkoutSidebarContent({
-  days,
-  selectedDate,
-  workouts,
-  profileSubtitle,
-  onSelectDate,
-  onCloseSidebar,
-}: {
-  days: Array<{
-    date: string;
-    summary: string;
-    notesPreview: string;
-  }>;
+function WorkoutSidebarContent(props: {
   selectedDate: string;
-  workouts: WorkoutSession[];
-  profileSubtitle: string;
+  days: Array<{ date: string; summary: string; notesPreview: string }>;
+  routines: WorkoutRoutine[];
   onSelectDate: (date: string) => void;
-  onCloseSidebar?: () => void;
+  onOpenBuilder: () => void;
 }) {
-  const getPreview = (date: string, fallbackSummary: string, fallbackNotes: string) => {
-    const daySessions = workouts.filter((session) => session.date === date);
-
-    if (daySessions.length === 0) {
-      return fallbackSummary || fallbackNotes || "Без тренировок";
-    }
-
-    if (daySessions.length === 1) {
-      const [session] = daySessions;
-      const metrics = getSessionMetrics(session);
-
-      return `${session.title || "Тренировка"} · ${metrics.totalSets} подходов`;
-    }
-
-    return `${daySessions.length} тренировки · ${daySessions
-      .slice(0, 2)
-      .map((session) => session.title || "Тренировка")
-      .join(", ")}`;
-  };
-
   return (
     <WorkspaceSidebarFrame
       eyebrow="Diary AI"
       title="Тренировки"
       currentSection="workouts"
-      headerAction={
-        onCloseSidebar ? (
-          <button
-            type="button"
-            onClick={onCloseSidebar}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] xl:hidden"
-            aria-label="Р—Р°РєСЂС‹С‚СЊ Р±РѕРєРѕРІСѓСЋ РїР°РЅРµР»СЊ"
-          >
-            <CloseIcon className="h-5 w-5" />
-          </button>
-        ) : null
-      }
-      footer={
-        <WorkspaceUserControls subtitle={profileSubtitle} />
-      }
+      footer={<WorkspaceUserControls subtitle="Программы, история и AI-помощник" />}
     >
-      <WorkspaceSidebarSection label="Дни" meta={days.length}>
-        <div className="grid max-h-[52vh] gap-1.5 overflow-y-auto pr-1 xl:max-h-none">
-          {days.slice(0, 40).map((day) => (
+      <WorkspaceSidebarSection label="Дни" meta={props.days.length}>
+        <div className="grid max-h-[38vh] gap-1.5 overflow-y-auto pr-1 xl:max-h-none">
+          {props.days.slice(0, 40).map((day) => (
             <button
               key={day.date}
               type="button"
-              onClick={() => onSelectDate(day.date)}
+              onClick={() => props.onSelectDate(day.date)}
               className={`grid gap-1 rounded-[20px] px-3 py-3 text-left transition ${
-                day.date === selectedDate
+                day.date === props.selectedDate
                   ? "bg-[var(--accent)] text-white shadow-[0_14px_30px_rgba(47,111,97,0.22)]"
                   : "text-[var(--foreground)] hover:bg-[rgba(47,111,97,0.08)]"
               }`}
             >
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-medium">{getSidebarDateLabel(day.date)}</span>
-                {day.date === selectedDate ? <ChevronDownIcon className="h-4 w-4" /> : null}
-              </div>
+              <span className="text-sm font-medium">{getSidebarDateLabel(day.date)}</span>
               <span
                 className={`truncate text-xs ${
-                  day.date === selectedDate ? "text-white/80" : "text-[var(--muted)]"
+                  day.date === props.selectedDate ? "text-white/80" : "text-[var(--muted)]"
                 }`}
               >
-                {getPreview(day.date, day.summary, day.notesPreview)}
+                {day.summary || day.notesPreview || "Без записей"}
               </span>
             </button>
           ))}
+        </div>
+      </WorkspaceSidebarSection>
+
+      <WorkspaceSidebarSection label="Программы" meta={props.routines.length}>
+        <div className="grid gap-3">
+          <SurfaceButton onClick={props.onOpenBuilder} className="w-full">
+            Новая программа
+          </SurfaceButton>
+          {props.routines.length > 0 ? (
+            props.routines.map((routine) => (
+              <div
+                key={routine.id}
+                className="rounded-[22px] border border-[var(--border)] bg-white/88 px-4 py-4"
+              >
+                <p className="text-sm font-semibold text-[var(--foreground)]">{routine.name}</p>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  {routine.exercises.length} упражнений
+                </p>
+              </div>
+            ))
+          ) : (
+            <EmptyState copy="Сохранённые программы появятся здесь." />
+          )}
         </div>
       </WorkspaceSidebarSection>
     </WorkspaceSidebarFrame>
   );
 }
 
-function WorkoutBuilderModal({
-  draft,
-  onChange,
-  onAddExercise,
-  onRemoveExercise,
-  onClose,
-  onSave,
-}: {
-  draft: BuilderDraft;
-  onChange: (patch: Partial<BuilderDraft>) => void;
-  onAddExercise: () => void;
-  onRemoveExercise: (index: number) => void;
+function BuilderModal(props: {
+  draft: RoutineBuilderDraft;
+  onChange: (draft: RoutineBuilderDraft) => void;
   onClose: () => void;
   onSave: () => void;
 }) {
-  const canSave = draft.name.trim().length > 0 && draft.exercises.length > 0;
+  const updateExercise = (
+    exerciseId: string,
+    updater: (exercise: BuilderExerciseDraft) => BuilderExerciseDraft,
+  ) => {
+    props.onChange({
+      ...props.draft,
+      exercises: props.draft.exercises.map((exercise) =>
+        exercise.id === exerciseId ? updater(exercise) : exercise,
+      ),
+    });
+  };
+
+  const addExercise = (template?: (typeof workoutExerciseLibrary)[number]) => {
+    props.onChange({
+      ...props.draft,
+      exercises: [...props.draft.exercises, createExerciseDraft(template)],
+    });
+  };
+
+  const canSave =
+    props.draft.name.trim().length > 0 &&
+    props.draft.exercises.some((exercise) => exercise.name.trim().length > 0);
 
   return (
-    <ModalShell onClose={onClose}>
+    <ModalShell onClose={props.onClose}>
       <div className="border-b border-[var(--border)] px-5 pb-5 pt-5 sm:px-8 sm:pb-6 sm:pt-8">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-[2rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
-              Конструктор тренировки
+              {props.draft.id ? "Редактирование программы" : "Конструктор тренировки"}
             </h2>
-            <p className="mt-2 text-base text-[var(--muted)]">Создай свою программу тренировок</p>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)] sm:text-base">
+              Собери понятную программу: режим отслеживания, нужные метрики, число записей по умолчанию и спокойные подсказки для пользователя.
+            </p>
           </div>
           <button
             type="button"
-            onClick={onClose}
-            className="rounded-full p-2 text-[var(--muted)] transition hover:bg-[rgba(21,52,43,0.05)] hover:text-[var(--foreground)]"
-            aria-label="Закрыть"
+            onClick={props.onClose}
+            className="rounded-full p-2 text-sm text-[var(--muted)] transition hover:bg-[rgba(21,52,43,0.05)] hover:text-[var(--foreground)]"
           >
-            <CloseIcon className="h-7 w-7" />
+            Закрыть
           </button>
         </div>
       </div>
@@ -886,1202 +384,1001 @@ function WorkoutBuilderModal({
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-8 sm:py-6">
         <div className="grid gap-5">
           <section className="rounded-[28px] border border-[var(--border)] bg-white/92 p-5 sm:p-6">
-            <label className="grid gap-3">
-              <span className="text-[1.15rem] font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-[1.35rem]">
-                Название тренировки
-              </span>
-              <input
-                value={draft.name}
-                onChange={(event) => onChange({ name: event.target.value })}
-                placeholder="Например: Спина"
-                className="min-h-14 rounded-[20px] border border-[var(--border)] bg-white px-5 text-lg text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:text-xl"
-              />
-            </label>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold text-[var(--foreground)]">Название программы</span>
+                <input
+                  value={props.draft.name}
+                  onChange={(event) =>
+                    props.onChange({ ...props.draft, name: event.target.value })
+                  }
+                  placeholder="Например: кардио + мобилити"
+                  className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                />
+              </label>
+
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold text-[var(--foreground)]">Фокус</span>
+                <input
+                  value={props.draft.focus}
+                  onChange={(event) =>
+                    props.onChange({ ...props.draft, focus: event.target.value })
+                  }
+                  placeholder="Например: выносливость, техника, восстановление"
+                  className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                />
+              </label>
+            </div>
           </section>
 
           <section className="rounded-[28px] border border-[var(--border)] bg-white/92 p-5 sm:p-6">
-            <div className="flex flex-col gap-4">
-              <div>
-                <h3 className="text-[1.15rem] font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-[1.35rem]">
-                  Упражнения
-                </h3>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
-                <input
-                  value={draft.exerciseName}
-                  onChange={(event) => onChange({ exerciseName: event.target.value })}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      onAddExercise();
-                    }
-                  }}
-                  placeholder="Название упражнения..."
-                  className="min-h-14 rounded-[20px] border border-[var(--border)] bg-white px-5 text-lg text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                />
-                <SurfaceButton onClick={onAddExercise} className="w-full">
-                  <PlusIcon className="h-5 w-5" />
-                  Добавить
-                </SurfaceButton>
-              </div>
-
-              {draft.exercises.length > 0 ? (
-                <div className="grid gap-3">
-                  {draft.exercises.map((exercise, index) => (
-                    <div
-                      key={`${exercise}-${index}`}
-                      className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 rounded-[20px] bg-[rgba(244,247,244,0.9)] px-4"
-                    >
-                      <div className="text-[var(--muted)]">
-                        <GripIcon className="h-5 w-5" />
-                      </div>
-                      <span className="truncate text-lg font-semibold text-[var(--foreground)]">
-                        {index + 1}. {exercise}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onRemoveExercise(index)}
-                        className="rounded-full p-2 text-[var(--muted)] transition hover:bg-white hover:text-[rgb(161,72,87)]"
-                        aria-label={`Удалить упражнение ${exercise}`}
-                      >
-                        <TrashIcon className="h-5 w-5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState copy="Добавь хотя бы одно упражнение, чтобы сохранить программу." />
-              )}
+            <p className="text-sm font-semibold text-[var(--foreground)]">Быстрые шаблоны</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {workoutExerciseLibrary.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => addExercise(template)}
+                  className="rounded-full border border-[var(--border)] bg-white px-4 py-2 text-sm text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  {template.name}
+                </button>
+              ))}
             </div>
           </section>
+
+          <div className="grid gap-4">
+            {props.draft.exercises.map((exercise, index) => {
+              const preset = getWorkoutPresetDefinition(exercise.config.presetId);
+              const fieldKeys =
+                exercise.config.presetId === "custom"
+                  ? workoutFieldLibrary.map((field) => field.key)
+                  : Array.from(
+                      new Set([
+                        ...getPresetPrimaryKeys(exercise.config.presetId),
+                        ...preset.extraFields,
+                      ]),
+                    );
+              const selected = new Set(exercise.config.fields.map((field) => field.key));
+
+              return (
+                <section
+                  key={exercise.id}
+                  className="rounded-[30px] border border-[var(--border)] bg-white/94 p-5 sm:p-6"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">
+                        Упражнение {index + 1}
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                        {exercise.name.trim() || "Новое упражнение"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        props.onChange({
+                          ...props.draft,
+                          exercises: props.draft.exercises.filter((item) => item.id !== exercise.id),
+                        })
+                      }
+                      disabled={props.draft.exercises.length === 1}
+                      className="text-sm text-[var(--muted)] transition hover:text-[rgb(161,72,87)] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Удалить
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <label className="grid gap-2">
+                      <span className="text-sm text-[var(--muted)]">Название</span>
+                      <input
+                        value={exercise.name}
+                        onChange={(event) =>
+                          updateExercise(exercise.id, (current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                        placeholder="Например: присед, бег, планка"
+                        className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                      />
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className="text-sm text-[var(--muted)]">Подсказка</span>
+                      <input
+                        value={exercise.note}
+                        onChange={(event) =>
+                          updateExercise(exercise.id, (current) => ({
+                            ...current,
+                            note: event.target.value,
+                          }))
+                        }
+                        placeholder="Короткая подсказка по технике или темпу"
+                        className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
+                    <label className="grid gap-2">
+                      <span className="text-sm text-[var(--muted)]">Режим отслеживания</span>
+                      <select
+                        value={exercise.config.presetId}
+                        onChange={(event) => {
+                          const presetId = event.target.value as WorkoutTrackingPresetId;
+                          const nextKeys = getPresetPrimaryKeys(presetId);
+                          updateExercise(exercise.id, (current) => ({
+                            ...current,
+                            config: buildConfigWithKeys(
+                              presetId,
+                              nextKeys,
+                              current.config,
+                              {
+                                entryMode: getWorkoutPresetDefinition(presetId).entryMode,
+                                defaultLogCount: getWorkoutPresetDefinition(presetId).defaultLogCount,
+                              },
+                            ),
+                          }));
+                        }}
+                        className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                      >
+                        {workoutTrackingPresets.map((presetItem) => (
+                          <option key={presetItem.id} value={presetItem.id}>
+                            {presetItem.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className="text-sm text-[var(--muted)]">Как записывать</span>
+                      <select
+                        value={exercise.config.entryMode}
+                        onChange={(event) =>
+                          updateExercise(exercise.id, (current) => ({
+                            ...current,
+                            config: sanitizeWorkoutExerciseConfig({
+                              ...current.config,
+                              entryMode: event.target.value as WorkoutEntryMode,
+                            }),
+                          }))
+                        }
+                        className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                      >
+                        <option value="sets">По подходам</option>
+                        <option value="single">Одной записью</option>
+                      </select>
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className="text-sm text-[var(--muted)]">Число записей</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={exercise.config.defaultLogCount}
+                        onChange={(event) =>
+                          updateExercise(exercise.id, (current) => ({
+                            ...current,
+                            config: sanitizeWorkoutExerciseConfig({
+                              ...current.config,
+                              defaultLogCount: Number.parseInt(event.target.value, 10) || 1,
+                            }),
+                          }))
+                        }
+                        disabled={exercise.config.entryMode === "single"}
+                        className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] disabled:opacity-50"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-5">
+                    <p className="text-sm font-semibold text-[var(--foreground)]">Метрики</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {fieldKeys.map((key) => {
+                        const definition = getWorkoutFieldDefinition(key);
+                        const active = selected.has(key);
+
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() =>
+                              updateExercise(exercise.id, (current) => {
+                                const nextKeys = active
+                                  ? current.config.fields
+                                      .map((field) => field.key)
+                                      .filter((fieldKey) => fieldKey !== key)
+                                  : [...current.config.fields.map((field) => field.key), key];
+
+                                return {
+                                  ...current,
+                                  config: buildConfigWithKeys(
+                                    current.config.presetId,
+                                    nextKeys,
+                                    current.config,
+                                  ),
+                                };
+                              })
+                            }
+                            className={`rounded-full border px-4 py-2 text-sm transition ${
+                              active
+                                ? "border-[var(--accent)] bg-[rgba(47,111,97,0.09)] text-[var(--accent)]"
+                                : "border-[var(--border)] bg-white text-[var(--foreground)] hover:border-[var(--accent)]"
+                            }`}
+                          >
+                            {definition.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+
+          <SurfaceButton variant="secondary" onClick={() => addExercise()} className="w-full">
+            Добавить упражнение
+          </SurfaceButton>
         </div>
       </div>
 
       <div className="grid gap-3 border-t border-[var(--border)] px-5 py-5 sm:grid-cols-2 sm:px-8 sm:py-6">
-        <SurfaceButton variant="secondary" onClick={onClose} className="w-full">
+        <SurfaceButton variant="secondary" onClick={props.onClose} className="w-full">
           Отмена
         </SurfaceButton>
-        <SurfaceButton onClick={onSave} disabled={!canSave} className="w-full">
-          <SaveIcon className="h-5 w-5" />
-          Сохранить тренировку
+        <SurfaceButton onClick={props.onSave} disabled={!canSave} className="w-full">
+          {props.draft.id ? "Сохранить изменения" : "Сохранить программу"}
         </SurfaceButton>
       </div>
     </ModalShell>
   );
 }
 
-function WorkoutPlayer({
-  session,
-  exerciseIndex,
-  onClose,
-  onBack,
-  onNext,
-  onUpdateDraft,
-  onCompleteSet,
-  onRemoveSet,
-}: {
-  session: WorkoutSession;
-  exerciseIndex: number;
-  onClose: () => void;
-  onBack: () => void;
-  onNext: () => void;
-  onUpdateDraft: (field: "load" | "reps", value: string) => void;
-  onCompleteSet: () => void;
-  onRemoveSet: (setId: string) => void;
+function FieldInput(props: {
+  field: WorkoutFieldConfig;
+  value: string;
+  onChange: (value: string) => void;
 }) {
-  const exercise = session.exercises[exerciseIndex];
-  const completedSets = getCompletedSets(exercise);
-  const draftSet = exercise.sets.find((set) => !set.completedAt) ?? null;
-  const currentLoad = parseNumericValue(draftSet?.load ?? "");
-  const currentReps = parseNumericValue(draftSet?.reps ?? "");
-  const canGoNext = completedSets.length > 0;
-  const progress = `${((exerciseIndex + 1) / Math.max(session.exercises.length, 1)) * 100}%`;
+  const definition = getWorkoutFieldDefinition(props.field.key);
+  const options = props.field.options ?? definition.options ?? [];
 
   return (
-    <div className="grid gap-5">
-      <section className="surface-card overflow-hidden rounded-[30px]">
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 pb-4 pt-5 sm:px-7 sm:pb-5 sm:pt-6">
-          <div>
-            <h2 className="text-[1.8rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
-              {session.title}
-            </h2>
-            <p className="mt-1 text-sm text-[var(--muted)] sm:text-base">
-              Упражнение {exerciseIndex + 1} из {session.exercises.length}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-2 text-[var(--muted)] transition hover:bg-[rgba(21,52,43,0.05)] hover:text-[var(--foreground)]"
-            aria-label="Закрыть тренировку"
-          >
-            <CloseIcon className="h-7 w-7" />
-          </button>
-        </div>
-
-        <div className="px-5 pb-5 pt-4 sm:px-7 sm:pb-7">
-          <div className="h-3 overflow-hidden rounded-full bg-[rgba(21,52,43,0.08)]">
-            <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: progress }} />
-          </div>
-        </div>
-      </section>
-
-      <section className="surface-card rounded-[30px] p-5 sm:p-7">
-        <div className="text-center">
-          <h3 className="text-[1.65rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[2.35rem]">
-            {exercise.name}
-          </h3>
-        </div>
-
-        <div className="mt-8 grid gap-8">
-          <div>
-            <p className="text-[1.35rem] font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-2xl">
-              Выполненные подходы
-            </p>
-
-            <div className="mt-4 grid gap-3">
-              {completedSets.length > 0 ? (
-                completedSets.map((set, index) => (
-                  <div
-                    key={set.id}
-                    className="flex flex-col gap-3 rounded-[22px] border border-[rgba(89,218,130,0.3)] bg-[rgba(239,251,242,0.95)] px-4 py-4 sm:flex-row sm:items-center sm:gap-4 sm:px-5"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[rgb(18,196,83)] text-white">
-                      <CheckIcon className="h-6 w-6" />
-                    </div>
-                    <div className="min-w-0 flex-1 text-base text-[var(--foreground)] sm:text-lg">
-                      Подход {index + 1}:{" "}
-                      <strong>
-                        {set.load || "0"} кг × {set.reps || "0"} раз
-                      </strong>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => onRemoveSet(set.id)}
-                      className="rounded-full p-2 text-[rgb(219,69,69)] transition hover:bg-white"
-                      aria-label={`Удалить подход ${index + 1}`}
-                    >
-                      <CloseIcon className="h-6 w-6" />
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <EmptyState copy="Добавь первый рабочий подход, чтобы перейти дальше по тренировке." />
-              )}
-            </div>
-          </div>
-
-          <div className="grid gap-4">
-            <p className="text-[1.35rem] font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-2xl">
-              Подход {completedSets.length + 1}
-            </p>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-3">
-                <span className="text-lg text-[var(--foreground)]">Вес (кг)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={draftSet?.load ?? ""}
-                  onChange={(event) => onUpdateDraft("load", event.target.value)}
-                  className="min-h-16 rounded-[22px] border border-[var(--border)] bg-white px-6 text-center text-3xl tracking-[-0.03em] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:text-4xl"
-                />
-              </label>
-
-              <label className="grid gap-3">
-                <span className="text-lg text-[var(--foreground)]">Повторения</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={draftSet?.reps ?? ""}
-                  onChange={(event) => onUpdateDraft("reps", event.target.value)}
-                  className="min-h-16 rounded-[22px] border border-[var(--accent)] bg-white px-6 text-center text-3xl tracking-[-0.03em] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:text-4xl"
-                />
-              </label>
-            </div>
-
-            <SurfaceButton
-              onClick={onCompleteSet}
-              disabled={draftSet === null || currentLoad === null || currentReps === null || currentReps <= 0}
-              className="w-full"
-            >
-              Добавить подход
-            </SurfaceButton>
-          </div>
-        </div>
-      </section>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <SurfaceButton variant="secondary" onClick={onBack} disabled={exerciseIndex === 0} className="w-full">
-          <ChevronLeftIcon className="h-5 w-5" />
-          Назад
-        </SurfaceButton>
-        <SurfaceButton onClick={onNext} disabled={!canGoNext} className="w-full">
-          {exerciseIndex === session.exercises.length - 1 ? "Завершить" : "Далее"}
-          <ChevronRightIcon className="h-5 w-5" />
-        </SurfaceButton>
-      </div>
-    </div>
-  );
-}
-
-function WorkoutSummary({
-  session,
-  previousSession,
-  onBackToList,
-  onOpenDetails,
-}: {
-  session: WorkoutSession;
-  previousSession: WorkoutSession | null;
-  onBackToList: () => void;
-  onOpenDetails: () => void;
-}) {
-  const metrics = getSessionMetrics(session);
-  const comparison = getComparisonSummary(session, previousSession);
-  const recommendations = getRecommendations(session, previousSession);
-
-  return (
-    <div className="grid gap-5">
-      <button
-        type="button"
-        onClick={onBackToList}
-        className="inline-flex items-center gap-2 text-base font-medium text-[var(--muted)] transition hover:text-[var(--foreground)]"
-      >
-        <ChevronLeftIcon className="h-5 w-5" />
-        К списку тренировок
-      </button>
-
-      <section className="overflow-hidden rounded-[34px] bg-[linear-gradient(135deg,#236b67,#318580)] px-5 py-6 text-white shadow-[0_24px_50px_rgba(28,91,89,0.22)] sm:px-9 sm:py-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white/14 sm:h-20 sm:w-20">
-            <MedalIcon className="h-8 w-8 sm:h-10 sm:w-10" />
-          </div>
-          <div>
-            <h2 className="text-[1.7rem] font-semibold tracking-[-0.04em] sm:text-[2.5rem]">
-              Тренировка завершена!
-            </h2>
-            <p className="mt-2 flex items-center gap-2 text-base text-white/90 sm:text-lg">
-              <CalendarIcon className="h-5 w-5" />
-              {formatLongDate(session.date)}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard value={String(metrics.totalSets)} label="Всего подходов" />
-        <StatCard value={String(metrics.totalReps)} label="Всего повторений" />
-        <StatCard value={formatMetricValue(metrics.totalVolume / 1000, 1)} label="Тонн поднято" />
-      </div>
-
-      <section className="surface-card rounded-[30px] p-5 sm:p-7">
-        <h3 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
-          {comparison.title}
-        </h3>
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-6">
-          <p className="text-4xl font-semibold tracking-[-0.05em] text-[rgb(0,176,88)] sm:text-5xl">
-            {comparison.percentage}
-          </p>
-          <p className="max-w-3xl text-base text-[var(--muted)] sm:text-xl">{comparison.detail}</p>
-        </div>
-      </section>
-
-      <section className="surface-card rounded-[30px] p-5 sm:p-7">
-        <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <h3 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
-            Детали тренировки
-          </h3>
-          <SurfaceButton variant="secondary" onClick={onOpenDetails} className="w-full sm:w-auto">
-            Открыть детальный отчёт
-          </SurfaceButton>
-        </div>
-
-        <div className="mt-6 grid gap-6">
-          {session.exercises.map((exercise) => (
-            <div key={exercise.id} className="border-l-4 border-[var(--accent)] pl-5">
-              <h4 className="text-[1.2rem] font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-[1.45rem]">
-                {exercise.name}
-              </h4>
-              <div className="mt-3 grid gap-2 text-base text-[var(--foreground)] sm:text-lg">
-                {getCompletedSets(exercise).map((set, index) => (
-                  <p key={set.id}>
-                    Подход {index + 1}: <strong>{set.load} кг × {set.reps} раз</strong>
-                  </p>
-                ))}
-              </div>
-            </div>
+    <label className="grid gap-2">
+      <span className="text-sm font-semibold text-[var(--foreground)]">
+        {props.field.label}
+        {props.field.unit ? `, ${props.field.unit}` : ""}
+      </span>
+      {definition.inputType === "select" && options.length > 0 ? (
+        <select
+          value={props.value}
+          onChange={(event) => props.onChange(event.target.value)}
+          className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+        >
+          <option value="">Не выбрано</option>
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
           ))}
-        </div>
-      </section>
-
-      <section className="surface-card rounded-[30px] p-5 sm:p-7">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[linear-gradient(135deg,#d565ff,#7c4dff)] text-white">
-            <SparkIcon className="h-6 w-6" />
-          </div>
-          <h3 className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-2xl">
-            AI рекомендации
-          </h3>
-        </div>
-
-        <div className="mt-6 grid gap-4">
-          {recommendations.map((item) => (
-            <div key={item.title} className={`rounded-[24px] border px-4 py-4 sm:px-5 sm:py-5 ${getToneClasses(item.tone)}`}>
-              <p className="text-[1.15rem] font-semibold tracking-[-0.03em] sm:text-[1.45rem]">{item.title}</p>
-              <p className="mt-3 text-base leading-7 sm:text-lg sm:leading-8">{item.detail}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <SurfaceButton onClick={onBackToList} className="w-full">
-        Вернуться к тренировкам
-      </SurfaceButton>
-    </div>
-  );
-}
-
-function SummaryDetailsModal({
-  session,
-  onClose,
-}: {
-  session: WorkoutSession;
-  onClose: () => void;
-}) {
-  const metrics = getSessionMetrics(session);
-  const dateLabel = session.date === getTodayIsoDate() ? "Сегодня" : formatLongDate(session.date);
-
-  return (
-    <ModalShell onClose={onClose} maxWidthClass="sm:max-w-5xl">
-      <div className="overflow-y-auto">
-        <div className="bg-[linear-gradient(135deg,#236b67,#318580)] px-6 pb-8 pt-6 text-white sm:px-9 sm:pb-10 sm:pt-8">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-[1.8rem] font-semibold tracking-[-0.04em] sm:text-3xl">{session.title}</h2>
-              <p className="mt-3 flex items-center gap-2 text-base text-white/92 sm:text-xl">
-                <CalendarIcon className="h-5 w-5" />
-                {dateLabel}
-              </p>
-            </div>
+        </select>
+      ) : (
+        <input
+          type={definition.inputType === "number" ? "number" : "text"}
+          inputMode={definition.inputMode}
+          step={definition.step}
+          min={definition.min}
+          max={definition.max}
+          value={props.value}
+          onChange={(event) => props.onChange(event.target.value)}
+          placeholder={props.field.placeholder || definition.placeholder}
+          className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+        />
+      )}
+      {definition.quickValues && definition.quickValues.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {definition.quickValues.map((quickValue) => (
             <button
+              key={quickValue}
               type="button"
-              onClick={onClose}
-              className="rounded-full p-2 text-white/90 transition hover:bg-white/10"
-              aria-label="Закрыть отчет"
+              onClick={() => props.onChange(quickValue)}
+              className="rounded-full border border-[var(--border)] bg-[rgba(244,247,244,0.88)] px-3 py-1 text-xs text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
             >
-              <CloseIcon className="h-7 w-7" />
+              {quickValue}
             </button>
-          </div>
-
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            <MetricPill value={String(metrics.totalSets)} label="Подходов" />
-            <MetricPill value={String(metrics.totalReps)} label="Повторений" />
-            <MetricPill value={formatMetricValue(metrics.totalVolume / 1000, 1)} label="Тонн" />
-          </div>
+          ))}
         </div>
+      ) : null}
+    </label>
+  );
+}
 
-        <div className="px-6 py-6 sm:px-9 sm:py-8">
-          <div className="grid gap-8">
-            {session.exercises.map((exercise, index) => (
-              <section key={exercise.id} className="border-l-4 border-[var(--accent)] pl-4 sm:pl-6">
-                <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-                  <div className="flex items-center gap-3">
-                    <DumbbellIcon className="h-7 w-7 text-[var(--accent)]" />
-                    <h3 className="text-[1.35rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[1.9rem]">
-                      {index + 1}. {exercise.name}
-                    </h3>
-                  </div>
-                  <div className="text-left sm:text-right">
-                    <p className="text-base text-[var(--muted)]">Макс вес</p>
-                    <p className="text-[1.5rem] font-semibold tracking-[-0.04em] text-[var(--accent)] sm:text-[2rem]">
-                      {formatMetricValue(getExerciseMaxWeight(exercise))} кг
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-5 overflow-hidden rounded-[24px] bg-[rgba(246,248,246,0.9)] p-4">
-                  <div className="hidden grid-cols-[88px_minmax(0,1fr)_minmax(0,1fr)] gap-4 px-4 pb-3 text-sm font-semibold text-[var(--muted)] sm:grid">
-                    <span>Подход</span>
-                    <span>Вес</span>
-                    <span>Повторения</span>
-                  </div>
-                  <div className="grid gap-3">
-                    {getCompletedSets(exercise).map((set, setIndex) => (
-                      <div
-                        key={set.id}
-                        className="grid grid-cols-[48px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 rounded-[18px] bg-white px-4 py-4 text-sm text-[var(--foreground)] sm:grid-cols-[88px_minmax(0,1fr)_minmax(0,1fr)] sm:gap-4 sm:text-lg"
-                      >
-                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-white">
-                          {setIndex + 1}
-                        </span>
-                        <strong>{set.load} кг</strong>
-                        <span>
-                          <strong>{set.reps}</strong> раз
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <p className="mt-4 flex items-center gap-3 text-base text-[var(--foreground)] sm:text-xl">
-                  <TrendUpIcon className="h-5 w-5 text-[var(--muted)]" />
-                  Общий объём: <strong>{formatMetricValue(getExerciseVolume(exercise))} кг</strong>
-                </p>
-              </section>
+function ExerciseEditorCard(props: {
+  exercise: WorkoutExercise;
+  onUpdateExercise: (patch: Partial<Pick<WorkoutExercise, "name" | "note">>) => void;
+  onUpdateLog: (logId: string, patch: Partial<WorkoutSet>) => void;
+  onToggleLog: (logId: string) => void;
+  onDuplicateLog: (logId: string) => void;
+  onRemoveLog: (logId: string) => void;
+  onAddLog: () => void;
+  onToggleExercise: () => void;
+}) {
+  return (
+    <section className="rounded-[30px] border border-[var(--border)] bg-white/94 p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <input
+            value={props.exercise.name}
+            onChange={(event) => props.onUpdateExercise({ name: event.target.value })}
+            className="w-full rounded-[18px] border border-transparent bg-transparent px-0 text-[1.25rem] font-semibold tracking-[-0.03em] text-[var(--foreground)] outline-none transition focus:border-[var(--border)] focus:bg-white focus:px-3 focus:py-2"
+          />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="rounded-full bg-[rgba(47,111,97,0.09)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
+              {getWorkoutPresetDefinition(props.exercise.config.presetId).label}
+            </span>
+            {getWorkoutExerciseHighlights(props.exercise).map((item) => (
+              <span
+                key={item}
+                className="rounded-full bg-[rgba(21,52,43,0.06)] px-3 py-1 text-xs text-[var(--muted)]"
+              >
+                {item}
+              </span>
             ))}
           </div>
         </div>
+        <SurfaceButton
+          variant={props.exercise.completedAt ? "secondary" : "primary"}
+          onClick={props.onToggleExercise}
+        >
+          {props.exercise.completedAt ? "Снять отметку" : "Отметить"}
+        </SurfaceButton>
+      </div>
 
-        <div className="border-t border-[var(--border)] px-6 py-5 sm:px-9 sm:py-6">
-          <SurfaceButton variant="secondary" onClick={onClose} className="w-full">
-            Закрыть
+      <input
+        value={props.exercise.note}
+        onChange={(event) => props.onUpdateExercise({ note: event.target.value })}
+        placeholder="Подсказка по упражнению"
+        className="mt-4 min-h-11 w-full rounded-[18px] border border-[var(--border)] bg-[rgba(244,247,244,0.88)] px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+      />
+
+      <div className="mt-5 grid gap-4">
+        {props.exercise.logs.map((log, index) => (
+          <div
+            key={log.id}
+            className={`rounded-[24px] border px-4 py-4 sm:px-5 ${
+              log.completedAt
+                ? "border-[rgba(47,111,97,0.22)] bg-[rgba(243,251,246,0.94)]"
+                : "border-[var(--border)] bg-white"
+            }`}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[var(--foreground)]">
+                  {props.exercise.config.entryMode === "sets" ? `Подход ${index + 1}` : "Запись"}
+                </p>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  {log.completedAt
+                    ? getWorkoutLogHeadline(log, props.exercise)
+                    : "Показываются только поля, включённые в конфигурации упражнения."}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <SurfaceButton variant="ghost" onClick={() => props.onToggleLog(log.id)}>
+                  {log.completedAt ? "В черновик" : "Готово"}
+                </SurfaceButton>
+                {props.exercise.config.entryMode === "sets" ? (
+                  <SurfaceButton variant="secondary" onClick={() => props.onDuplicateLog(log.id)}>
+                    Повторить
+                  </SurfaceButton>
+                ) : null}
+                {props.exercise.logs.length > 1 ? (
+                  <SurfaceButton variant="secondary" onClick={() => props.onRemoveLog(log.id)}>
+                    Удалить
+                  </SurfaceButton>
+                ) : null}
+              </div>
+            </div>
+
+            {props.exercise.config.fields.length > 0 ? (
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {props.exercise.config.fields.map((field) => (
+                  <FieldInput
+                    key={field.key}
+                    field={field}
+                    value={log.values[field.key] ?? ""}
+                    onChange={(value) =>
+                      props.onUpdateLog(log.id, {
+                        values: {
+                          [field.key]: value,
+                        } as WorkoutSet["values"],
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="mt-4 rounded-[18px] border border-dashed border-[var(--border)] bg-[rgba(244,247,244,0.88)] px-4 py-4 text-sm text-[var(--muted)]">
+                Это упражнение можно отметить просто как выполненное, без числовых значений.
+              </div>
+            )}
+
+            <input
+              value={log.note}
+              onChange={(event) => props.onUpdateLog(log.id, { note: event.target.value })}
+              placeholder="Заметка по записи"
+              className="mt-4 min-h-11 w-full rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+            />
+          </div>
+        ))}
+      </div>
+
+      {props.exercise.config.entryMode === "sets" ? (
+        <div className="mt-4">
+          <SurfaceButton variant="secondary" onClick={props.onAddLog}>
+            Добавить подход
           </SurfaceButton>
         </div>
+      ) : null}
+    </section>
+  );
+}
+
+function SessionCard(props: {
+  session: WorkoutSession;
+  selected: boolean;
+  onOpen: () => void;
+}) {
+  const metric = getWorkoutComparisonMetric(props.session.summary);
+
+  return (
+    <button
+      type="button"
+      onClick={props.onOpen}
+      className={`grid gap-3 rounded-[28px] border p-5 text-left transition sm:p-6 ${
+        props.selected
+          ? "border-[rgba(47,111,97,0.75)] bg-[rgba(255,255,255,0.98)] shadow-[0_18px_36px_rgba(47,111,97,0.12)]"
+          : "border-[var(--border)] bg-white/88 hover:border-[rgba(47,111,97,0.24)]"
+      }`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-lg font-semibold text-[var(--foreground)]">
+            {props.session.title || "Тренировка"}
+          </p>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            {props.session.completedAt ? "Завершена" : "В процессе"}
+          </p>
+        </div>
+        <span className="rounded-full bg-[rgba(21,52,43,0.06)] px-3 py-1 text-xs text-[var(--muted)]">
+          {formatShortDate(props.session.date)}
+        </span>
       </div>
-    </ModalShell>
-  );
-}
 
-function StatCard({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="surface-card rounded-[28px] p-5 sm:p-6">
-      <p className="text-4xl font-semibold tracking-[-0.05em] text-[var(--accent)] sm:text-5xl">{value}</p>
-      <p className="mt-3 text-base text-[var(--muted)] sm:mt-4 sm:text-xl">{label}</p>
-    </div>
-  );
-}
+      <div className="flex flex-wrap gap-2">
+        {getWorkoutSessionHighlights(props.session.summary).map((item) => (
+          <span
+            key={item}
+            className="rounded-full bg-[rgba(21,52,43,0.06)] px-3 py-1 text-xs text-[var(--muted)]"
+          >
+            {item}
+          </span>
+        ))}
+      </div>
 
-function MetricPill({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="rounded-[24px] bg-white/12 px-5 py-5">
-      <p className="text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">{value}</p>
-      <p className="mt-2 text-base text-white/84 sm:mt-3 sm:text-xl">{label}</p>
-    </div>
+      <div className="rounded-[20px] bg-[rgba(244,247,244,0.88)] px-4 py-4">
+        <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{metric.label}</p>
+        <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+          {metric.formatter(metric.value)}
+        </p>
+      </div>
+    </button>
   );
 }
 
 export function WorkoutExperience() {
   const {
+    days,
     selectedDate,
     setSelectedDate,
-    days,
     workouts,
     workoutRoutines,
-    selectedWorkoutSession,
     workoutSessionsForDate,
-    profile,
-    createWorkoutRoutine,
-    startWorkoutFromRoutine,
+    selectedWorkoutSession,
+    setSelectedWorkoutSession,
+    updateWorkoutSession,
+    addWorkoutExercise,
+    updateWorkoutExercise,
     addWorkoutSet,
     updateWorkoutSet,
+    duplicateWorkoutSet,
     removeWorkoutSet,
     toggleWorkoutSetCompleted,
+    toggleWorkoutExerciseCompleted,
+    createWorkoutRoutine,
+    saveWorkoutAsRoutine,
+    startWorkoutFromRoutine,
     finishWorkoutSession,
-    setSelectedWorkoutSession,
   } = useWorkspace();
-  const [screen, setScreen] = useState<ScreenState>("list");
-  const [builderDraft, setBuilderDraft] = useState<BuilderDraft>({
-    name: "",
-    exerciseName: "",
-    exercises: [],
-  });
-  const [isBuilderOpen, setIsBuilderOpen] = useState(false);
+
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [detailSessionId, setDetailSessionId] = useState<string | null>(null);
-  const [expandedRoutineId, setExpandedRoutineId] = useState<string | null>(null);
-  const [exerciseIndex, setExerciseIndex] = useState(0);
+  const [isBuilderOpen, setIsBuilderOpen] = useState(false);
+  const [builderDraft, setBuilderDraft] = useState<RoutineBuilderDraft>(createRoutineDraft());
+  const [sessionExerciseName, setSessionExerciseName] = useState("");
+  const [sessionExercisePresetId, setSessionExercisePresetId] =
+    useState<WorkoutTrackingPresetId>("strength");
 
   const activeSession =
-    selectedWorkoutSession && !selectedWorkoutSession.completedAt ? selectedWorkoutSession : null;
-  const completedSession =
-    selectedWorkoutSession && selectedWorkoutSession.completedAt ? selectedWorkoutSession : null;
-  const detailSession = useMemo(
-    () => workouts.find((session) => session.id === detailSessionId) ?? null,
-    [detailSessionId, workouts],
+    selectedWorkoutSession && !selectedWorkoutSession.completedAt
+      ? selectedWorkoutSession
+      : workoutSessionsForDate.find((session) => !session.completedAt) ?? null;
+  const completedSessions = useMemo(
+    () =>
+      [...workoutSessionsForDate]
+        .filter((session) => Boolean(session.completedAt))
+        .sort((left, right) =>
+          (right.completedAt ?? right.date).localeCompare(left.completedAt ?? left.date),
+        ),
+    [workoutSessionsForDate],
   );
-  const sessionsForSelectedDate = workoutSessionsForDate;
+  const summarySession =
+    selectedWorkoutSession && selectedWorkoutSession.completedAt
+      ? selectedWorkoutSession
+      : completedSessions[0] ?? null;
   const previousSession = useMemo(
-    () => getPreviousComparableSession(completedSession, workouts),
-    [completedSession, workouts],
+    () => getPreviousComparableSession(summarySession, workouts),
+    [summarySession, workouts],
   );
-  const resolvedScreen =
-    screen === "player" && !activeSession
-      ? completedSession
-        ? "summary"
-        : "list"
-      : screen === "summary" && !completedSession
-        ? activeSession
-          ? "player"
-          : "list"
-        : screen;
-  const safeExerciseIndex = activeSession
-    ? Math.min(exerciseIndex, Math.max(activeSession.exercises.length - 1, 0))
-    : 0;
+  const selectedDayVolume = workoutSessionsForDate.reduce(
+    (sum, session) => sum + session.summary.totalVolumeKg,
+    0,
+  );
+  const selectedDayDistance = workoutSessionsForDate.reduce(
+    (sum, session) => sum + session.summary.totalDistanceKm,
+    0,
+  );
+  const selectedDayDuration = workoutSessionsForDate.reduce(
+    (sum, session) => sum + session.summary.totalDurationSeconds,
+    0,
+  );
 
-  const ensureDraftSet = (session: WorkoutSession | null, targetIndex: number) => {
-    const exercise = session?.exercises[targetIndex] ?? null;
-
-    if (!exercise || exercise.sets.some((set) => !set.completedAt)) {
-      return;
-    }
-
-    addWorkoutSet(exercise.id, { load: "", reps: "", note: "" });
+  const openBuilder = (routine?: WorkoutRoutine) => {
+    setBuilderDraft(createRoutineDraft(routine));
+    setIsBuilderOpen(true);
   };
 
-  const pruneOpenSets = (exercise: WorkoutExercise | null) => {
-    if (!exercise) {
-      return;
-    }
-
-    exercise.sets
-      .filter((set) => !set.completedAt)
-      .forEach((set) => removeWorkoutSet(exercise.id, set.id));
-  };
-
-  const handleBuilderChange = (patch: Partial<BuilderDraft>) => {
-    setBuilderDraft((current) => ({ ...current, ...patch }));
-  };
-
-  const handleAddExerciseToDraft = () => {
-    const trimmed = builderDraft.exerciseName.trim();
-
-    if (!trimmed) {
-      return;
-    }
-
-    setBuilderDraft((current) => ({
-      ...current,
-      exerciseName: "",
-      exercises: [...current.exercises, trimmed],
-    }));
-  };
-
-  const handleSaveRoutine = () => {
+  const handleSaveBuilder = () => {
     const routineId = createWorkoutRoutine({
+      id: builderDraft.id,
       name: builderDraft.name,
-      exercises: builderDraft.exercises.map((exercise) => ({ name: exercise })),
+      focus: builderDraft.focus,
+      exercises: builderDraft.exercises
+        .filter((exercise) => exercise.name.trim().length > 0)
+        .map((exercise) => ({
+          id: builderDraft.id ? exercise.id : undefined,
+          name: exercise.name,
+          note: exercise.note,
+          config: exercise.config,
+        })),
     });
 
     if (!routineId) {
       return;
     }
 
-    setExpandedRoutineId(routineId);
-    setBuilderDraft({ name: "", exerciseName: "", exercises: [] });
     setIsBuilderOpen(false);
+    setBuilderDraft(createRoutineDraft());
   };
 
   const handleStartRoutine = (routineId: string) => {
     if (activeSession?.routineId === routineId) {
       setSelectedWorkoutSession(activeSession.id);
-      setScreen("player");
       return;
     }
 
     const sessionId = startWorkoutFromRoutine(routineId);
 
-    if (!sessionId) {
-      return;
+    if (sessionId) {
+      setSelectedWorkoutSession(sessionId);
     }
-
-    setSelectedWorkoutSession(sessionId);
-    setExerciseIndex(0);
-    setExpandedRoutineId(routineId);
-    setScreen("player");
   };
 
-  const handleCompleteSet = () => {
-    if (!activeSession) {
+  const handleAddExerciseToSession = () => {
+    if (!sessionExerciseName.trim()) {
       return;
     }
 
-    const exercise = activeSession.exercises[safeExerciseIndex];
-    const draftSet = exercise?.sets.find((set) => !set.completedAt) ?? null;
-
-    if (!exercise || !draftSet) {
-      return;
-    }
-
-    toggleWorkoutSetCompleted(exercise.id, draftSet.id);
-    addWorkoutSet(exercise.id, { load: "", reps: "", note: "" });
-  };
-
-  const handleUpdateDraft = (field: "load" | "reps", value: string) => {
-    if (!activeSession) {
-      return;
-    }
-
-    const exercise = activeSession.exercises[safeExerciseIndex];
-    const draftSet = exercise?.sets.find((set) => !set.completedAt) ?? null;
-
-    if (!exercise || !draftSet) {
-      return;
-    }
-
-    updateWorkoutSet(exercise.id, draftSet.id, { [field]: value });
-  };
-
-  const currentExercise = activeSession?.exercises[safeExerciseIndex] ?? null;
-  const canShowFinishedBanner = resolvedScreen === "list" && completedSession;
-  const profileName =
-    [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Профиль";
-  const profileSubtitle = "История, программы и быстрый доступ";
-  void profileName;
-  const selectedDateCompletedCount = sessionsForSelectedDate.filter((session) => session.completedAt).length;
-  const latestCompletedSession = useMemo(
-    () =>
-      [...workouts]
-        .filter((session) => Boolean(session.completedAt))
-        .sort((left, right) => {
-          const leftStamp = left.completedAt ?? left.date;
-          const rightStamp = right.completedAt ?? right.date;
-          return rightStamp.localeCompare(leftStamp);
-        })[0] ?? null,
-    [workouts],
-  );
-
-  const closeMobileSidebar = () => {
-    setIsMobileSidebarOpen(false);
+    addWorkoutExercise(sessionExerciseName.trim(), {
+      presetId: sessionExercisePresetId,
+      config: createWorkoutExerciseConfig(sessionExercisePresetId),
+    });
+    setSessionExerciseName("");
   };
 
   return (
-    <WorkspaceSectionShell
-      isMobileSidebarOpen={isMobileSidebarOpen}
-      onMobileSidebarOpenChange={setIsMobileSidebarOpen}
-      sidebar={
-        <WorkoutSidebarContent
-          days={days}
-          selectedDate={selectedDate}
-          workouts={workouts}
-          profileSubtitle={profileSubtitle}
-          onSelectDate={(date) => {
-            setSelectedDate(date);
-            setScreen("list");
-            setExerciseIndex(0);
-            closeMobileSidebar();
-          }}
-          onCloseSidebar={closeMobileSidebar}
-        />
-      }
-      className="overflow-x-hidden xl:items-start"
-      contentClassName="gap-5 overflow-x-hidden"
-      mobileHeader={
-        resolvedScreen === "list" ? (
-          <div className="surface-card sticky top-3 z-20 grid min-w-0 max-w-full grid-cols-[40px_minmax(0,1fr)_88px] items-center gap-2 rounded-[24px] px-3 py-3">
-          <div className="flex justify-start">
+    <>
+      <WorkspaceSectionShell
+        isMobileSidebarOpen={isMobileSidebarOpen}
+        onMobileSidebarOpenChange={setIsMobileSidebarOpen}
+        sidebar={
+          <WorkoutSidebarContent
+            selectedDate={selectedDate}
+            days={days}
+            routines={workoutRoutines}
+            onSelectDate={(date) => {
+              setSelectedDate(date);
+              setIsMobileSidebarOpen(false);
+            }}
+            onOpenBuilder={() => openBuilder()}
+          />
+        }
+        className="overflow-x-hidden xl:items-start"
+        contentClassName="gap-5 overflow-x-hidden"
+        mobileHeader={
+          <div className="surface-card sticky top-3 z-20 flex items-center justify-between gap-3 rounded-[24px] px-4 py-3 xl:hidden">
             <button
               type="button"
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-[18px] border border-[var(--border)] bg-white text-[var(--foreground)]"
-              aria-label="Открыть боковую панель"
+              className="rounded-[18px] border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--foreground)]"
             >
-              <MenuIcon className="h-5 w-5" />
+              Меню
             </button>
-          </div>
-
-          <div className="flex min-w-0 items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                const previous = new Date(`${selectedDate}T12:00:00`);
-                previous.setDate(previous.getDate() - 1);
-                setSelectedDate(previous.toISOString().slice(0, 10));
-                setScreen("list");
-                setExerciseIndex(0);
-              }}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
-              aria-label="Предыдущая дата"
-            >
-              <ChevronLeftIcon className="h-5 w-5" />
-            </button>
-
             <div className="min-w-0 text-center">
-              <p className="truncate text-lg font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-                {getSidebarDateLabel(selectedDate)}
+              <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                {selectedDate === getTodayIsoDate() ? "Сегодня" : formatLongDate(selectedDate)}
               </p>
             </div>
-
             <button
               type="button"
-              onClick={() => {
-                const next = new Date(`${selectedDate}T12:00:00`);
-                next.setDate(next.getDate() + 1);
-                setSelectedDate(next.toISOString().slice(0, 10));
-                setScreen("list");
-                setExerciseIndex(0);
-              }}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]"
-              aria-label="Следующая дата"
+              onClick={() => openBuilder()}
+              className="rounded-[18px] border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--foreground)]"
             >
-              <ChevronRightIcon className="h-5 w-5" />
+              Программа
             </button>
           </div>
-
-          <div className="flex justify-end gap-1.5">
-            <button
-              type="button"
-              onClick={() => setIsBuilderOpen(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-[18px] border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-              aria-label="Создать тренировку"
-            >
-              <PlusIcon className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (latestCompletedSession) {
-                  setDetailSessionId(latestCompletedSession.id);
-                }
-              }}
-              disabled={!latestCompletedSession}
-              className="flex h-10 w-10 items-center justify-center rounded-[18px] border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Открыть последнюю завершённую тренировку"
-            >
-              <TrendUpIcon className="h-5 w-5" />
-            </button>
-          </div>
-          </div>
-        ) : null
-      }
-    >
-
-        {resolvedScreen === "player" && activeSession ? (
-          <WorkoutPlayer
-            session={activeSession}
-            exerciseIndex={safeExerciseIndex}
-            onClose={() => {
-              pruneOpenSets(currentExercise);
-              setScreen("list");
-            }}
-            onBack={() => {
-              const nextIndex = Math.max(safeExerciseIndex - 1, 0);
-              pruneOpenSets(currentExercise);
-              ensureDraftSet(activeSession, nextIndex);
-              setExerciseIndex(nextIndex);
-            }}
-            onNext={() => {
-              if (!activeSession) {
-                return;
-              }
-
-              if (safeExerciseIndex === activeSession.exercises.length - 1) {
-                pruneOpenSets(currentExercise);
-                window.setTimeout(() => {
-                  finishWorkoutSession();
-                  setScreen("summary");
-                }, 0);
-                return;
-              }
-
-              const nextIndex = safeExerciseIndex + 1;
-              pruneOpenSets(currentExercise);
-              ensureDraftSet(activeSession, nextIndex);
-              setExerciseIndex(nextIndex);
-            }}
-            onUpdateDraft={handleUpdateDraft}
-            onCompleteSet={handleCompleteSet}
-            onRemoveSet={(setId) => {
-              if (!currentExercise) {
-                return;
-              }
-
-              removeWorkoutSet(currentExercise.id, setId);
-            }}
-          />
-        ) : null}
-
-        {resolvedScreen === "summary" && completedSession ? (
-          <WorkoutSummary
-            session={completedSession}
-            previousSession={previousSession}
-            onBackToList={() => setScreen("list")}
-            onOpenDetails={() => setDetailSessionId(completedSession.id)}
-          />
-        ) : null}
-
-        {resolvedScreen === "list" ? (
-          <section className="surface-card min-w-0 max-w-full overflow-x-hidden rounded-[32px] p-5 sm:p-7">
-            <div className="grid gap-8">
-              <div className="hidden flex-wrap items-center justify-between gap-3 sm:flex">
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const previous = new Date(`${selectedDate}T12:00:00`);
-                      previous.setDate(previous.getDate() - 1);
-                      setSelectedDate(previous.toISOString().slice(0, 10));
-                      setScreen("list");
-                    }}
-                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                    aria-label="Предыдущая дата"
-                  >
-                    <ChevronLeftIcon className="h-5 w-5" />
-                  </button>
-                  <div className="rounded-full border border-[var(--border)] bg-white/92 px-4 py-2 text-sm font-medium text-[var(--foreground)]">
-                    {getSidebarDateLabel(selectedDate)}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = new Date(`${selectedDate}T12:00:00`);
-                      next.setDate(next.getDate() + 1);
-                      setSelectedDate(next.toISOString().slice(0, 10));
-                      setScreen("list");
-                    }}
-                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                    aria-label="Следующая дата"
-                  >
-                    <ChevronRightIcon className="h-5 w-5" />
-                  </button>
-                </div>
-                <span className="text-sm text-[var(--muted)]">
-                  {formatWorkoutCount(sessionsForSelectedDate.length)} · {selectedDateCompletedCount} завершено
-                </span>
-              </div>
-
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <h2 className="text-[2rem] font-semibold leading-none tracking-[-0.05em] text-[var(--foreground)] sm:text-[2.7rem]">
-                    Мои тренировки
-                  </h2>
-                  <p className="mt-3 max-w-2xl text-base leading-7 text-[var(--muted)] sm:text-lg sm:leading-8">
-                    Выбери тренировку или создай новую.
-                  </p>
-                  <p className="mt-3 text-sm font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-                    {getHeadingDateLabel(selectedDate)}
-                  </p>
-                </div>
-
-                <SurfaceButton onClick={() => setIsBuilderOpen(true)} className="w-full lg:w-auto">
-                  <PlusIcon className="h-5 w-5" />
-                  Создать тренировку
-                </SurfaceButton>
-              </div>
-
-              <div className="grid gap-4">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
-                    Сессии за день
-                  </h3>
-                  <span className="text-sm text-[var(--muted)]">{sessionsForSelectedDate.length}</span>
-                </div>
-
-                {sessionsForSelectedDate.length > 0 ? (
-                  <div className="grid gap-4 xl:grid-cols-2">
-                    {sessionsForSelectedDate.map((session) => (
-                      <WorkoutSessionCard
-                        key={session.id}
-                        session={session}
-                        selected={selectedWorkoutSession?.id === session.id}
-                        onOpen={() => {
-                          setSelectedWorkoutSession(session.id);
-                          setExerciseIndex(0);
-                          setScreen(session.completedAt ? "summary" : "player");
-                        }}
-                        onOpenDetails={() => setDetailSessionId(session.id)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-[28px] border border-dashed border-[var(--border)] bg-white/72 p-5 sm:p-6">
-                    <EmptyState copy="На этой дате ещё нет тренировок. Выбери программу ниже или создай новую с нуля." />
-                  </div>
-                )}
-              </div>
-
-              <div className="grid gap-4">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
-                    Программы
-                  </h3>
-                  <span className="text-sm text-[var(--muted)]">{workoutRoutines.length}</span>
-                </div>
-
-                {workoutRoutines.length > 0 ? (
-                  <div className="grid gap-5 xl:grid-cols-2">
-                    {workoutRoutines.map((routine) => {
-                      const isActive = activeSession?.routineId === routine.id;
-                      const isBlocked = Boolean(activeSession && activeSession.routineId !== routine.id);
-
-                      return (
-                        <WorkoutRoutineCard
-                          key={routine.id}
-                          routine={routine}
-                          isExpanded={expandedRoutineId === routine.id}
-                          isActive={isActive}
-                          isBlocked={isBlocked}
-                          isCompletedForDay={false}
-                          onToggleExpand={() =>
-                            setExpandedRoutineId((current) => (current === routine.id ? null : routine.id))
-                          }
-                          onStart={() => handleStartRoutine(routine.id)}
-                        />
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-[28px] border border-dashed border-[var(--border)] bg-white/72 p-5 sm:p-6">
-                    <EmptyState copy="Пока нет сохранённых программ. Создай первую тренировку и собери чистый список упражнений под свой сплит." />
-                  </div>
-                )}
-              </div>
-
-              <WorkoutAssistantPanel />
+        }
+      >
+        <SectionCard className="rounded-[34px] p-5 sm:p-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <SectionHeader
+              eyebrow={selectedDate === getTodayIsoDate() ? "Сегодня" : formatLongDate(selectedDate)}
+              title="Гибкий блок тренировок"
+              description="Тренировка теперь строится из режима отслеживания и набора метрик. Одна и та же система покрывает силовые, кардио, интервалы, статику, домашние активности и мягкие восстановительные практики."
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SurfaceButton onClick={() => openBuilder()} className="w-full">
+                Создать программу
+              </SurfaceButton>
+              <SurfaceButton
+                variant="secondary"
+                onClick={() => saveWorkoutAsRoutine()}
+                disabled={!activeSession && !summarySession}
+                className="w-full"
+              >
+                Сохранить как программу
+              </SurfaceButton>
             </div>
-          </section>
-        ) : null}
+          </div>
 
-        {false ? (
-          <>
-            <section className="surface-card rounded-[32px] p-5 sm:p-7">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <h2 className="text-[2.3rem] font-semibold tracking-[-0.05em] text-[var(--foreground)] sm:text-[2.7rem]">
-                    Мои тренировки
-                  </h2>
-                  <p className="mt-3 max-w-2xl text-lg leading-8 text-[var(--muted)]">
-                    Выбери тренировку или создай новую.
-                  </p>
-                </div>
+          <div className="mt-6 grid gap-4 md:grid-cols-4">
+            <StatCard label="Сессий на дату" value={String(workoutSessionsForDate.length)} />
+            <StatCard
+              label={selectedDayDistance > 0 ? "Дистанция" : selectedDayVolume > 0 ? "Объём" : "Время"}
+              value={
+                selectedDayDistance > 0
+                  ? `${formatNumber(selectedDayDistance)} км`
+                  : selectedDayVolume > 0
+                    ? `${formatNumber(selectedDayVolume)} кг`
+                    : formatDurationLabel(selectedDayDuration)
+              }
+            />
+            <StatCard label="Сохранённых программ" value={String(workoutRoutines.length)} />
+            <StatCard label="Завершено на дату" value={String(completedSessions.length)} />
+          </div>
+        </SectionCard>
 
-                <SurfaceButton onClick={() => setIsBuilderOpen(true)} className="w-full lg:w-auto">
-                  <PlusIcon className="h-5 w-5" />
-                  Создать тренировку
-                </SurfaceButton>
+        {activeSession ? (
+          <SectionCard className="rounded-[34px] p-5 sm:p-7">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
+                  Активная тренировка
+                </p>
+                <input
+                  value={activeSession.title}
+                  onChange={(event) => updateWorkoutSession({ title: event.target.value })}
+                  className="mt-2 w-full rounded-[18px] border border-transparent bg-transparent px-0 text-[2rem] font-semibold tracking-[-0.05em] text-[var(--foreground)] outline-none transition focus:border-[var(--border)] focus:bg-white focus:px-4 focus:py-3 sm:text-[2.5rem]"
+                />
+                <input
+                  value={activeSession.focus}
+                  onChange={(event) => updateWorkoutSession({ focus: event.target.value })}
+                  placeholder="Фокус тренировки"
+                  className="mt-3 min-h-11 w-full rounded-[18px] border border-[var(--border)] bg-[rgba(244,247,244,0.88)] px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                />
               </div>
-            </section>
 
-            {canShowFinishedBanner ? (
-              <section className="surface-card rounded-[30px] border border-[rgba(47,111,97,0.18)] p-5 sm:p-6">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
-                      Выбранная дата
-                    </p>
-                    <h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
-                      На {formatLongDate(selectedDate)} тренировка уже завершена
-                    </h3>
-                  </div>
-                  <SurfaceButton onClick={() => setScreen("summary")} className="w-full sm:w-auto">
-                    Открыть итог
+              <div className="rounded-[24px] border border-[var(--border)] bg-white/92 px-5 py-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Прогресс</p>
+                <p className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-[var(--foreground)]">
+                  {activeSession.summary.completedExercises}/{activeSession.summary.totalExercises}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {getWorkoutSessionHighlights(activeSession.summary).map((item) => (
+                    <span
+                      key={item}
+                      className="rounded-full bg-[rgba(21,52,43,0.06)] px-3 py-1 text-xs text-[var(--muted)]"
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-5">
+              {activeSession.exercises.map((exercise) => (
+                <ExerciseEditorCard
+                  key={exercise.id}
+                  exercise={exercise}
+                  onUpdateExercise={(patch) => updateWorkoutExercise(exercise.id, patch)}
+                  onUpdateLog={(logId, patch) => updateWorkoutSet(exercise.id, logId, patch)}
+                  onToggleLog={(logId) => toggleWorkoutSetCompleted(exercise.id, logId)}
+                  onDuplicateLog={(logId) => {
+                    duplicateWorkoutSet(exercise.id, logId, { completedAt: null });
+                  }}
+                  onRemoveLog={(logId) => removeWorkoutSet(exercise.id, logId)}
+                  onAddLog={() => {
+                    const duplicatedSetId = duplicateWorkoutSet(exercise.id, undefined, {
+                      completedAt: null,
+                    });
+
+                    if (!duplicatedSetId) {
+                      addWorkoutSet(exercise.id);
+                    }
+                  }}
+                  onToggleExercise={() => toggleWorkoutExerciseCompleted(exercise.id)}
+                />
+              ))}
+
+              <section className="rounded-[30px] border border-dashed border-[var(--border-strong)] bg-[rgba(247,249,246,0.82)] p-5 sm:p-6">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_auto] lg:items-end">
+                  <label className="grid gap-2">
+                    <span className="text-sm font-semibold text-[var(--foreground)]">Добавить упражнение</span>
+                    <input
+                      value={sessionExerciseName}
+                      onChange={(event) => setSessionExerciseName(event.target.value)}
+                      placeholder="Например: растяжка, ходьба, велотренажёр"
+                      className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-sm font-semibold text-[var(--foreground)]">Режим</span>
+                    <select
+                      value={sessionExercisePresetId}
+                      onChange={(event) =>
+                        setSessionExercisePresetId(event.target.value as WorkoutTrackingPresetId)
+                      }
+                      className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                    >
+                      {workoutTrackingPresets.map((preset) => (
+                        <option key={preset.id} value={preset.id}>
+                          {preset.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <SurfaceButton onClick={handleAddExerciseToSession} className="w-full lg:w-auto">
+                    Добавить
                   </SurfaceButton>
                 </div>
               </section>
-            ) : null}
+            </div>
 
-            {workoutRoutines.length > 0 ? (
-              <section className="grid gap-5 xl:grid-cols-2">
-                {workoutRoutines.map((routine) => {
-                  const isActive = activeSession?.routineId === routine.id;
-                  const isBlocked = Boolean(activeSession && activeSession.routineId !== routine.id);
-
-                  return (
-                    <WorkoutRoutineCard
-                      key={routine.id}
-                      routine={routine}
-                      isExpanded={expandedRoutineId === routine.id}
-                      isActive={isActive}
-                      isBlocked={isBlocked}
-                      isCompletedForDay={Boolean(completedSession)}
-                      onToggleExpand={() =>
-                        setExpandedRoutineId((current) => (current === routine.id ? null : routine.id))
-                      }
-                      onStart={() => handleStartRoutine(routine.id)}
-                    />
-                  );
-                })}
-              </section>
-            ) : (
-              <section className="surface-card rounded-[30px] p-5 sm:p-7">
-                <EmptyState copy="Пока нет сохраненных программ. Создай первую тренировку и собери чистый список упражнений под свой сплит." />
-              </section>
-            )}
-          </>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <SurfaceButton variant="secondary" onClick={() => saveWorkoutAsRoutine()} className="w-full sm:w-auto">
+                Обновить программу
+              </SurfaceButton>
+              <SurfaceButton onClick={finishWorkoutSession} className="w-full sm:w-auto">
+                Завершить тренировку
+              </SurfaceButton>
+            </div>
+          </SectionCard>
         ) : null}
 
+        <SectionCard className="rounded-[34px] p-5 sm:p-7">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+                Программы
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)] sm:text-base">
+                Каждая программа хранит конфигурацию упражнения отдельно: какие поля нужны, по подходам или одной записью фиксируется активность и сколько строк открыть на старте.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 xl:grid-cols-2">
+            {workoutRoutines.length > 0 ? (
+              workoutRoutines.map((routine) => (
+                <article
+                  key={routine.id}
+                  className="rounded-[30px] border border-[var(--border)] bg-white/94 p-5 sm:p-6"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[1.25rem] font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                        {routine.name}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                        {routine.focus.trim() || "Гибкая программа для повторяющихся сессий."}
+                      </p>
+                    </div>
+                    {activeSession?.routineId === routine.id ? (
+                      <span className="rounded-full bg-[rgba(47,111,97,0.1)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
+                        Активна
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 grid gap-2">
+                    {routine.exercises.slice(0, 4).map((exercise) => (
+                      <div
+                        key={exercise.id}
+                        className="rounded-[18px] bg-[rgba(244,247,244,0.88)] px-4 py-3 text-sm text-[var(--foreground)]"
+                      >
+                        <span className="font-semibold">{exercise.name}</span>
+                        <span className="text-[var(--muted)]">
+                          {" "}
+                          · {exercise.config.fields.length > 0
+                            ? exercise.config.fields.map((field) => field.label).join(", ")
+                            : "только отметка"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <SurfaceButton variant="secondary" onClick={() => openBuilder(routine)} className="w-full">
+                      Редактировать
+                    </SurfaceButton>
+                    <SurfaceButton
+                      onClick={() => handleStartRoutine(routine.id)}
+                      disabled={Boolean(activeSession && activeSession.routineId !== routine.id)}
+                      className="w-full"
+                    >
+                      {activeSession?.routineId === routine.id ? "Продолжить" : "Запустить"}
+                    </SurfaceButton>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <EmptyState copy="Создай первую программу, чтобы настроить упражнения с разными режимами отслеживания." />
+            )}
+          </div>
+        </SectionCard>
+
+        {summarySession ? (
+          <SectionCard className="rounded-[34px] p-5 sm:p-7">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
+                  Итог тренировки
+                </p>
+                <h2 className="mt-2 text-[1.8rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[2.3rem]">
+                  {summarySession.title || "Тренировка"}
+                </h2>
+                <p className="mt-2 text-sm text-[var(--muted)]">{formatLongDate(summarySession.date)}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {getWorkoutSessionHighlights(summarySession.summary).map((item) => (
+                    <span
+                      key={item}
+                      className="rounded-full bg-[rgba(21,52,43,0.06)] px-3 py-1 text-xs text-[var(--muted)]"
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-[var(--border)] bg-white/92 px-5 py-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Сравнение</p>
+                <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">
+                  {previousSession
+                    ? `Предыдущая похожая сессия найдена: ${formatShortDate(previousSession.date)}`
+                    : "Это первая точка сравнения для этой программы."}
+                </p>
+                <p className="mt-3 text-sm text-[var(--muted)]">
+                  Главная метрика: {getWorkoutComparisonMetric(summarySession.summary).label}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 xl:grid-cols-2">
+              {summarySession.exercises.map((exercise) => (
+                <article
+                  key={exercise.id}
+                  className="rounded-[28px] border border-[var(--border)] bg-white/92 p-5"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-semibold text-[var(--foreground)]">{exercise.name}</p>
+                      <p className="mt-1 text-sm text-[var(--muted)]">
+                        {getWorkoutExerciseHighlights(exercise).join(" · ") || "Без числовых метрик"}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-[rgba(21,52,43,0.06)] px-3 py-1 text-xs text-[var(--muted)]">
+                      {getWorkoutPresetDefinition(exercise.config.presetId).label}
+                    </span>
+                  </div>
+                  <div className="mt-4 grid gap-2">
+                    {exercise.logs.filter((log) => Boolean(log.completedAt)).map((log) => (
+                      <div
+                        key={log.id}
+                        className="rounded-[18px] bg-[rgba(244,247,244,0.88)] px-4 py-3 text-sm text-[var(--foreground)]"
+                      >
+                        {getWorkoutLogHeadline(log, exercise)}
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </SectionCard>
+        ) : null}
+
+        <SectionCard className="rounded-[34px] p-5 sm:p-7">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+                История
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)] sm:text-base">
+                Сессии сравниваются по главной метрике. Для силовых это объём, для кардио — дистанция или время, для свободных форматов — количество завершённых записей.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 xl:grid-cols-2">
+            {workouts.filter((session) => Boolean(session.completedAt)).length > 0 ? (
+              workouts
+                .filter((session) => Boolean(session.completedAt))
+                .sort((left, right) =>
+                  (right.completedAt ?? right.date).localeCompare(left.completedAt ?? left.date),
+                )
+                .slice(0, 8)
+                .map((session) => (
+                  <SessionCard
+                    key={session.id}
+                    session={session}
+                    selected={summarySession?.id === session.id}
+                    onOpen={() => {
+                      setSelectedDate(session.date);
+                      setSelectedWorkoutSession(session.id);
+                    }}
+                  />
+                ))
+            ) : (
+              <EmptyState copy="После первой завершённой тренировки здесь появится живая история по разным форматам активности." />
+            )}
+          </div>
+        </SectionCard>
+
+        <WorkoutAssistantPanel />
+      </WorkspaceSectionShell>
+
       {isBuilderOpen ? (
-        <WorkoutBuilderModal
+        <BuilderModal
           draft={builderDraft}
-          onChange={handleBuilderChange}
-          onAddExercise={handleAddExerciseToDraft}
-          onRemoveExercise={(index) =>
-            setBuilderDraft((current) => ({
-              ...current,
-              exercises: current.exercises.filter((_, itemIndex) => itemIndex !== index),
-            }))
-          }
+          onChange={setBuilderDraft}
           onClose={() => setIsBuilderOpen(false)}
-          onSave={handleSaveRoutine}
+          onSave={handleSaveBuilder}
         />
       ) : null}
-
-      {detailSession ? (
-        <SummaryDetailsModal session={detailSession} onClose={() => setDetailSessionId(null)} />
-      ) : null}
-    </WorkspaceSectionShell>
-  );
-}
-
-function iconClassName(className?: string) {
-  return className ?? "h-5 w-5";
-}
-
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={iconClassName(className)}>
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </svg>
-  );
-}
-
-function SaveIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={iconClassName(className)}>
-      <path d="M5 4h11l3 3v13H5z" />
-      <path d="M8 4v6h8V4" />
-      <path d="M8 20v-6h8v6" />
-    </svg>
-  );
-}
-
-function DumbbellIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
-      <path d="M4.5 9.5 8 13" />
-      <path d="m16 11 3.5 3.5" />
-      <path d="m6 7 11 11" />
-      <path d="m9 4-5 5" />
-      <path d="m20 15-5 5" />
-      <path d="m14 8 2-2" />
-      <path d="m8 14 2-2" />
-      <path d="m17 4 3 3" />
-      <path d="m4 17 3 3" />
-    </svg>
-  );
-}
-
-function CalendarIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
-      <rect x="3" y="4.5" width="18" height="16" rx="2.5" />
-      <path d="M8 3v4" />
-      <path d="M16 3v4" />
-      <path d="M3 9.5h18" />
-    </svg>
-  );
-}
-
-function ClockIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 7.5v5l3 2" />
-    </svg>
-  );
-}
-
-function ChevronRightIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
-      <path d="m9 6 6 6-6 6" />
-    </svg>
-  );
-}
-
-function ChevronLeftIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
-      <path d="m15 6-6 6 6 6" />
-    </svg>
-  );
-}
-
-function ChevronDownIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
-}
-
-function CloseIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
-      <path d="M6 6l12 12" />
-      <path d="M18 6 6 18" />
-    </svg>
-  );
-}
-
-function CheckIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
-      <path d="m5 12 5 5L19 7" />
-    </svg>
-  );
-}
-
-function TrashIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
-      <path d="M4 7h16" />
-      <path d="M9 7V4h6v3" />
-      <path d="M7 7v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7" />
-      <path d="M10 11v5" />
-      <path d="M14 11v5" />
-    </svg>
-  );
-}
-
-function GripIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={iconClassName(className)}>
-      <circle cx="8" cy="6" r="1.6" />
-      <circle cx="8" cy="12" r="1.6" />
-      <circle cx="8" cy="18" r="1.6" />
-      <circle cx="16" cy="6" r="1.6" />
-      <circle cx="16" cy="12" r="1.6" />
-      <circle cx="16" cy="18" r="1.6" />
-    </svg>
-  );
-}
-
-function SparkIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
-      <path d="M13 2 5 14h6l-1 8 9-13h-6z" />
-    </svg>
-  );
-}
-
-function MedalIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
-      <circle cx="12" cy="9" r="4" />
-      <path d="M8.5 13.5 7 21l5-2 5 2-1.5-7.5" />
-    </svg>
-  );
-}
-
-function TrendUpIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
-      <path d="m4 16 6-6 4 4 6-6" />
-      <path d="M20 8v6h-6" />
-    </svg>
-  );
-}
-
-function MenuIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
-      <path d="M4 7h16" />
-      <path d="M4 12h16" />
-      <path d="M4 17h16" />
-    </svg>
+    </>
   );
 }

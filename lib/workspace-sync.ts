@@ -1,26 +1,22 @@
 import type {
   PeriodAnalysisSnapshot,
   TaskItem,
-  WorkoutExercise,
   WorkoutRoutine,
   WorkoutSession,
-  WorkoutSet,
   WorkspaceChatMessage,
   WorkspaceReminder,
   WorkspaceSyncState,
 } from "@/lib/workspace";
 import {
-  createWorkoutSet,
-} from "@/lib/workspace";
+  sanitizeWorkoutRoutine,
+  sanitizeWorkoutSession,
+} from "@/lib/workouts";
 
 function isIsoTimestamp(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
-function resolveTimestamp(
-  value: unknown,
-  fallback: string,
-) {
+function resolveTimestamp(value: unknown, fallback: string) {
   return isIsoTimestamp(value) ? new Date(value).toISOString() : fallback;
 }
 
@@ -167,162 +163,6 @@ export function sanitizeReminder(value: unknown): WorkspaceReminder | null {
   };
 }
 
-export function sanitizeWorkoutSet(value: unknown): WorkoutSet | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as Partial<WorkoutSet>;
-
-  if (typeof candidate.id !== "string") {
-    return null;
-  }
-
-  return {
-    id: candidate.id,
-    load: typeof candidate.load === "string" ? candidate.load : "",
-    reps: typeof candidate.reps === "string" ? candidate.reps : "",
-    note: typeof candidate.note === "string" ? candidate.note : "",
-    completedAt:
-      typeof candidate.completedAt === "string" && Number.isFinite(Date.parse(candidate.completedAt))
-        ? new Date(candidate.completedAt).toISOString()
-        : null,
-  };
-}
-
-function sanitizeWorkoutExercise(value: unknown): WorkoutExercise | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as Partial<WorkoutExercise>;
-
-  if (typeof candidate.id !== "string" || typeof candidate.name !== "string") {
-    return null;
-  }
-
-  const sets = Array.isArray(candidate.sets)
-    ? candidate.sets
-        .map((set) => sanitizeWorkoutSet(set))
-        .filter((set): set is WorkoutSet => set !== null)
-    : [];
-
-  return {
-    id: candidate.id,
-    name: candidate.name.trim() || "Новое упражнение",
-    note: typeof candidate.note === "string" ? candidate.note : "",
-    sets: sets.length > 0 ? sets : [createWorkoutSet()],
-    completedAt:
-      typeof candidate.completedAt === "string" && Number.isFinite(Date.parse(candidate.completedAt))
-        ? new Date(candidate.completedAt).toISOString()
-        : null,
-  };
-}
-
-export function sanitizeWorkoutSession(value: unknown): WorkoutSession | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as Partial<WorkoutSession>;
-
-  if (
-    typeof candidate.id !== "string" ||
-    typeof candidate.date !== "string" ||
-    typeof candidate.createdAt !== "string" ||
-    typeof candidate.updatedAt !== "string"
-  ) {
-    return null;
-  }
-
-  const createdAt = Date.parse(candidate.createdAt);
-  const updatedAt = Date.parse(candidate.updatedAt);
-
-  if (!Number.isFinite(createdAt) || !Number.isFinite(updatedAt)) {
-    return null;
-  }
-
-  return {
-    id: candidate.id,
-    date: candidate.date,
-    title:
-      typeof candidate.title === "string" && candidate.title.trim().length > 0
-        ? candidate.title.trim()
-        : "Силовая тренировка",
-    focus: typeof candidate.focus === "string" ? candidate.focus : "",
-    exercises: Array.isArray(candidate.exercises)
-      ? candidate.exercises
-          .map((exercise) => sanitizeWorkoutExercise(exercise))
-          .filter((exercise): exercise is WorkoutExercise => exercise !== null)
-      : [],
-    routineId: typeof candidate.routineId === "string" ? candidate.routineId : null,
-    startedAt:
-      typeof candidate.startedAt === "string" && Number.isFinite(Date.parse(candidate.startedAt))
-        ? new Date(candidate.startedAt).toISOString()
-        : new Date(createdAt).toISOString(),
-    completedAt:
-      typeof candidate.completedAt === "string" && Number.isFinite(Date.parse(candidate.completedAt))
-        ? new Date(candidate.completedAt).toISOString()
-        : null,
-    createdAt: new Date(createdAt).toISOString(),
-    updatedAt: new Date(updatedAt).toISOString(),
-  };
-}
-
-export function sanitizeWorkoutRoutine(value: unknown): WorkoutRoutine | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as Partial<WorkoutRoutine>;
-
-  if (
-    typeof candidate.id !== "string" ||
-    typeof candidate.name !== "string" ||
-    typeof candidate.createdAt !== "string" ||
-    typeof candidate.updatedAt !== "string"
-  ) {
-    return null;
-  }
-
-  const createdAt = Date.parse(candidate.createdAt);
-  const updatedAt = Date.parse(candidate.updatedAt);
-
-  if (!Number.isFinite(createdAt) || !Number.isFinite(updatedAt)) {
-    return null;
-  }
-
-  const exercises = Array.isArray(candidate.exercises)
-    ? candidate.exercises
-        .map((exercise) => sanitizeWorkoutExercise(exercise))
-        .filter((exercise): exercise is WorkoutExercise => exercise !== null)
-        .map((exercise) => ({
-          id: exercise.id,
-          name: exercise.name,
-          note: exercise.note,
-          sets: exercise.sets.map((set) => ({
-            id: set.id,
-            load: set.load,
-            reps: set.reps,
-            note: set.note,
-          })),
-        }))
-    : [];
-
-  return {
-    id: candidate.id,
-    name: candidate.name.trim() || "Моя тренировка",
-    focus: typeof candidate.focus === "string" ? candidate.focus : "",
-    exercises,
-    createdAt: new Date(createdAt).toISOString(),
-    updatedAt: new Date(updatedAt).toISOString(),
-    lastUsedAt:
-      typeof candidate.lastUsedAt === "string" && Number.isFinite(Date.parse(candidate.lastUsedAt))
-        ? new Date(candidate.lastUsedAt).toISOString()
-        : null,
-  };
-}
-
 export function sortWorkoutSessions(sessions: WorkoutSession[]) {
   return [...sessions].sort((left, right) => {
     if (left.date === right.date) {
@@ -372,9 +212,7 @@ export function sanitizeChatMessage(value: unknown): WorkspaceChatMessage | null
   };
 }
 
-export function sanitizeChatThreads(
-  value: unknown,
-) {
+export function sanitizeChatThreads(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {} as Record<string, WorkspaceChatMessage[]>;
   }
@@ -415,9 +253,7 @@ export function sanitizePeriodAnalysisSnapshot(
   };
 }
 
-export function sanitizePeriodAnalyses(
-  value: unknown,
-) {
+export function sanitizePeriodAnalyses(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {} as Record<string, PeriodAnalysisSnapshot>;
   }
@@ -488,9 +324,7 @@ function mergeChatThreads(
   return Object.fromEntries(
     [...threadKeys].map((key) => [
       key,
-      sortChatMessages(
-        mergeById(current[key] ?? [], incoming[key] ?? []),
-      ),
+      sortChatMessages(mergeById(current[key] ?? [], incoming[key] ?? [])),
     ]),
   );
 }
@@ -519,9 +353,7 @@ export function mergeWorkspaceSyncState(
   const sanitizedIncoming = sanitizeWorkspaceSyncState(incoming);
 
   return {
-    workouts: sortWorkoutSessions(
-      mergeById(current.workouts, sanitizedIncoming.workouts),
-    ),
+    workouts: sortWorkoutSessions(mergeById(current.workouts, sanitizedIncoming.workouts)),
     workoutRoutines: sortWorkoutRoutines(
       mergeById(current.workoutRoutines, sanitizedIncoming.workoutRoutines),
     ),

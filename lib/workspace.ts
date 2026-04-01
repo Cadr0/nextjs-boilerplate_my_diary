@@ -1,5 +1,40 @@
 import { aiModelOptions as aiModelCatalog, DEFAULT_OPENROUTER_FREE_MODEL } from "@/lib/ai/models";
 import type { MemoryItem } from "@/lib/ai/memory/types";
+import {
+  createWorkoutExercise as createWorkoutExerciseRecord,
+  createWorkoutExerciseConfig,
+  createWorkoutLog as createWorkoutSetRecord,
+  createWorkoutRoutine as createWorkoutRoutineRecord,
+  createWorkoutSession as createWorkoutSessionRecord,
+  workoutExerciseLibrary as workoutExerciseTemplateLibrary,
+} from "./workouts";
+import type {
+  WorkoutExercise,
+  WorkoutLog as WorkoutSet,
+  WorkoutRoutine,
+  WorkoutSession,
+} from "./workouts";
+
+export type {
+  WorkoutEntryMode,
+  WorkoutExercise,
+  WorkoutExerciseConfig,
+  WorkoutExerciseTemplate,
+  WorkoutExerciseSummary,
+  WorkoutFieldConfig,
+  WorkoutFieldDefinition,
+  WorkoutFieldInputType,
+  WorkoutFieldOption,
+  WorkoutFieldValue,
+  WorkoutLog as WorkoutSet,
+  WorkoutMetricKey,
+  WorkoutRoutine,
+  WorkoutRoutineExercise,
+  WorkoutRoutineLog as WorkoutRoutineSet,
+  WorkoutSession,
+  WorkoutTrackingPreset,
+  WorkoutTrackingPresetId,
+} from "./workouts";
 
 export type MetricInputType = "scale" | "number" | "boolean" | "text";
 export type MetricSemanticKey = "mood" | "energy" | "stress" | "sleep";
@@ -80,62 +115,6 @@ export type WorkspaceDraft = {
   metricValues: Record<string, MetricValue>;
   updatedAt: string;
   serverUpdatedAt: string | null;
-};
-
-export type WorkoutSet = {
-  id: string;
-  load: string;
-  reps: string;
-  note: string;
-  completedAt: string | null;
-};
-
-export type WorkoutExercise = {
-  id: string;
-  name: string;
-  note: string;
-  sets: WorkoutSet[];
-  completedAt: string | null;
-};
-
-export type WorkoutSession = {
-  id: string;
-  date: string;
-  title: string;
-  focus: string;
-  exercises: WorkoutExercise[];
-  routineId: string | null;
-  startedAt: string;
-  completedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type WorkoutRoutineSet = Pick<WorkoutSet, "id" | "load" | "reps" | "note">;
-
-export type WorkoutRoutineExercise = {
-  id: string;
-  name: string;
-  note: string;
-  sets: WorkoutRoutineSet[];
-};
-
-export type WorkoutRoutine = {
-  id: string;
-  name: string;
-  focus: string;
-  exercises: WorkoutRoutineExercise[];
-  createdAt: string;
-  updatedAt: string;
-  lastUsedAt: string | null;
-};
-
-export type WorkoutExerciseTemplate = {
-  id: string;
-  name: string;
-  loadPlaceholder: string;
-  note: string;
-  repTargets: string[];
 };
 
 export type TaskItem = {
@@ -439,7 +418,7 @@ export const metricTemplateLibrary = metricTemplates;
 
 export const aiModelOptions = aiModelCatalog;
 
-export const workoutExerciseLibrary: WorkoutExerciseTemplate[] = [
+export const workoutExerciseLibraryLegacy = [
   {
     id: "bench-press",
     name: "Жим лёжа",
@@ -498,6 +477,8 @@ export const workoutExerciseLibrary: WorkoutExerciseTemplate[] = [
   },
 ];
 
+export const workoutExerciseLibrary = workoutExerciseTemplateLibrary;
+
 export const defaultProfile: WorkspaceProfile = {
   firstName: "Diary",
   lastName: "User",
@@ -524,54 +505,50 @@ function generateId(prefix: string) {
 }
 
 export function createWorkoutSet(
-  preset: Partial<Pick<WorkoutSet, "load" | "reps" | "note">> = {},
+  preset: {
+    load?: string;
+    reps?: string;
+    note?: string;
+  } = {},
 ): WorkoutSet {
-  return {
-    id: generateId("workout-set"),
-    load: preset.load ?? "",
-    reps: preset.reps ?? "",
+  return createWorkoutSetRecord(createWorkoutExerciseConfig("strength"), {
+    values: {
+      weight: preset.load ?? "",
+      reps: preset.reps ?? "",
+    },
     note: preset.note ?? "",
-    completedAt: null,
-  };
+  }) as unknown as WorkoutSet;
 }
 
 export function createWorkoutExercise(
   name: string,
   options: {
     note?: string;
-    initialSets?: Array<Partial<Pick<WorkoutSet, "load" | "reps" | "note">>>;
+    initialSets?: Array<{
+      load?: string;
+      reps?: string;
+      note?: string;
+    }>;
   } = {},
 ): WorkoutExercise {
-  return {
-    id: generateId("workout-exercise"),
-    name: name.trim() || "Новое упражнение",
-    note: options.note ?? "",
-    sets:
-      options.initialSets && options.initialSets.length > 0
-        ? options.initialSets.map((set) => createWorkoutSet(set))
-        : [createWorkoutSet()],
-    completedAt: null,
-  };
+  return createWorkoutExerciseRecord(name, {
+    note: options.note,
+    presetId: "strength",
+    logs: options.initialSets?.map((set) => ({
+      values: {
+        weight: set.load ?? "",
+        reps: set.reps ?? "",
+      },
+      note: set.note ?? "",
+    })),
+  }) as unknown as WorkoutExercise;
 }
 
 export function createWorkoutSession(
   date: string,
   options: Partial<Pick<WorkoutSession, "title" | "focus" | "routineId">> = {},
 ): WorkoutSession {
-  const timestamp = new Date().toISOString();
-
-  return {
-    id: generateId("workout-session"),
-    date,
-    title: options.title?.trim() || "Силовая тренировка",
-    focus: options.focus?.trim() || "",
-    exercises: [],
-    routineId: options.routineId ?? null,
-    startedAt: timestamp,
-    completedAt: null,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
+  return createWorkoutSessionRecord(date, options) as unknown as WorkoutSession;
 }
 
 export function createWorkoutRoutine(
@@ -581,35 +558,29 @@ export function createWorkoutRoutine(
     exercises?: Array<{
       name: string;
       note?: string;
-      sets?: Array<Partial<Pick<WorkoutSet, "load" | "reps" | "note">>>;
+      sets?: Array<{
+        load?: string;
+        reps?: string;
+        note?: string;
+      }>;
     }>;
   } = {},
 ): WorkoutRoutine {
-  const timestamp = new Date().toISOString();
-
-  return {
-    id: generateId("workout-routine"),
-    name: name.trim() || "Моя тренировка",
-    focus: options.focus?.trim() || "",
-    exercises:
-      options.exercises?.map((exercise) => ({
-        id: generateId("workout-routine-exercise"),
-        name: exercise.name.trim() || "Новое упражнение",
-        note: exercise.note ?? "",
-        sets:
-          exercise.sets && exercise.sets.length > 0
-            ? exercise.sets.map((set) => ({
-                id: generateId("workout-routine-set"),
-                load: set.load ?? "",
-                reps: set.reps ?? "",
-                note: set.note ?? "",
-              }))
-            : [{ id: generateId("workout-routine-set"), load: "", reps: "", note: "" }],
-      })) ?? [],
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    lastUsedAt: null,
-  };
+  return createWorkoutRoutineRecord(name, {
+    focus: options.focus,
+    exercises: options.exercises?.map((exercise) => ({
+      name: exercise.name,
+      note: exercise.note,
+      presetId: "strength",
+      logs: exercise.sets?.map((set) => ({
+        values: {
+          weight: set.load ?? "",
+          reps: set.reps ?? "",
+        },
+        note: set.note ?? "",
+      })),
+    })),
+  }) as unknown as WorkoutRoutine;
 }
 
 function getMetricTypeOption(type: MetricInputType) {
