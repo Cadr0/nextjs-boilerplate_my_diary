@@ -209,7 +209,8 @@ type WorkspaceContextValue = {
       config?: Partial<WorkoutExerciseConfig>;
       logs?: Array<Partial<Pick<WorkoutSet, "values" | "note">>>;
     }>;
-  }) => string | null;
+    }) => string | null;
+  deleteWorkoutRoutine: (routineId: string) => void;
   saveWorkoutAsRoutine: (name?: string) => string | null;
   startWorkoutFromRoutine: (routineId: string) => string | null;
   finishWorkoutSession: () => void;
@@ -2321,6 +2322,26 @@ export function WorkspaceProvider({
     return nextRoutine.id;
   };
 
+  const deleteWorkoutRoutine = (routineId: string) => {
+    setWorkspaceState((current) => ({
+      ...current,
+      workoutRoutines: sortWorkoutRoutines(
+        current.workoutRoutines.filter((routine) => routine.id !== routineId),
+      ),
+      workouts: sortWorkoutSessions(
+        current.workouts.map((session) =>
+          session.routineId === routineId
+            ? {
+                ...session,
+                routineId: null,
+                updatedAt: new Date().toISOString(),
+              }
+            : session,
+        ),
+      ),
+    }));
+  };
+
   const saveWorkoutAsRoutine = (name?: string) => {
     const sourceSession = selectedWorkoutSession;
 
@@ -2859,6 +2880,7 @@ export function WorkspaceProvider({
     toggleWorkoutSetCompleted,
     toggleWorkoutExerciseCompleted,
     createWorkoutRoutine,
+    deleteWorkoutRoutine,
     saveWorkoutAsRoutine,
     startWorkoutFromRoutine,
     finishWorkoutSession,

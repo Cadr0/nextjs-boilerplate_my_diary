@@ -210,6 +210,34 @@ function getPreviousComparableSession(session: WorkoutSession | null, workouts: 
   );
 }
 
+function serializeRoutineDraft(draft: RoutineBuilderDraft) {
+  return JSON.stringify({
+    id: draft.id ?? null,
+    name: draft.name.trim(),
+    focus: draft.focus.trim(),
+    exercises: draft.exercises.map((exercise) => ({
+      id: exercise.id,
+      name: exercise.name.trim(),
+      note: exercise.note.trim(),
+      config: exercise.config,
+    })),
+  });
+}
+
+function getEntryModeLabel(entryMode: WorkoutEntryMode) {
+  return entryMode === "sets" ? "По подходам" : "Одной записью";
+}
+
+function getExerciseConfigSummary(config: WorkoutExerciseConfig) {
+  const fieldLabels = config.fields.slice(0, 3).map((field) => field.label);
+  const suffix =
+    config.fields.length > 3 ? ` +${config.fields.length - 3}` : "";
+
+  return `${getWorkoutPresetDefinition(config.presetId).label} · ${getEntryModeLabel(config.entryMode)}${
+    fieldLabels.length > 0 ? ` · ${fieldLabels.join(", ")}${suffix}` : ""
+  }`;
+}
+
 function SurfaceButton({
   children,
   onClick,
@@ -239,6 +267,76 @@ function SurfaceButton({
     >
       {children}
     </button>
+  );
+}
+
+function QuietButton({
+  children,
+  onClick,
+  className,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex min-h-9 items-center justify-center rounded-[14px] border border-[var(--border)] bg-white/92 px-3 text-xs font-medium text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ""}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ActionMenu({
+  actions,
+}: {
+  actions: Array<{
+    label: string;
+    onSelect: () => void;
+    danger?: boolean;
+    disabled?: boolean;
+  }>;
+}) {
+  const [open, setOpen] = useState(false);
+  const visibleActions = actions.filter((action) => !action.disabled);
+
+  if (visibleActions.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="relative">
+      <QuietButton onClick={() => setOpen((current) => !current)} className="min-h-8 px-2.5">
+        Еще
+      </QuietButton>
+      {open ? (
+        <div className="absolute right-0 top-[calc(100%+0.35rem)] z-20 min-w-[168px] rounded-[18px] border border-[var(--border)] bg-white p-1.5 shadow-[0_18px_36px_rgba(24,33,29,0.12)]">
+          {visibleActions.map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                action.onSelect();
+              }}
+              className={`flex w-full items-center rounded-[14px] px-3 py-2 text-left text-sm transition ${
+                action.danger
+                  ? "text-[rgb(161,72,87)] hover:bg-[rgba(161,72,87,0.08)]"
+                  : "text-[var(--foreground)] hover:bg-[rgba(21,52,43,0.06)]"
+              }`}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -335,7 +433,12 @@ function BuilderModal(props: {
   onChange: (draft: RoutineBuilderDraft) => void;
   onClose: () => void;
   onSave: () => void;
+  onDelete?: () => void;
 }) {
+  const initialSnapshot = useState(() => serializeRoutineDraft(props.draft))[0];
+  const [expandedExerciseIds, setExpandedExerciseIds] = useState<string[]>(() =>
+    props.draft.exercises.length > 0 ? [props.draft.exercises[0].id] : [],
+  );
   const updateExercise = (
     exerciseId: string,
     updater: (exercise: BuilderExerciseDraft) => BuilderExerciseDraft,
@@ -349,31 +452,65 @@ function BuilderModal(props: {
   };
 
   const addExercise = (template?: (typeof workoutExerciseLibrary)[number]) => {
+    const nextExercise = createExerciseDraft(template);
+
     props.onChange({
       ...props.draft,
-      exercises: [...props.draft.exercises, createExerciseDraft(template)],
+      exercises: [...props.draft.exercises, nextExercise],
     });
+    setExpandedExerciseIds((current) =>
+      current.includes(nextExercise.id) ? current : [...current, nextExercise.id],
+    );
+  };
+
+  const removeExercise = (exerciseId: string) => {
+    if (props.draft.exercises.length === 1) {
+      return;
+    }
+
+    props.onChange({
+      ...props.draft,
+      exercises: props.draft.exercises.filter((exercise) => exercise.id !== exerciseId),
+    });
+    setExpandedExerciseIds((current) => current.filter((id) => id !== exerciseId));
   };
 
   const canSave =
     props.draft.name.trim().length > 0 &&
     props.draft.exercises.some((exercise) => exercise.name.trim().length > 0);
+  const hasUnsavedChanges = serializeRoutineDraft(props.draft) !== initialSnapshot;
+
+  const requestClose = () => {
+    if (hasUnsavedChanges && !window.confirm("Закрыть без сохранения изменений?")) {
+      return;
+    }
+
+    props.onClose();
+  };
+
+  const toggleExerciseDetails = (exerciseId: string) => {
+    setExpandedExerciseIds((current) =>
+      current.includes(exerciseId)
+        ? current.filter((id) => id !== exerciseId)
+        : [...current, exerciseId],
+    );
+  };
 
   return (
-    <ModalShell onClose={props.onClose}>
-      <div className="border-b border-[var(--border)] px-5 pb-5 pt-5 sm:px-8 sm:pb-6 sm:pt-8">
+    <ModalShell onClose={requestClose}>
+      <div className="border-b border-[var(--border)] px-4 pb-4 pt-4 sm:px-6 sm:pb-5 sm:pt-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-[2rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
+            <h2 className="text-[1.85rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[2.25rem]">
               {props.draft.id ? "Редактирование программы" : "Конструктор тренировки"}
             </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)] sm:text-base">
-              Собери понятную программу: режим отслеживания, нужные метрики, число записей по умолчанию и спокойные подсказки для пользователя.
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
+              Сначала задай основу программы, а редкие настройки открывай только у нужных упражнений.
             </p>
           </div>
           <button
             type="button"
-            onClick={props.onClose}
+            onClick={requestClose}
             className="rounded-full p-2 text-sm text-[var(--muted)] transition hover:bg-[rgba(21,52,43,0.05)] hover:text-[var(--foreground)]"
           >
             Закрыть
@@ -381,10 +518,10 @@ function BuilderModal(props: {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-8 sm:py-6">
-        <div className="grid gap-5">
-          <section className="rounded-[28px] border border-[var(--border)] bg-white/92 p-5 sm:p-6">
-            <div className="grid gap-4 md:grid-cols-2">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+        <div className="grid gap-4">
+          <section className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:p-5">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]">
               <label className="grid gap-2">
                 <span className="text-sm font-semibold text-[var(--foreground)]">Название программы</span>
                 <input
@@ -393,7 +530,7 @@ function BuilderModal(props: {
                     props.onChange({ ...props.draft, name: event.target.value })
                   }
                   placeholder="Например: кардио + мобилити"
-                  className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  className="min-h-11 rounded-[16px] border border-[var(--border)] bg-white px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
 
@@ -405,13 +542,13 @@ function BuilderModal(props: {
                     props.onChange({ ...props.draft, focus: event.target.value })
                   }
                   placeholder="Например: выносливость, техника, восстановление"
-                  className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  className="min-h-11 rounded-[16px] border border-[var(--border)] bg-white px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
             </div>
           </section>
 
-          <section className="rounded-[28px] border border-[var(--border)] bg-white/92 p-5 sm:p-6">
+          <section className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:p-5">
             <p className="text-sm font-semibold text-[var(--foreground)]">Быстрые шаблоны</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {workoutExerciseLibrary.map((template) => (
@@ -419,7 +556,7 @@ function BuilderModal(props: {
                   key={template.id}
                   type="button"
                   onClick={() => addExercise(template)}
-                  className="rounded-full border border-[var(--border)] bg-white px-4 py-2 text-sm text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-xs text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
                 >
                   {template.name}
                 </button>
@@ -444,35 +581,57 @@ function BuilderModal(props: {
               return (
                 <section
                   key={exercise.id}
-                  className="rounded-[30px] border border-[var(--border)] bg-white/94 p-5 sm:p-6"
+                  className="rounded-[24px] border border-[var(--border)] bg-white/95 p-4 sm:p-5"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">
-                        Упражнение {index + 1}
-                      </p>
-                      <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-[rgba(21,52,43,0.06)] px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
+                          Упражнение {index + 1}
+                        </span>
+                        <span className="rounded-full bg-[rgba(47,111,97,0.09)] px-2.5 py-1 text-xs font-medium text-[var(--accent)]">
+                          {preset.label}
+                        </span>
+                        <span className="rounded-full bg-[rgba(244,247,244,0.88)] px-2.5 py-1 text-xs text-[var(--muted)]">
+                          {getEntryModeLabel(exercise.config.entryMode)}
+                        </span>
+                      </div>
+                      <p className="mt-3 truncate text-lg font-semibold text-[var(--foreground)]">
                         {exercise.name.trim() || "Новое упражнение"}
                       </p>
+                      <p className="mt-1 text-sm text-[var(--muted)]">
+                        {getExerciseConfigSummary(exercise.config)}
+                      </p>
+                      {!expandedExerciseIds.includes(exercise.id) && exercise.note.trim() ? (
+                        <p className="mt-2 line-clamp-2 text-sm text-[var(--muted)]">
+                          {exercise.note}
+                        </p>
+                      ) : null}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        props.onChange({
-                          ...props.draft,
-                          exercises: props.draft.exercises.filter((item) => item.id !== exercise.id),
-                        })
-                      }
-                      disabled={props.draft.exercises.length === 1}
-                      className="text-sm text-[var(--muted)] transition hover:text-[rgb(161,72,87)] disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Удалить
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <QuietButton onClick={() => toggleExerciseDetails(exercise.id)}>
+                        {expandedExerciseIds.includes(exercise.id) ? "Скрыть" : "Детали"}
+                      </QuietButton>
+                      <ActionMenu
+                        actions={[
+                          {
+                            label: "Удалить упражнение",
+                            onSelect: () => removeExercise(exercise.id),
+                            danger: true,
+                            disabled: props.draft.exercises.length === 1,
+                          },
+                        ]}
+                      />
+                    </div>
                   </div>
 
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  {expandedExerciseIds.includes(exercise.id) ? (
+                    <div className="mt-4 grid gap-4">
+                      <div className="grid gap-3 md:grid-cols-2">
                     <label className="grid gap-2">
-                      <span className="text-sm text-[var(--muted)]">Название</span>
+                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
+                        Название
+                      </span>
                       <input
                         value={exercise.name}
                         onChange={(event) =>
@@ -482,12 +641,14 @@ function BuilderModal(props: {
                           }))
                         }
                         placeholder="Например: присед, бег, планка"
-                        className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                        className="min-h-11 rounded-[16px] border border-[var(--border)] bg-white px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                       />
                     </label>
 
                     <label className="grid gap-2">
-                      <span className="text-sm text-[var(--muted)]">Подсказка</span>
+                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
+                        Подсказка
+                      </span>
                       <input
                         value={exercise.note}
                         onChange={(event) =>
@@ -497,14 +658,16 @@ function BuilderModal(props: {
                           }))
                         }
                         placeholder="Короткая подсказка по технике или темпу"
-                        className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                        className="min-h-11 rounded-[16px] border border-[var(--border)] bg-white px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                       />
                     </label>
                   </div>
 
-                  <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
+                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_140px]">
                     <label className="grid gap-2">
-                      <span className="text-sm text-[var(--muted)]">Режим отслеживания</span>
+                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
+                        Режим
+                      </span>
                       <select
                         value={exercise.config.presetId}
                         onChange={(event) => {
@@ -523,7 +686,7 @@ function BuilderModal(props: {
                             ),
                           }));
                         }}
-                        className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                        className="min-h-11 rounded-[16px] border border-[var(--border)] bg-white px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                       >
                         {workoutTrackingPresets.map((presetItem) => (
                           <option key={presetItem.id} value={presetItem.id}>
@@ -534,7 +697,9 @@ function BuilderModal(props: {
                     </label>
 
                     <label className="grid gap-2">
-                      <span className="text-sm text-[var(--muted)]">Как записывать</span>
+                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
+                        Формат
+                      </span>
                       <select
                         value={exercise.config.entryMode}
                         onChange={(event) =>
@@ -546,7 +711,7 @@ function BuilderModal(props: {
                             }),
                           }))
                         }
-                        className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                        className="min-h-11 rounded-[16px] border border-[var(--border)] bg-white px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                       >
                         <option value="sets">По подходам</option>
                         <option value="single">Одной записью</option>
@@ -554,7 +719,9 @@ function BuilderModal(props: {
                     </label>
 
                     <label className="grid gap-2">
-                      <span className="text-sm text-[var(--muted)]">Число записей</span>
+                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
+                        Записей
+                      </span>
                       <input
                         type="number"
                         min="1"
@@ -570,14 +737,16 @@ function BuilderModal(props: {
                           }))
                         }
                         disabled={exercise.config.entryMode === "single"}
-                        className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] disabled:opacity-50"
+                        className="min-h-11 rounded-[16px] border border-[var(--border)] bg-white px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] disabled:opacity-50"
                       />
                     </label>
                   </div>
 
-                  <div className="mt-5">
-                    <p className="text-sm font-semibold text-[var(--foreground)]">Метрики</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
+                      Метрики
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
                       {fieldKeys.map((key) => {
                         const definition = getWorkoutFieldDefinition(key);
                         const active = selected.has(key);
@@ -604,7 +773,7 @@ function BuilderModal(props: {
                                 };
                               })
                             }
-                            className={`rounded-full border px-4 py-2 text-sm transition ${
+                            className={`rounded-full border px-3 py-1.5 text-xs transition ${
                               active
                                 ? "border-[var(--accent)] bg-[rgba(47,111,97,0.09)] text-[var(--accent)]"
                                 : "border-[var(--border)] bg-white text-[var(--foreground)] hover:border-[var(--accent)]"
@@ -616,24 +785,54 @@ function BuilderModal(props: {
                       })}
                     </div>
                   </div>
+                    </div>
+                  ) : null}
                 </section>
               );
             })}
           </div>
 
-          <SurfaceButton variant="secondary" onClick={() => addExercise()} className="w-full">
-            Добавить упражнение
-          </SurfaceButton>
+          <div className="flex flex-col gap-3 rounded-[24px] border border-dashed border-[var(--border-strong)] bg-[rgba(247,249,246,0.82)] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-[var(--foreground)]">Структура программы</p>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Добавляй упражнения по одному, а детали открывай только там, где это нужно.
+              </p>
+            </div>
+            <SurfaceButton variant="secondary" onClick={() => addExercise()} className="w-full sm:w-auto">
+              Добавить упражнение
+            </SurfaceButton>
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-3 border-t border-[var(--border)] px-5 py-5 sm:grid-cols-2 sm:px-8 sm:py-6">
-        <SurfaceButton variant="secondary" onClick={props.onClose} className="w-full">
-          Отмена
-        </SurfaceButton>
-        <SurfaceButton onClick={props.onSave} disabled={!canSave} className="w-full">
-          {props.draft.id ? "Сохранить изменения" : "Сохранить программу"}
-        </SurfaceButton>
+      <div className="flex flex-col gap-3 border-t border-[var(--border)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
+        <div className="flex items-center justify-between gap-3">
+          {props.draft.id && props.onDelete ? (
+            <QuietButton
+              onClick={() => {
+                if (window.confirm("Удалить программу? Это действие нельзя отменить.")) {
+                  props.onDelete?.();
+                }
+              }}
+              className="border-[rgba(161,72,87,0.22)] text-[rgb(161,72,87)] hover:border-[rgb(161,72,87)] hover:bg-[rgba(161,72,87,0.06)] hover:text-[rgb(161,72,87)]"
+            >
+              Удалить программу
+            </QuietButton>
+          ) : (
+            <span className="text-xs text-[var(--muted)]">
+              {props.draft.exercises.length} упражнений
+            </span>
+          )}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-[140px_minmax(0,1fr)]">
+          <SurfaceButton variant="secondary" onClick={requestClose} className="w-full">
+            Отмена
+          </SurfaceButton>
+          <SurfaceButton onClick={props.onSave} disabled={!canSave} className="w-full">
+            {props.draft.id ? "Сохранить изменения" : "Сохранить программу"}
+          </SurfaceButton>
+        </div>
       </div>
     </ModalShell>
   );
@@ -648,8 +847,8 @@ function FieldInput(props: {
   const options = props.field.options ?? definition.options ?? [];
 
   return (
-    <label className="grid gap-2">
-      <span className="text-sm font-semibold text-[var(--foreground)]">
+    <label className="grid gap-1.5">
+      <span className="text-xs font-medium uppercase tracking-[0.14em] text-[var(--muted)]">
         {props.field.label}
         {props.field.unit ? `, ${props.field.unit}` : ""}
       </span>
@@ -657,7 +856,7 @@ function FieldInput(props: {
         <select
           value={props.value}
           onChange={(event) => props.onChange(event.target.value)}
-          className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+          className="min-h-11 rounded-[16px] border border-[var(--border)] bg-white px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
         >
           <option value="">Не выбрано</option>
           {options.map((option) => (
@@ -676,7 +875,7 @@ function FieldInput(props: {
           value={props.value}
           onChange={(event) => props.onChange(event.target.value)}
           placeholder={props.field.placeholder || definition.placeholder}
-          className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+          className="min-h-11 rounded-[16px] border border-[var(--border)] bg-white px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
         />
       )}
       {definition.quickValues && definition.quickValues.length > 0 ? (
@@ -686,7 +885,7 @@ function FieldInput(props: {
               key={quickValue}
               type="button"
               onClick={() => props.onChange(quickValue)}
-              className="rounded-full border border-[var(--border)] bg-[rgba(244,247,244,0.88)] px-3 py-1 text-xs text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              className="rounded-full border border-[var(--border)] bg-[rgba(244,247,244,0.88)] px-2.5 py-1 text-[11px] text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
             >
               {quickValue}
             </button>
@@ -706,121 +905,168 @@ function ExerciseEditorCard(props: {
   onRemoveLog: (logId: string) => void;
   onAddLog: () => void;
   onToggleExercise: () => void;
+  onRemoveExercise: () => void;
 }) {
+  const [detailsOpen, setDetailsOpen] = useState(!props.exercise.completedAt);
+  const completedLogs = props.exercise.logs.filter((log) => Boolean(log.completedAt)).length;
+  const highlightItems = getWorkoutExerciseHighlights(props.exercise);
+
   return (
-    <section className="rounded-[30px] border border-[var(--border)] bg-white/94 p-5 sm:p-6">
+    <section className="rounded-[24px] border border-[var(--border)] bg-white/95 p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <input
             value={props.exercise.name}
             onChange={(event) => props.onUpdateExercise({ name: event.target.value })}
-            className="w-full rounded-[18px] border border-transparent bg-transparent px-0 text-[1.25rem] font-semibold tracking-[-0.03em] text-[var(--foreground)] outline-none transition focus:border-[var(--border)] focus:bg-white focus:px-3 focus:py-2"
+            className="w-full rounded-[16px] border border-transparent bg-transparent px-0 text-[1.15rem] font-semibold tracking-[-0.03em] text-[var(--foreground)] outline-none transition focus:border-[var(--border)] focus:bg-white focus:px-3 focus:py-2"
           />
           <div className="mt-2 flex flex-wrap gap-2">
-            <span className="rounded-full bg-[rgba(47,111,97,0.09)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
+            <span className="rounded-full bg-[rgba(47,111,97,0.09)] px-2.5 py-1 text-xs font-medium text-[var(--accent)]">
               {getWorkoutPresetDefinition(props.exercise.config.presetId).label}
             </span>
-            {getWorkoutExerciseHighlights(props.exercise).map((item) => (
+            <span className="rounded-full bg-[rgba(244,247,244,0.88)] px-2.5 py-1 text-xs text-[var(--muted)]">
+              {getEntryModeLabel(props.exercise.config.entryMode)}
+            </span>
+            {highlightItems.slice(0, 2).map((item) => (
               <span
                 key={item}
-                className="rounded-full bg-[rgba(21,52,43,0.06)] px-3 py-1 text-xs text-[var(--muted)]"
+                className="rounded-full bg-[rgba(21,52,43,0.06)] px-2.5 py-1 text-xs text-[var(--muted)]"
               >
                 {item}
               </span>
             ))}
           </div>
+          <p className="mt-2 text-sm text-[var(--muted)]">
+            {completedLogs}/{props.exercise.logs.length}{" "}
+            {props.exercise.config.entryMode === "sets" ? "подходов" : "записей"} отмечено
+          </p>
         </div>
-        <SurfaceButton
-          variant={props.exercise.completedAt ? "secondary" : "primary"}
-          onClick={props.onToggleExercise}
-        >
-          {props.exercise.completedAt ? "Снять отметку" : "Отметить"}
-        </SurfaceButton>
-      </div>
-
-      <input
-        value={props.exercise.note}
-        onChange={(event) => props.onUpdateExercise({ note: event.target.value })}
-        placeholder="Подсказка по упражнению"
-        className="mt-4 min-h-11 w-full rounded-[18px] border border-[var(--border)] bg-[rgba(244,247,244,0.88)] px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-      />
-
-      <div className="mt-5 grid gap-4">
-        {props.exercise.logs.map((log, index) => (
-          <div
-            key={log.id}
-            className={`rounded-[24px] border px-4 py-4 sm:px-5 ${
-              log.completedAt
-                ? "border-[rgba(47,111,97,0.22)] bg-[rgba(243,251,246,0.94)]"
-                : "border-[var(--border)] bg-white"
-            }`}
+        <div className="flex items-center gap-2">
+          <QuietButton onClick={() => setDetailsOpen((current) => !current)}>
+            {detailsOpen ? "Скрыть" : "Детали"}
+          </QuietButton>
+          <ActionMenu
+            actions={[
+              {
+                label: "Удалить упражнение",
+                danger: true,
+                onSelect: () => {
+                  if (window.confirm("Удалить упражнение из текущей тренировки?")) {
+                    props.onRemoveExercise();
+                  }
+                },
+              },
+            ]}
+          />
+          <SurfaceButton
+            variant={props.exercise.completedAt ? "secondary" : "primary"}
+            onClick={props.onToggleExercise}
+            className="px-3.5"
           >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-[var(--foreground)]">
-                  {props.exercise.config.entryMode === "sets" ? `Подход ${index + 1}` : "Запись"}
-                </p>
-                <p className="mt-1 text-xs text-[var(--muted)]">
-                  {log.completedAt
-                    ? getWorkoutLogHeadline(log, props.exercise)
-                    : "Показываются только поля, включённые в конфигурации упражнения."}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <SurfaceButton variant="ghost" onClick={() => props.onToggleLog(log.id)}>
-                  {log.completedAt ? "В черновик" : "Готово"}
-                </SurfaceButton>
-                {props.exercise.config.entryMode === "sets" ? (
-                  <SurfaceButton variant="secondary" onClick={() => props.onDuplicateLog(log.id)}>
-                    Повторить
-                  </SurfaceButton>
-                ) : null}
-                {props.exercise.logs.length > 1 ? (
-                  <SurfaceButton variant="secondary" onClick={() => props.onRemoveLog(log.id)}>
-                    Удалить
-                  </SurfaceButton>
-                ) : null}
-              </div>
-            </div>
-
-            {props.exercise.config.fields.length > 0 ? (
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                {props.exercise.config.fields.map((field) => (
-                  <FieldInput
-                    key={field.key}
-                    field={field}
-                    value={log.values[field.key] ?? ""}
-                    onChange={(value) =>
-                      props.onUpdateLog(log.id, {
-                        values: {
-                          [field.key]: value,
-                        } as WorkoutSet["values"],
-                      })
-                    }
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="mt-4 rounded-[18px] border border-dashed border-[var(--border)] bg-[rgba(244,247,244,0.88)] px-4 py-4 text-sm text-[var(--muted)]">
-                Это упражнение можно отметить просто как выполненное, без числовых значений.
-              </div>
-            )}
-
-            <input
-              value={log.note}
-              onChange={(event) => props.onUpdateLog(log.id, { note: event.target.value })}
-              placeholder="Заметка по записи"
-              className="mt-4 min-h-11 w-full rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-            />
-          </div>
-        ))}
+            {props.exercise.completedAt ? "Снять отметку" : "Отметить"}
+          </SurfaceButton>
+        </div>
       </div>
 
-      {props.exercise.config.entryMode === "sets" ? (
-        <div className="mt-4">
-          <SurfaceButton variant="secondary" onClick={props.onAddLog}>
-            Добавить подход
-          </SurfaceButton>
+      {detailsOpen || props.exercise.note.trim() ? (
+        <input
+          value={props.exercise.note}
+          onChange={(event) => props.onUpdateExercise({ note: event.target.value })}
+          placeholder="Подсказка по упражнению"
+          className="mt-4 min-h-11 w-full rounded-[16px] border border-[var(--border)] bg-[rgba(244,247,244,0.88)] px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+        />
+      ) : null}
+
+      {detailsOpen ? (
+        <div className="mt-4 grid gap-3">
+          {props.exercise.logs.map((log, index) => (
+            <div
+              key={log.id}
+              className={`rounded-[20px] border px-3.5 py-3.5 sm:px-4 ${
+                log.completedAt
+                  ? "border-[rgba(47,111,97,0.22)] bg-[rgba(243,251,246,0.94)]"
+                  : "border-[var(--border)] bg-white"
+              }`}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-[var(--foreground)]">
+                      {props.exercise.config.entryMode === "sets" ? `Подход ${index + 1}` : "Запись"}
+                    </p>
+                    {log.completedAt ? (
+                      <span className="rounded-full bg-[rgba(47,111,97,0.09)] px-2.5 py-1 text-[11px] font-medium text-[var(--accent)]">
+                        Выполнено
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    {log.completedAt
+                      ? getWorkoutLogHeadline(log, props.exercise)
+                      : "Заполни только нужные поля, остальные можно оставить пустыми."}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <QuietButton onClick={() => props.onToggleLog(log.id)}>
+                    {log.completedAt ? "В черновик" : "Готово"}
+                  </QuietButton>
+                  <ActionMenu
+                    actions={[
+                      {
+                        label: "Повторить запись",
+                        onSelect: () => props.onDuplicateLog(log.id),
+                        disabled: props.exercise.config.entryMode !== "sets",
+                      },
+                      {
+                        label: "Удалить запись",
+                        danger: true,
+                        onSelect: () => props.onRemoveLog(log.id),
+                        disabled: props.exercise.logs.length <= 1,
+                      },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              {props.exercise.config.fields.length > 0 ? (
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {props.exercise.config.fields.map((field) => (
+                    <FieldInput
+                      key={field.key}
+                      field={field}
+                      value={log.values[field.key] ?? ""}
+                      onChange={(value) =>
+                        props.onUpdateLog(log.id, {
+                          values: {
+                            [field.key]: value,
+                          } as WorkoutSet["values"],
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-3 rounded-[16px] border border-dashed border-[var(--border)] bg-[rgba(244,247,244,0.88)] px-3.5 py-3 text-sm text-[var(--muted)]">
+                  Это упражнение можно просто отметить как выполненное, без числовых значений.
+                </div>
+              )}
+
+              <input
+                value={log.note}
+                onChange={(event) => props.onUpdateLog(log.id, { note: event.target.value })}
+                placeholder="Заметка по записи"
+                className="mt-3 min-h-11 w-full rounded-[16px] border border-[var(--border)] bg-white px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+              />
+            </div>
+          ))}
+
+          {props.exercise.config.entryMode === "sets" ? (
+            <div className="pt-1">
+              <SurfaceButton variant="secondary" onClick={props.onAddLog} className="w-full sm:w-auto">
+                Добавить подход
+              </SurfaceButton>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </section>
@@ -892,6 +1138,7 @@ export function WorkoutExperience() {
     updateWorkoutSession,
     addWorkoutExercise,
     updateWorkoutExercise,
+    removeWorkoutExercise,
     addWorkoutSet,
     updateWorkoutSet,
     duplicateWorkoutSet,
@@ -899,6 +1146,7 @@ export function WorkoutExperience() {
     toggleWorkoutSetCompleted,
     toggleWorkoutExerciseCompleted,
     createWorkoutRoutine,
+    deleteWorkoutRoutine,
     saveWorkoutAsRoutine,
     startWorkoutFromRoutine,
     finishWorkoutSession,
@@ -948,6 +1196,16 @@ export function WorkoutExperience() {
   const openBuilder = (routine?: WorkoutRoutine) => {
     setBuilderDraft(createRoutineDraft(routine));
     setIsBuilderOpen(true);
+  };
+
+  const handleDeleteBuilder = () => {
+    if (!builderDraft.id) {
+      return;
+    }
+
+    deleteWorkoutRoutine(builderDraft.id);
+    setIsBuilderOpen(false);
+    setBuilderDraft(createRoutineDraft());
   };
 
   const handleSaveBuilder = () => {
@@ -1041,12 +1299,12 @@ export function WorkoutExperience() {
           </div>
         }
       >
-        <SectionCard className="rounded-[34px] p-5 sm:p-7">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <SectionCard className="rounded-[30px] p-4 sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <SectionHeader
               eyebrow={selectedDate === getTodayIsoDate() ? "Сегодня" : formatLongDate(selectedDate)}
-              title="Гибкий блок тренировок"
-              description="Тренировка теперь строится из режима отслеживания и набора метрик. Одна и та же система покрывает силовые, кардио, интервалы, статику, домашние активности и мягкие восстановительные практики."
+              title="Тренировки"
+              description="Программы, текущая сессия и история в одном спокойном блоке. Основные действия оставлены на виду, редкие убраны из центра внимания."
             />
             <div className="grid gap-3 sm:grid-cols-2">
               <SurfaceButton onClick={() => openBuilder()} className="w-full">
@@ -1081,8 +1339,8 @@ export function WorkoutExperience() {
         </SectionCard>
 
         {activeSession ? (
-          <SectionCard className="rounded-[34px] p-5 sm:p-7">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <SectionCard className="rounded-[30px] p-4 sm:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
                   Активная тренировка
@@ -1096,11 +1354,14 @@ export function WorkoutExperience() {
                   value={activeSession.focus}
                   onChange={(event) => updateWorkoutSession({ focus: event.target.value })}
                   placeholder="Фокус тренировки"
-                  className="mt-3 min-h-11 w-full rounded-[18px] border border-[var(--border)] bg-[rgba(244,247,244,0.88)] px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  className="mt-3 min-h-11 w-full rounded-[16px] border border-[var(--border)] bg-[rgba(244,247,244,0.88)] px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
+                <p className="mt-3 text-xs text-[var(--muted)]">
+                  Изменения сохраняются автоматически. Детали и удаление упражнений вынесены в отдельные действия.
+                </p>
               </div>
 
-              <div className="rounded-[24px] border border-[var(--border)] bg-white/92 px-5 py-4">
+              <div className="rounded-[22px] border border-[var(--border)] bg-white/92 px-4 py-3.5">
                 <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Прогресс</p>
                 <p className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-[var(--foreground)]">
                   {activeSession.summary.completedExercises}/{activeSession.summary.totalExercises}
@@ -1140,18 +1401,19 @@ export function WorkoutExperience() {
                     }
                   }}
                   onToggleExercise={() => toggleWorkoutExerciseCompleted(exercise.id)}
+                  onRemoveExercise={() => removeWorkoutExercise(exercise.id)}
                 />
               ))}
 
-              <section className="rounded-[30px] border border-dashed border-[var(--border-strong)] bg-[rgba(247,249,246,0.82)] p-5 sm:p-6">
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_auto] lg:items-end">
+              <section className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-[rgba(247,249,246,0.82)] p-4 sm:p-5">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_auto] lg:items-end">
                   <label className="grid gap-2">
                     <span className="text-sm font-semibold text-[var(--foreground)]">Добавить упражнение</span>
                     <input
                       value={sessionExerciseName}
                       onChange={(event) => setSessionExerciseName(event.target.value)}
                       placeholder="Например: растяжка, ходьба, велотренажёр"
-                      className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                      className="min-h-11 rounded-[16px] border border-[var(--border)] bg-white px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                     />
                   </label>
 
@@ -1162,7 +1424,7 @@ export function WorkoutExperience() {
                       onChange={(event) =>
                         setSessionExercisePresetId(event.target.value as WorkoutTrackingPresetId)
                       }
-                      className="min-h-12 rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                      className="min-h-11 rounded-[16px] border border-[var(--border)] bg-white px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                     >
                       {workoutTrackingPresets.map((preset) => (
                         <option key={preset.id} value={preset.id}>
@@ -1179,25 +1441,30 @@ export function WorkoutExperience() {
               </section>
             </div>
 
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-[var(--muted)]">
+                Основной путь: отметить записи и завершить сессию. Сохранение в программу остаётся вторичным действием.
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row">
               <SurfaceButton variant="secondary" onClick={() => saveWorkoutAsRoutine()} className="w-full sm:w-auto">
                 Обновить программу
               </SurfaceButton>
               <SurfaceButton onClick={finishWorkoutSession} className="w-full sm:w-auto">
                 Завершить тренировку
               </SurfaceButton>
+              </div>
             </div>
           </SectionCard>
         ) : null}
 
-        <SectionCard className="rounded-[34px] p-5 sm:p-7">
+        <SectionCard className="rounded-[30px] p-4 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
                 Программы
               </h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)] sm:text-base">
-                Каждая программа хранит конфигурацию упражнения отдельно: какие поля нужны, по подходам или одной записью фиксируется активность и сколько строк открыть на старте.
+                Для каждой программы видно только главное: что внутри, сколько упражнений и можно ли сразу продолжить сессию.
               </p>
             </div>
           </div>
@@ -1207,45 +1474,63 @@ export function WorkoutExperience() {
               workoutRoutines.map((routine) => (
                 <article
                   key={routine.id}
-                  className="rounded-[30px] border border-[var(--border)] bg-white/94 p-5 sm:p-6"
+                  className="rounded-[24px] border border-[var(--border)] bg-white/95 p-4 sm:p-5"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-[1.25rem] font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                      <p className="text-[1.1rem] font-semibold tracking-[-0.03em] text-[var(--foreground)]">
                         {routine.name}
                       </p>
-                      <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                      <p className="mt-1.5 text-sm leading-6 text-[var(--muted)]">
                         {routine.focus.trim() || "Гибкая программа для повторяющихся сессий."}
                       </p>
                     </div>
-                    {activeSession?.routineId === routine.id ? (
-                      <span className="rounded-full bg-[rgba(47,111,97,0.1)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
-                        Активна
+                    <div className="flex items-center gap-2">
+                      {activeSession?.routineId === routine.id ? (
+                        <span className="rounded-full bg-[rgba(47,111,97,0.1)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
+                          Активна
+                        </span>
+                      ) : null}
+                      <ActionMenu
+                        actions={[
+                          {
+                            label: "Редактировать",
+                            onSelect: () => openBuilder(routine),
+                          },
+                          {
+                            label: "Удалить программу",
+                            danger: true,
+                            onSelect: () => {
+                              if (window.confirm("Удалить программу? Текущие завершённые тренировки сохранятся, но связь с программой будет снята.")) {
+                                deleteWorkoutRoutine(routine.id);
+                              }
+                            },
+                          },
+                        ]}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-[rgba(244,247,244,0.88)] px-2.5 py-1 text-xs text-[var(--muted)]">
+                      {routine.exercises.length} упражнений
+                    </span>
+                    {routine.exercises.slice(0, 3).map((exercise) => (
+                      <div
+                        key={exercise.id}
+                        className="rounded-full bg-[rgba(244,247,244,0.88)] px-3 py-1.5 text-xs text-[var(--foreground)]"
+                      >
+                        <span className="font-medium">{exercise.name}</span>
+                      </div>
+                    ))}
+                    {routine.exercises.length > 3 ? (
+                      <span className="rounded-full bg-[rgba(21,52,43,0.06)] px-3 py-1.5 text-xs text-[var(--muted)]">
+                        +{routine.exercises.length - 3}
                       </span>
                     ) : null}
                   </div>
 
-                  <div className="mt-4 grid gap-2">
-                    {routine.exercises.slice(0, 4).map((exercise) => (
-                      <div
-                        key={exercise.id}
-                        className="rounded-[18px] bg-[rgba(244,247,244,0.88)] px-4 py-3 text-sm text-[var(--foreground)]"
-                      >
-                        <span className="font-semibold">{exercise.name}</span>
-                        <span className="text-[var(--muted)]">
-                          {" "}
-                          · {exercise.config.fields.length > 0
-                            ? exercise.config.fields.map((field) => field.label).join(", ")
-                            : "только отметка"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                    <SurfaceButton variant="secondary" onClick={() => openBuilder(routine)} className="w-full">
-                      Редактировать
-                    </SurfaceButton>
+                  <div className="mt-4">
                     <SurfaceButton
                       onClick={() => handleStartRoutine(routine.id)}
                       disabled={Boolean(activeSession && activeSession.routineId !== routine.id)}
@@ -1263,7 +1548,7 @@ export function WorkoutExperience() {
         </SectionCard>
 
         {summarySession ? (
-          <SectionCard className="rounded-[34px] p-5 sm:p-7">
+          <SectionCard className="rounded-[30px] p-4 sm:p-6">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
@@ -1331,7 +1616,7 @@ export function WorkoutExperience() {
           </SectionCard>
         ) : null}
 
-        <SectionCard className="rounded-[34px] p-5 sm:p-7">
+        <SectionCard className="rounded-[30px] p-4 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
@@ -1377,6 +1662,7 @@ export function WorkoutExperience() {
           onChange={setBuilderDraft}
           onClose={() => setIsBuilderOpen(false)}
           onSave={handleSaveBuilder}
+          onDelete={handleDeleteBuilder}
         />
       ) : null}
     </>
