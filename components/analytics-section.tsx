@@ -349,7 +349,6 @@ export function AnalyticsSection() {
       }
       footer={
         <WorkspaceUserControls
-          onOpenSettings={() => setIsMobileSidebarOpen(false)}
           subtitle="Настройки, профиль и аккаунт"
         />
       }
@@ -442,7 +441,6 @@ export function AnalyticsSection() {
         isMobileSidebarOpen={isMobileSidebarOpen}
         onMobileSidebarOpenChange={setIsMobileSidebarOpen}
         sidebar={sidebarContent}
-        sidebarColumnClassName="xl:grid-cols-[290px_minmax(0,1fr)]"
         mobileHeader={
           <div className="surface-card sticky top-3 z-20 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 rounded-[24px] px-4 py-3">
             <button

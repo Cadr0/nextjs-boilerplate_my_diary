@@ -301,10 +301,7 @@ export function DiarySection() {
         ) : null
       }
       footer={
-        <WorkspaceUserControls
-          onOpenSettings={closeMobileSidebar}
-          subtitle="Профиль, приложение и выход"
-        />
+        <WorkspaceUserControls subtitle="Профиль, приложение и выход" />
       }
     >
       <WorkspaceSidebarSection label="Дни" meta={days.length} className="min-h-0 flex-1">

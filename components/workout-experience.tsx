@@ -757,11 +757,9 @@ function WorkoutSidebarContent({
   days,
   selectedDate,
   workouts,
-  profileName,
   profileSubtitle,
   onSelectDate,
   onCloseSidebar,
-  onOpenSettings,
 }: {
   days: Array<{
     date: string;
@@ -770,11 +768,9 @@ function WorkoutSidebarContent({
   }>;
   selectedDate: string;
   workouts: WorkoutSession[];
-  profileName: string;
   profileSubtitle: string;
   onSelectDate: (date: string) => void;
   onCloseSidebar?: () => void;
-  onOpenSettings?: () => void;
 }) {
   const getPreview = (date: string, fallbackSummary: string, fallbackNotes: string) => {
     const daySessions = workouts.filter((session) => session.date === date);
@@ -806,7 +802,7 @@ function WorkoutSidebarContent({
           <button
             type="button"
             onClick={onCloseSidebar}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
+            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] xl:hidden"
             aria-label="Р—Р°РєСЂС‹С‚СЊ Р±РѕРєРѕРІСѓСЋ РїР°РЅРµР»СЊ"
           >
             <CloseIcon className="h-5 w-5" />
@@ -814,10 +810,7 @@ function WorkoutSidebarContent({
         ) : null
       }
       footer={
-        <WorkspaceUserControls
-          onOpenSettings={onOpenSettings}
-          subtitle={profileName.trim().length > 0 ? profileSubtitle : profileSubtitle}
-        />
+        <WorkspaceUserControls subtitle={profileSubtitle} />
       }
     >
       <WorkspaceSidebarSection label="Дни" meta={days.length}>
@@ -1536,6 +1529,7 @@ export function WorkoutExperience() {
   const profileName =
     [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Профиль";
   const profileSubtitle = "История, программы и быстрый доступ";
+  void profileName;
   const selectedDateCompletedCount = sessionsForSelectedDate.filter((session) => session.completedAt).length;
   const latestCompletedSession = useMemo(
     () =>
@@ -1562,7 +1556,6 @@ export function WorkoutExperience() {
           days={days}
           selectedDate={selectedDate}
           workouts={workouts}
-          profileName={profileName}
           profileSubtitle={profileSubtitle}
           onSelectDate={(date) => {
             setSelectedDate(date);
@@ -1571,7 +1564,6 @@ export function WorkoutExperience() {
             closeMobileSidebar();
           }}
           onCloseSidebar={closeMobileSidebar}
-          onOpenSettings={closeMobileSidebar}
         />
       }
       className="overflow-x-hidden xl:items-start"
