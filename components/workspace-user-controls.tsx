@@ -606,7 +606,7 @@ function WorkspaceSettingsModal({
           </div>
         </div>
 
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-8">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 sm:p-8">
           {tab === "general" ? (
             <div className="grid min-h-full content-start gap-3 sm:gap-6">
               <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">Общее</h2>
