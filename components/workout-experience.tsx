@@ -1355,6 +1355,7 @@ export function WorkoutExperience() {
           </div>
         }
       >
+        <div className="grid gap-0 overflow-hidden">
         <SectionCard className="rounded-[30px] p-4 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <SectionHeader
@@ -1710,6 +1711,7 @@ export function WorkoutExperience() {
         </SectionCard>
 
         <WorkoutAssistantPanel />
+        </div>
       </WorkspaceSectionShell>
 
       {isBuilderOpen ? (
