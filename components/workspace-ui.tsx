@@ -237,7 +237,7 @@ export function TrendChart({
         })}
       </svg>
 
-      <div className="grid gap-2 sm:grid-cols-4">
+      <div className="hidden gap-2 sm:grid sm:grid-cols-4">
         {points.map((point) => (
           <div
             key={point.date}
