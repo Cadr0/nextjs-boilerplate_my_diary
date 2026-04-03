@@ -236,7 +236,7 @@ export async function GET(request: Request) {
     if (snapshot.workspaceSync.workoutRoutines.length > 0) {
       sections.push(line("Шаблоны тренировок:", 22));
       for (const routine of snapshot.workspaceSync.workoutRoutines) {
-        sections.push(line(`• ${routine.title || "Шаблон"} (${routine.focus || "без фокуса"})`, 20, 280));
+        sections.push(line(`• ${routine.name || "Шаблон"} (${routine.focus || "без фокуса"})`, 20, 280));
       }
     }
 
