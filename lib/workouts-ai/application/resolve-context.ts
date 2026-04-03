@@ -24,10 +24,115 @@ type ResolveContextInput = {
   userId: string;
   normalized: WorkoutNormalizedParseResult;
   catalog: WorkoutCatalogLookupItem[];
+  entryDate?: string | null;
 };
 
 function readNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function normalizeText(value: string | null | undefined) {
+  return (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/\s+/g, " ");
+}
+
+function readPayloadRawInput(fact: WorkoutNormalizedFact) {
+  return typeof fact.payload.rawInput === "string" ? fact.payload.rawInput : null;
+}
+
+function hasExplicitActivityCandidate(fact: WorkoutNormalizedFact) {
+  return typeof fact.activityCandidate === "string" && fact.activityCandidate.trim().length > 0;
+}
+
+function getCompatibleActivityTypes(fact: WorkoutNormalizedFact) {
+  if (fact.factType === "strength") {
+    return ["strength"];
+  }
+
+  if (fact.factType === "cardio") {
+    return ["cardio", "distance"];
+  }
+
+  if (fact.factType === "distance") {
+    return ["distance", "cardio"];
+  }
+
+  if (fact.factType === "timed") {
+    return ["duration"];
+  }
+
+  if (fact.factType === "mixed") {
+    return ["mixed"];
+  }
+
+  return [];
+}
+
+function resolveActivityFromRawInput(
+  fact: WorkoutNormalizedFact,
+  catalog: WorkoutCatalogLookupItem[],
+) {
+  const rawInput = normalizeText(readPayloadRawInput(fact));
+
+  if (!rawInput) {
+    return null;
+  }
+
+  const compatibleTypes = new Set(getCompatibleActivityTypes(fact));
+  const matches = catalog.flatMap((item) => {
+    if (!compatibleTypes.has(item.activityType)) {
+      return [];
+    }
+
+    const candidates = [
+      item.displayName,
+      item.canonicalName,
+      item.slug.replace(/_/g, " "),
+      ...item.aliases,
+    ]
+      .map((value) => normalizeText(value))
+      .filter((value) => value.length >= 3);
+
+    const bestMatch = candidates
+      .filter((candidate) => rawInput.includes(candidate))
+      .sort((left, right) => right.length - left.length)[0];
+
+    if (!bestMatch) {
+      return [];
+    }
+
+    return [
+      {
+        item,
+        score: bestMatch.length,
+      },
+    ];
+  });
+
+  if (matches.length === 0) {
+    return null;
+  }
+
+  matches.sort((left, right) => right.score - left.score);
+  return matches[0]?.item ?? null;
+}
+
+function canInheritCurrentActivity(
+  fact: WorkoutNormalizedFact,
+  currentActivity: WorkoutCurrentActivityContext | null,
+) {
+  if (!currentActivity || fact.factType === "lifecycle") {
+    return false;
+  }
+
+  if (hasExplicitActivityCandidate(fact)) {
+    return false;
+  }
+
+  return getCompatibleActivityTypes(fact).includes(currentActivity.activityType);
 }
 
 function mergeCorrectionMetrics(
@@ -135,6 +240,8 @@ async function loadActivityContext(
     activityId: activityResult.id,
     slug: activityResult.slug,
     displayName: activityResult.displayName,
+    activityType: activityResult.activityType,
+    measurementMode: activityResult.measurementMode,
     lastEventId: null,
     nextSetIndex: latestSetIndex + 1,
   } satisfies WorkoutCurrentActivityContext;
@@ -143,23 +250,31 @@ async function loadActivityContext(
 export async function loadWorkoutSessionContext(args: {
   userId: string;
   catalog: WorkoutCatalogLookupItem[];
+  entryDate?: string | null;
 }): Promise<WorkoutSessionContext> {
   const supabase = await createClient();
+  const fallbackEntryDate =
+    args.entryDate && /^\d{4}-\d{2}-\d{2}$/.test(args.entryDate)
+      ? args.entryDate
+      : new Intl.DateTimeFormat("en-CA", { timeZone: "UTC" }).format(new Date());
 
-  const activeSessionResult = await supabase
+  const activeSessionQuery = supabase
     .from("workout_sessions")
     .select("id, entry_date, status")
     .eq("user_id", args.userId)
     .eq("status", "active")
     .order("started_at", { ascending: false })
-    .limit(1)
+    .limit(1);
+
+  const activeSessionResult = await activeSessionQuery
+    .eq("entry_date", fallbackEntryDate)
     .maybeSingle();
 
   const activeSession = activeSessionResult.data;
   const entryDate =
     typeof activeSession?.entry_date === "string"
       ? activeSession.entry_date
-      : new Intl.DateTimeFormat("en-CA", { timeZone: "UTC" }).format(new Date());
+      : fallbackEntryDate;
 
   if (!activeSession?.id) {
     return {
@@ -256,17 +371,37 @@ export async function resolveContext(
   const sessionContext = await loadWorkoutSessionContext({
     userId: input.userId,
     catalog: input.catalog,
+    entryDate: input.entryDate ?? null,
   });
 
   const facts = [...input.normalized.facts];
 
   for (const fact of facts) {
-    if (!fact.activityId && sessionContext.currentActivity && fact.factType !== "lifecycle") {
-      fact.activityId = sessionContext.currentActivity.activityId;
-      fact.activitySlug = sessionContext.currentActivity.slug;
+    if (!fact.activityId) {
+      const rawResolvedActivity = resolveActivityFromRawInput(fact, input.catalog);
+
+      if (rawResolvedActivity) {
+        fact.activityId = rawResolvedActivity.id;
+        fact.activitySlug = rawResolvedActivity.slug;
+      }
     }
 
-    if (fact.factType === "strength" && fact.setIndex === null) {
+    const inheritedActivity = sessionContext.currentActivity;
+
+    if (
+      !fact.activityId &&
+      inheritedActivity &&
+      canInheritCurrentActivity(fact, inheritedActivity)
+    ) {
+      fact.activityId = inheritedActivity.activityId;
+      fact.activitySlug = inheritedActivity.slug;
+    }
+
+    if (
+      fact.factType === "strength" &&
+      fact.setIndex === null &&
+      sessionContext.currentActivity?.activityType === "strength"
+    ) {
       fact.setIndex = sessionContext.currentActivity?.nextSetIndex ?? 1;
     }
 

@@ -21,6 +21,8 @@ export type WorkoutCurrentActivityContext = {
   activityId: string;
   slug: string;
   displayName: string;
+  activityType: string;
+  measurementMode: string;
   lastEventId: string | null;
   nextSetIndex: number;
 };

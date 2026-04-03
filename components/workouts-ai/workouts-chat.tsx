@@ -5,25 +5,32 @@ import { useEffect, useRef } from "react";
 import type { WorkoutsChatItem, WorkoutsQuickAction } from "@/components/workouts-ai/types";
 import { WorkoutsInput } from "@/components/workouts-ai/workouts-input";
 import { WorkoutsMessage } from "@/components/workouts-ai/workouts-message";
+import { getHeadingDayLabel, getSidebarDayLabel } from "@/components/workouts-ai/workouts-ui";
 
 type WorkoutsChatProps = {
   messages: WorkoutsChatItem[];
   draft: string;
+  selectedDate: string;
   disabled?: boolean;
   quickActions: WorkoutsQuickAction[];
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
   onAction: (action: WorkoutsQuickAction) => void;
+  onPreviousDay: () => void;
+  onNextDay: () => void;
 };
 
 export function WorkoutsChat({
   messages,
   draft,
+  selectedDate,
   disabled = false,
   quickActions,
   onDraftChange,
   onSubmit,
   onAction,
+  onPreviousDay,
+  onNextDay,
 }: WorkoutsChatProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -37,32 +44,56 @@ export function WorkoutsChat({
   return (
     <section className="surface-card flex min-h-[72vh] flex-col overflow-hidden rounded-[34px] p-3 sm:p-4">
       <header className="fade-up rounded-[28px] border border-[var(--border)] bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(247,241,231,0.9))] px-4 py-4">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
-              Workout Copilot
-            </p>
-            <h1 className="font-display mt-1 text-3xl tracking-[-0.05em] text-[var(--foreground)] sm:text-4xl">
-              Чат ведет тренировку вместо формы.
-            </h1>
-          </div>
-          <p className="max-w-md text-sm leading-6 text-[var(--muted)]">
-            Пиши свободно: подходы, бег, дорожка, планка, завершение сессии. Система
-            разложит это на события и сразу покажет короткий совет.
-          </p>
-        </div>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
+                Workout Copilot
+              </p>
+              <h1 className="mt-1 font-display text-3xl tracking-[-0.05em] text-[var(--foreground)] sm:text-4xl">
+                {getHeadingDayLabel(selectedDate)}
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
+                Это отдельный AI-чат дня. Всё, что ты напишешь здесь, сохранится именно в
+                тренировочный контекст выбранной даты.
+              </p>
+            </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {quickActions.map((action) => (
-            <button
-              key={action.id}
-              type="button"
-              onClick={() => onAction(action)}
-              className="rounded-full border border-[var(--border)] bg-white/88 px-3 py-2 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-            >
-              {action.label}
-            </button>
-          ))}
+            <div className="hidden items-center gap-2 sm:flex">
+              <button
+                type="button"
+                onClick={onPreviousDay}
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                aria-label="Предыдущий день"
+              >
+                <ChevronLeftIcon />
+              </button>
+              <div className="rounded-full border border-[var(--border)] bg-white/92 px-4 py-2 text-sm font-medium text-[var(--foreground)]">
+                {getSidebarDayLabel(selectedDate)}
+              </div>
+              <button
+                type="button"
+                onClick={onNextDay}
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                aria-label="Следующий день"
+              >
+                <ChevronRightIcon />
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-1 flex flex-wrap gap-2">
+            {quickActions.map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                onClick={() => onAction(action)}
+                className="rounded-full border border-[var(--border)] bg-white/88 px-3 py-2 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
@@ -71,11 +102,10 @@ export function WorkoutsChat({
           <div className="fade-up-delay flex h-full min-h-[320px] items-center justify-center">
             <div className="max-w-lg rounded-[30px] border border-dashed border-[rgba(24,33,29,0.16)] bg-white/64 px-6 py-8 text-center">
               <p className="font-display text-2xl tracking-[-0.04em] text-[var(--foreground)]">
-                Начни с одного сообщения
+                Чат за {getSidebarDayLabel(selectedDate).toLowerCase()} пока пуст
               </p>
               <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-                Например: «хочу потренироваться», «жим 60 на 10» или «пробежал
-                30 минут».
+                Например: «хочу потренироваться», «жим 60 на 10» или «пробежал 30 минут».
               </p>
             </div>
           </div>
@@ -98,5 +128,21 @@ export function WorkoutsChat({
         />
       </div>
     </section>
+  );
+}
+
+function ChevronLeftIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+      <path d="m15 6-6 6 6 6" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+      <path d="m9 6 6 6-6 6" />
+    </svg>
   );
 }

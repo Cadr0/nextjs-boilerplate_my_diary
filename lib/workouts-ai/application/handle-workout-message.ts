@@ -28,6 +28,7 @@ type HandleWorkoutMessageInput = {
   userId: string;
   message: string;
   clientMessageId: string;
+  entryDate?: string | null;
 };
 
 function coerceIntent(value: string | null | undefined): WorkoutParserIntent {
@@ -184,6 +185,7 @@ export async function handleWorkoutMessage(
   const initialContext = await loadWorkoutSessionContext({
     userId: input.userId,
     catalog,
+    entryDate: input.entryDate ?? null,
   });
 
   await usageGuard.consume("ai");
@@ -205,6 +207,7 @@ export async function handleWorkoutMessage(
     userId: input.userId,
     normalized,
     catalog,
+    entryDate: input.entryDate ?? null,
   });
 
   const validation = validateParsedResult({

@@ -3,11 +3,17 @@
 import { useEffect, useState } from "react";
 
 import type { WorkoutProgressResponse } from "@/lib/workouts-ai/domain/types";
-import type { WorkoutsSessionListItem } from "@/components/workouts-ai/types";
+import type {
+  WorkoutsSelectedDaySummary,
+  WorkoutsSessionListItem,
+} from "@/components/workouts-ai/types";
+import { getSidebarDayLabel } from "@/components/workouts-ai/workouts-ui";
 
 type WorkoutsAnalysisProps = {
   activeSession: WorkoutsSessionListItem | null;
   refreshKey: number;
+  selectedDate: string;
+  daySummary: WorkoutsSelectedDaySummary;
 };
 
 type AnalysisState =
@@ -35,6 +41,8 @@ function formatTrendLabel(value: number | null, suffix: string) {
 export function WorkoutsAnalysis({
   activeSession,
   refreshKey,
+  selectedDate,
+  daySummary,
 }: WorkoutsAnalysisProps) {
   const [state, setState] = useState<AnalysisState>({
     status: "loading",
@@ -96,40 +104,47 @@ export function WorkoutsAnalysis({
           Analysis
         </p>
         <h2 className="mt-2 font-display text-2xl tracking-[-0.04em] text-[var(--foreground)]">
-          Короткий разбор без перегруза
+          День и прогресс без перегруза
         </h2>
         <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-          Текущая сессия, недельный сдвиг и то, что стоит сделать дальше.
+          Сверху ты видишь срез выбранного дня, ниже — общий тренировочный прогресс и
+          рекомендации по истории.
         </p>
       </header>
 
       <div className="grid gap-4">
         <article className="rounded-[26px] border border-[var(--border)] bg-[rgba(47,111,97,0.08)] px-4 py-4">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
-            Сейчас
+            Выбранный день
           </p>
+          <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+            {getSidebarDayLabel(selectedDate)}
+          </p>
+          <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+            {daySummary.sessionCount > 0
+              ? `${daySummary.sessionCount} тренировок • ${daySummary.eventCount} событий`
+              : "На этот день пока нет сохранённых тренировок"}
+          </p>
+          {daySummary.activityLabels.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {daySummary.activityLabels.slice(0, 3).map((activity) => (
+                <span
+                  key={activity}
+                  className="rounded-full border border-[var(--border)] bg-white/88 px-3 py-1.5 text-sm font-medium text-[var(--foreground)]"
+                >
+                  {activity}
+                </span>
+              ))}
+            </div>
+          ) : null}
           {activeSession ? (
-            <>
-              <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-                Сессия активна
-              </p>
-              <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-                {activeSession.eventCount} событий
-                {activeSession.lastActivityLabel
-                  ? ` • последнее: ${activeSession.lastActivityLabel}`
-                  : ""}
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-                Сессия не открыта
-              </p>
-              <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-                Начни чат-сообщение, чтобы сразу запустить тренировку.
-              </p>
-            </>
-          )}
+            <p className="mt-3 text-sm leading-6 text-[var(--foreground)]">
+              Активная сессия открыта. Событий: {activeSession.eventCount}
+              {activeSession.lastActivityLabel
+                ? ` • последнее: ${activeSession.lastActivityLabel}`
+                : ""}
+            </p>
+          ) : null}
         </article>
 
         {state.status === "loading" ? (
@@ -221,7 +236,7 @@ export function WorkoutsAnalysis({
                 </ul>
               ) : (
                 <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  Добавь еще несколько логов, и здесь появятся персональные инсайты.
+                  Добавь ещё несколько логов, и здесь появятся персональные инсайты.
                 </p>
               )}
             </article>

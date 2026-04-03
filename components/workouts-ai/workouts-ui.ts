@@ -2,8 +2,11 @@ import type { WorkoutNormalizedFact, WorkoutPipelineResult } from "@/lib/workout
 
 import type {
   WorkoutsChatItem,
+  WorkoutsDayListItem,
   WorkoutsEventCardModel,
   WorkoutsQuickAction,
+  WorkoutsSelectedDaySummary,
+  WorkoutsSessionDetailItem,
   WorkoutsSessionListItem,
   WorkoutsSidebarData,
 } from "@/components/workouts-ai/types";
@@ -39,6 +42,38 @@ function uppercaseFirst(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function pluralizeRu(value: number, one: string, few: string, many: string) {
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return one;
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return few;
+  }
+
+  return many;
+}
+
+export function getTodayIsoDate() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "UTC",
+  }).format(new Date());
+}
+
+export function shiftIsoDate(value: string, days: number) {
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return getTodayIsoDate();
+  }
+
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
+}
+
 export function formatSessionDate(value: string) {
   const parsed = new Date(value);
 
@@ -50,6 +85,105 @@ export function formatSessionDate(value: string) {
     day: "numeric",
     month: "short",
   }).format(parsed);
+}
+
+export function formatSessionClock(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(parsed);
+}
+
+export function getSidebarDayLabel(value: string) {
+  const today = getTodayIsoDate();
+  const yesterday = shiftIsoDate(today, -1);
+
+  if (value === today) {
+    return "Сегодня";
+  }
+
+  if (value === yesterday) {
+    return "Вчера";
+  }
+
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+  }).format(new Date(`${value}T00:00:00.000Z`));
+}
+
+export function getHeadingDayLabel(value: string) {
+  const today = getTodayIsoDate();
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  if (value === today) {
+    return `Сегодня, ${new Intl.DateTimeFormat("ru-RU", {
+      day: "numeric",
+      month: "long",
+    }).format(parsed)}`;
+  }
+
+  return new Intl.DateTimeFormat("ru-RU", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(parsed);
+}
+
+export function buildDaySummaryText(args: {
+  sessionCount: number;
+  eventCount: number;
+  lastActivityLabel?: string | null;
+  hasActiveSession?: boolean;
+}) {
+  if (args.hasActiveSession && args.eventCount > 0) {
+    return `Активная сессия • ${args.eventCount} ${pluralizeRu(
+      args.eventCount,
+      "событие",
+      "события",
+      "событий",
+    )}`;
+  }
+
+  if (args.hasActiveSession) {
+    return "Активная тренировка";
+  }
+
+  if (args.sessionCount === 0) {
+    return "Пока нет тренировок";
+  }
+
+  const sessionsLabel = `${args.sessionCount} ${pluralizeRu(
+    args.sessionCount,
+    "тренировка",
+    "тренировки",
+    "тренировок",
+  )}`;
+
+  if (args.lastActivityLabel) {
+    return `${sessionsLabel} • ${args.lastActivityLabel}`;
+  }
+
+  return `${sessionsLabel} • ${args.eventCount} ${pluralizeRu(
+    args.eventCount,
+    "событие",
+    "события",
+    "событий",
+  )}`;
 }
 
 export function formatSessionStatus(status: WorkoutsSessionListItem["status"]) {
@@ -525,23 +659,71 @@ export function buildOptimisticSidebar(args: {
   result: WorkoutPipelineResult;
 }) {
   const createdCount = args.result.savedEvents.filter((event) => event.status === "created").length;
+  const latestActivityLabel =
+    args.result.normalized.facts.find((fact) => fact.activityCandidate || fact.activitySlug)
+      ?.activityCandidate ??
+    args.result.normalized.facts.find((fact) => fact.activitySlug)?.activitySlug ??
+    null;
   const nextSidebar: WorkoutsSidebarData = {
+    selectedDate: args.sidebar.selectedDate,
     activeSession: args.sidebar.activeSession,
-    recentSessions: [...args.sidebar.recentSessions],
+    days: [...args.sidebar.days],
+    sessionsForSelectedDate: [...args.sidebar.sessionsForSelectedDate],
+    daySummary: { ...args.sidebar.daySummary },
+  };
+
+  const selectedDate = nextSidebar.selectedDate;
+
+  const syncDaySummary = () => {
+    nextSidebar.daySummary = {
+      date: selectedDate,
+      sessionCount: nextSidebar.sessionsForSelectedDate.length,
+      eventCount: nextSidebar.sessionsForSelectedDate.reduce(
+        (total, session) => total + session.eventCount,
+        0,
+      ),
+      activityLabels: [
+        ...new Set(
+          nextSidebar.sessionsForSelectedDate.flatMap((session) =>
+            session.lastActivityLabel ? [session.lastActivityLabel] : [],
+          ),
+        ),
+      ],
+    } satisfies WorkoutsSelectedDaySummary;
+  };
+
+  const updateSelectedDay = (updater: (day: WorkoutsDayListItem) => WorkoutsDayListItem) => {
+    nextSidebar.days = nextSidebar.days.map((day) =>
+      day.date === selectedDate ? updater(day) : day,
+    );
   };
 
   if (args.result.intent === "complete_session" && nextSidebar.activeSession) {
-    nextSidebar.recentSessions = [
-      {
-        ...nextSidebar.activeSession,
-        status: "completed" as const,
-        completedAt: new Date().toISOString(),
-      },
-      ...nextSidebar.recentSessions.filter(
-        (session) => session.id !== nextSidebar.activeSession?.id,
-      ),
-    ].slice(0, 8);
+    nextSidebar.sessionsForSelectedDate = nextSidebar.sessionsForSelectedDate.map((session) =>
+      session.id === nextSidebar.activeSession?.id
+        ? {
+            ...session,
+            status: "completed" as const,
+            completedAt: new Date().toISOString(),
+          }
+        : session,
+    );
     nextSidebar.activeSession = null;
+    updateSelectedDay((day) => ({
+      ...day,
+      hasActiveSession: false,
+      summary: buildDaySummaryText({
+        sessionCount: nextSidebar.sessionsForSelectedDate.length,
+        eventCount: nextSidebar.sessionsForSelectedDate.reduce(
+          (total, session) => total + session.eventCount,
+          0,
+        ),
+        lastActivityLabel:
+          nextSidebar.sessionsForSelectedDate.find((session) => session.lastActivityLabel)
+            ?.lastActivityLabel ?? day.lastActivityLabel,
+      }),
+    }));
+    syncDaySummary();
     return nextSidebar;
   }
 
@@ -549,34 +731,72 @@ export function buildOptimisticSidebar(args: {
     return nextSidebar;
   }
 
-  if (!nextSidebar.activeSession || nextSidebar.activeSession.id !== args.result.sessionId) {
-    nextSidebar.activeSession = {
+  const existingIndex = nextSidebar.sessionsForSelectedDate.findIndex(
+    (session) => session.id === args.result.sessionId,
+  );
+
+  if (existingIndex === -1) {
+    const createdSession: WorkoutsSessionListItem = {
       id: args.result.sessionId,
-      entryDate: new Date().toISOString().slice(0, 10),
+      entryDate: selectedDate,
       status: "active",
       startedAt: new Date().toISOString(),
       completedAt: null,
       eventCount: Math.max(createdCount, 1),
-      lastActivityLabel: args.result.normalized.facts.find((fact) => fact.activityCandidate)?.activityCandidate ?? null,
+      lastActivityLabel: latestActivityLabel,
       currentBlockTitle: null,
     };
-
-    nextSidebar.recentSessions = nextSidebar.recentSessions.filter(
-      (session) => session.id !== args.result.sessionId,
-    );
+    nextSidebar.sessionsForSelectedDate = [
+      createdSession,
+      ...nextSidebar.sessionsForSelectedDate,
+    ];
+    nextSidebar.activeSession = createdSession;
+    updateSelectedDay((day) => ({
+      ...day,
+      sessionCount: day.sessionCount + 1,
+      eventCount: day.eventCount + Math.max(createdCount, 1),
+      lastActivityLabel: latestActivityLabel ?? day.lastActivityLabel,
+      hasActiveSession: true,
+      summary: buildDaySummaryText({
+        sessionCount: day.sessionCount + 1,
+        eventCount: day.eventCount + Math.max(createdCount, 1),
+        lastActivityLabel: latestActivityLabel ?? day.lastActivityLabel,
+        hasActiveSession: true,
+      }),
+    }));
+    syncDaySummary();
     return nextSidebar;
   }
 
-  nextSidebar.activeSession = {
-    ...nextSidebar.activeSession,
-    eventCount: nextSidebar.activeSession.eventCount + createdCount,
-    lastActivityLabel:
-      args.result.normalized.facts
-        .find((fact) => fact.activityCandidate || fact.activitySlug)
-        ?.activityCandidate ??
-      args.result.normalized.facts.find((fact) => fact.activitySlug)?.activitySlug ??
-      nextSidebar.activeSession.lastActivityLabel,
-  };
+  nextSidebar.sessionsForSelectedDate = nextSidebar.sessionsForSelectedDate.map((session) =>
+    session.id === args.result.sessionId
+      ? {
+          ...session,
+          eventCount: session.eventCount + createdCount,
+          lastActivityLabel: latestActivityLabel ?? session.lastActivityLabel,
+        }
+      : session,
+  );
+  nextSidebar.activeSession =
+    nextSidebar.sessionsForSelectedDate.find((session) => session.id === args.result.sessionId) ??
+    nextSidebar.activeSession;
+  updateSelectedDay((day) => ({
+    ...day,
+    eventCount: day.eventCount + createdCount,
+    lastActivityLabel: latestActivityLabel ?? day.lastActivityLabel,
+    hasActiveSession: true,
+    summary: buildDaySummaryText({
+      sessionCount: nextSidebar.sessionsForSelectedDate.length,
+      eventCount: day.eventCount + createdCount,
+      lastActivityLabel: latestActivityLabel ?? day.lastActivityLabel,
+      hasActiveSession: true,
+    }),
+  }));
+  syncDaySummary();
 
   return nextSidebar;
+}
+
+export function sortSessionDetailsByStartedAt(sessions: WorkoutsSessionDetailItem[]) {
+  return [...sessions].sort((left, right) => right.startedAt.localeCompare(left.startedAt));
 }

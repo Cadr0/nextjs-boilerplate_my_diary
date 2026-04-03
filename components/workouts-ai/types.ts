@@ -5,6 +5,15 @@ export type WorkoutsQuickAction = {
   kind?: "send" | "analysis";
 };
 
+export type WorkoutsDayListItem = {
+  date: string;
+  summary: string | null;
+  sessionCount: number;
+  eventCount: number;
+  lastActivityLabel: string | null;
+  hasActiveSession: boolean;
+};
+
 export type WorkoutsEventCardModel = {
   id: string;
   factType: "strength" | "cardio" | "timed" | "mixed";
@@ -37,7 +46,28 @@ export type WorkoutsSessionListItem = {
   currentBlockTitle: string | null;
 };
 
+export type WorkoutsSessionEventItem = {
+  id: string;
+  occurredAt: string;
+  eventType: string;
+  card: WorkoutsEventCardModel;
+};
+
+export type WorkoutsSessionDetailItem = WorkoutsSessionListItem & {
+  events: WorkoutsSessionEventItem[];
+};
+
+export type WorkoutsSelectedDaySummary = {
+  date: string;
+  sessionCount: number;
+  eventCount: number;
+  activityLabels: string[];
+};
+
 export type WorkoutsSidebarData = {
+  selectedDate: string;
   activeSession: WorkoutsSessionListItem | null;
-  recentSessions: WorkoutsSessionListItem[];
+  days: WorkoutsDayListItem[];
+  sessionsForSelectedDate: WorkoutsSessionListItem[];
+  daySummary: WorkoutsSelectedDaySummary;
 };

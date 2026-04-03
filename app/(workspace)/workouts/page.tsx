@@ -1,17 +1,28 @@
 import { WorkoutsPageShell } from "@/components/workouts-ai/workouts-page-shell";
 import {
   buildAssistantActions,
+  buildDaySummaryText,
   buildEventCardFromStoredFact,
   collectStoredFactActivityIds,
   extractStoredFacts,
+  getTodayIsoDate,
+  shiftIsoDate,
+  sortSessionDetailsByStartedAt,
 } from "@/components/workouts-ai/workouts-ui";
 import type {
   WorkoutsChatItem,
+  WorkoutsSessionDetailItem,
   WorkoutsSessionListItem,
   WorkoutsSidebarData,
 } from "@/components/workouts-ai/types";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+
+type WorkoutsPageProps = {
+  searchParams?: Promise<{
+    date?: string | string[] | undefined;
+  }>;
+};
 
 type WorkoutSessionRow = {
   id: string;
@@ -25,7 +36,9 @@ type WorkoutEventRow = {
   id: string;
   session_id: string;
   activity_id: string | null;
+  event_type: string;
   occurred_at: string;
+  payload_json: Record<string, unknown>;
 };
 
 type WorkoutMessageRow = {
@@ -54,6 +67,44 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function readSelectedDate(value: string | string[] | undefined) {
+  const raw = Array.isArray(value) ? value[0] : value;
+
+  if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  return getTodayIsoDate();
+}
+
+function getDayBounds(value: string) {
+  return {
+    start: `${value}T00:00:00.000Z`,
+    end: `${shiftIsoDate(value, 1)}T00:00:00.000Z`,
+  };
+}
+
+function inferFactTypeFromPayload(eventType: string, payload: Record<string, unknown>) {
+  const kind = typeof payload.kind === "string" ? payload.kind : null;
+
+  if (
+    kind === "strength" ||
+    kind === "cardio" ||
+    kind === "timed" ||
+    kind === "distance" ||
+    kind === "mixed" ||
+    kind === "lifecycle"
+  ) {
+    return kind;
+  }
+
+  if (eventType.startsWith("session_") || eventType.startsWith("block_")) {
+    return "lifecycle";
+  }
+
+  return "mixed";
+}
+
 async function loadActivityMap(activityIds: string[]) {
   if (activityIds.length === 0) {
     return new Map<string, string>();
@@ -74,14 +125,17 @@ async function loadActivityMap(activityIds: string[]) {
   );
 }
 
-async function loadSidebarData(userId: string) {
+async function loadSidebarData(userId: string, selectedDate: string) {
   const supabase = await createClient();
+  const windowStart = shiftIsoDate(selectedDate, -29);
   const sessionsResult = await supabase
     .from("workout_sessions")
     .select("id, entry_date, status, started_at, completed_at")
     .eq("user_id", userId)
-    .order("started_at", { ascending: false })
-    .limit(10);
+    .gte("entry_date", windowStart)
+    .lte("entry_date", selectedDate)
+    .order("entry_date", { ascending: false })
+    .order("started_at", { ascending: false });
 
   if (sessionsResult.error) {
     throw new Error(sessionsResult.error.message);
@@ -94,7 +148,7 @@ async function loadSidebarData(userId: string) {
     sessionIds.length > 0
       ? supabase
           .from("workout_events")
-          .select("id, session_id, activity_id, occurred_at")
+          .select("id, session_id, activity_id, event_type, occurred_at, payload_json")
           .eq("user_id", userId)
           .in("session_id", sessionIds)
           .is("superseded_by_event_id", null)
@@ -153,32 +207,184 @@ async function loadSidebarData(userId: string) {
     currentBlockTitle: currentBlockBySession.get(session.id) ?? null,
   }));
 
+  const sessionsByDate = new Map<string, WorkoutsSessionListItem[]>();
+
+  for (const session of mappedSessions) {
+    const current = sessionsByDate.get(session.entryDate) ?? [];
+    current.push(session);
+    sessionsByDate.set(session.entryDate, current);
+  }
+
+  const sessionsForSelectedDate = sessionsByDate.get(selectedDate) ?? [];
   const activeSession =
-    mappedSessions.find((session) => session.status === "active") ?? null;
-  const recentSessions = mappedSessions
-    .filter((session) => session.id !== activeSession?.id)
-    .slice(0, 8);
+    sessionsForSelectedDate.find((session) => session.status === "active") ?? null;
+  const days = Array.from({ length: 30 }, (_, index) => {
+    const date = shiftIsoDate(selectedDate, -index);
+    const daySessions = sessionsByDate.get(date) ?? [];
+    const eventCount = daySessions.reduce((total, session) => total + session.eventCount, 0);
+    const lastActivityLabel =
+      daySessions.find((session) => session.lastActivityLabel)?.lastActivityLabel ?? null;
+    const hasActiveSession = daySessions.some((session) => session.status === "active");
+
+    return {
+      date,
+      summary: buildDaySummaryText({
+        sessionCount: daySessions.length,
+        eventCount,
+        lastActivityLabel,
+        hasActiveSession,
+      }),
+      sessionCount: daySessions.length,
+      eventCount,
+      lastActivityLabel,
+      hasActiveSession,
+    };
+  });
 
   return {
+    selectedDate,
     activeSession,
-    recentSessions,
+    days,
+    sessionsForSelectedDate,
+    daySummary: {
+      date: selectedDate,
+      sessionCount: sessionsForSelectedDate.length,
+      eventCount: sessionsForSelectedDate.reduce(
+        (total, session) => total + session.eventCount,
+        0,
+      ),
+      activityLabels: [
+        ...new Set(
+          sessionsForSelectedDate.flatMap((session) =>
+            session.lastActivityLabel ? [session.lastActivityLabel] : [],
+          ),
+        ),
+      ],
+    },
   } satisfies WorkoutsSidebarData;
 }
 
-async function loadChatHistory(userId: string, hasActiveSession: boolean) {
-  const supabase = await createClient();
-  const messagesResult = await supabase
-    .from("workout_messages")
-    .select("id, raw_text, reply_text, status, created_at, updated_at, session_id, result_json")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(16);
-
-  if (messagesResult.error) {
-    throw new Error(messagesResult.error.message);
+async function loadSelectedDaySessionDetails(args: {
+  userId: string;
+  sessions: WorkoutsSessionListItem[];
+}) {
+  if (args.sessions.length === 0) {
+    return [] satisfies WorkoutsSessionDetailItem[];
   }
 
-  const messageRows = [...((messagesResult.data ?? []) as WorkoutMessageRow[])].reverse();
+  const supabase = await createClient();
+  const sessionIds = args.sessions.map((session) => session.id);
+  const eventsResult = await supabase
+    .from("workout_events")
+    .select("id, session_id, activity_id, event_type, occurred_at, payload_json")
+    .eq("user_id", args.userId)
+    .in("session_id", sessionIds)
+    .is("superseded_by_event_id", null)
+    .order("occurred_at", { ascending: true });
+
+  if (eventsResult.error) {
+    throw new Error(eventsResult.error.message);
+  }
+
+  const events = (eventsResult.data ?? []) as WorkoutEventRow[];
+  const activityIds = [
+    ...new Set(events.flatMap((event) => (event.activity_id ? [event.activity_id] : []))),
+  ];
+  const activityMap = await loadActivityMap(activityIds);
+  const eventsBySession = new Map<
+    string,
+    WorkoutsSessionDetailItem["events"]
+  >();
+
+  for (const event of events) {
+    const payload = isRecord(event.payload_json) ? event.payload_json : {};
+    const card = buildEventCardFromStoredFact({
+      id: event.id,
+      activityMap,
+      fact: {
+        factType: inferFactTypeFromPayload(event.event_type, payload),
+        eventType: event.event_type,
+        activityId: event.activity_id,
+        setIndex: typeof payload.setIndex === "number" ? payload.setIndex : null,
+        payload,
+        metrics:
+          payload.rawMetrics && isRecord(payload.rawMetrics)
+            ? payload.rawMetrics
+            : null,
+      },
+    });
+
+    if (!card) {
+      continue;
+    }
+
+    const current = eventsBySession.get(event.session_id) ?? [];
+    current.push({
+      id: event.id,
+      occurredAt: event.occurred_at,
+      eventType: event.event_type,
+      card,
+    });
+    eventsBySession.set(event.session_id, current);
+  }
+
+  return sortSessionDetailsByStartedAt(
+    args.sessions.map((session) => ({
+      ...session,
+      events: eventsBySession.get(session.id) ?? [],
+    })),
+  );
+}
+
+async function loadChatHistory(args: {
+  userId: string;
+  selectedDate: string;
+  sessionIds: string[];
+  hasActiveSession: boolean;
+}) {
+  const supabase = await createClient();
+  const bounds = getDayBounds(args.selectedDate);
+  const [sessionMessagesResult, floatingMessagesResult] = await Promise.all([
+    args.sessionIds.length > 0
+      ? supabase
+          .from("workout_messages")
+          .select("id, raw_text, reply_text, status, created_at, updated_at, session_id, result_json")
+          .eq("user_id", args.userId)
+          .in("session_id", args.sessionIds)
+          .order("created_at", { ascending: false })
+          .limit(32)
+      : Promise.resolve({ data: [], error: null }),
+    supabase
+      .from("workout_messages")
+      .select("id, raw_text, reply_text, status, created_at, updated_at, session_id, result_json")
+      .eq("user_id", args.userId)
+      .is("session_id", null)
+      .gte("created_at", bounds.start)
+      .lt("created_at", bounds.end)
+      .order("created_at", { ascending: false })
+      .limit(8),
+  ]);
+
+  if (sessionMessagesResult.error) {
+    throw new Error(sessionMessagesResult.error.message);
+  }
+
+  if (floatingMessagesResult.error) {
+    throw new Error(floatingMessagesResult.error.message);
+  }
+
+  const deduped = new Map<string, WorkoutMessageRow>();
+
+  for (const row of [
+    ...((sessionMessagesResult.data ?? []) as WorkoutMessageRow[]),
+    ...((floatingMessagesResult.data ?? []) as WorkoutMessageRow[]),
+  ]) {
+    deduped.set(row.id, row);
+  }
+
+  const messageRows = [...deduped.values()]
+    .sort((left, right) => left.created_at.localeCompare(right.created_at))
+    .slice(-24);
   const messageIds = messageRows.map((message) => message.id);
 
   const parseLogsResult =
@@ -254,7 +460,7 @@ async function loadChatHistory(userId: string, hasActiveSession: boolean) {
       actions: buildAssistantActions({
         intent,
         facts: eventCards,
-        hasActiveSession: hasActiveSession || Boolean(message.session_id),
+        hasActiveSession: args.hasActiveSession || Boolean(message.session_id),
         requiresClarification,
       }),
     });
@@ -263,12 +469,29 @@ async function loadChatHistory(userId: string, hasActiveSession: boolean) {
   return items;
 }
 
-export default async function WorkoutsPage() {
+export default async function WorkoutsPage(props: WorkoutsPageProps) {
   const user = await requireUser();
-  const sidebarData = await loadSidebarData(user.id);
-  const chatHistory = await loadChatHistory(user.id, Boolean(sidebarData.activeSession));
+  const resolvedSearchParams = props.searchParams ? await props.searchParams : {};
+  const selectedDate = readSelectedDate(resolvedSearchParams.date);
+  const sidebarData = await loadSidebarData(user.id, selectedDate);
+  const [chatHistory, sessionDetails] = await Promise.all([
+    loadChatHistory({
+      userId: user.id,
+      selectedDate,
+      sessionIds: sidebarData.sessionsForSelectedDate.map((session) => session.id),
+      hasActiveSession: Boolean(sidebarData.activeSession),
+    }),
+    loadSelectedDaySessionDetails({
+      userId: user.id,
+      sessions: sidebarData.sessionsForSelectedDate,
+    }),
+  ]);
 
   return (
-    <WorkoutsPageShell initialChat={chatHistory} initialSidebar={sidebarData} />
+    <WorkoutsPageShell
+      initialChat={chatHistory}
+      initialSidebar={sidebarData}
+      initialSessionDetails={sessionDetails}
+    />
   );
 }
