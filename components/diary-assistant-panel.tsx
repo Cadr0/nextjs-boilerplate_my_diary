@@ -807,7 +807,7 @@ export function ChatMessageContent({
   );
 }
 
-function ModelPicker({
+export function ModelPicker({
   activeModel,
   isOpen,
   onSelect,
@@ -865,7 +865,7 @@ function ModelPicker({
   );
 }
 
-function RobotIcon() {
+export function RobotIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
       <rect x="5" y="8" width="14" height="9" rx="3" />
@@ -878,7 +878,7 @@ function RobotIcon() {
   );
 }
 
-function SparkIcon() {
+export function SparkIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
       <path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" />
@@ -886,7 +886,7 @@ function SparkIcon() {
   );
 }
 
-function SendIcon() {
+export function SendIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
       <path d="M4 12 20 4l-4 16-3.5-6.5L4 12Z" />
