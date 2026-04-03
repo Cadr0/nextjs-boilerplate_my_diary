@@ -5,6 +5,12 @@ import {
   Packer,
   Paragraph,
   TextRun,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType,
+  AlignmentType,
+  BorderStyle,
 } from "docx";
 
 import { requireUser } from "@/lib/auth";
@@ -19,9 +25,6 @@ type DayBucket = {
   reminders: Array<
     Awaited<ReturnType<typeof getWorkspaceSnapshot>>["workspaceSync"]["reminders"][number]
   >;
-  periodAnalysis?: Awaited<
-    ReturnType<typeof getWorkspaceSnapshot>
-  >["workspaceSync"]["periodAnalyses"][string];
 };
 
 function normalizeDate(value: string | null | undefined) {
@@ -40,9 +43,9 @@ function heading(text: string, level: typeof HeadingLevel[keyof typeof HeadingLe
   });
 }
 
-function line(text: string, size = 22, indent = 0) {
+function line(text: string, size = 22, indent = 0, bold = false) {
   return new Paragraph({
-    children: [new TextRun({ text, size })],
+    children: [new TextRun({ text, size, bold })],
     indent: indent ? { left: indent } : undefined,
     spacing: { after: 60 },
   });
@@ -71,44 +74,122 @@ function valueToText(value: unknown) {
   return String(value);
 }
 
+const noBorders = {
+  top: { style: BorderStyle.NONE, size: 0 },
+  bottom: { style: BorderStyle.NONE, size: 0 },
+  left: { style: BorderStyle.NONE, size: 0 },
+  right: { style: BorderStyle.NONE, size: 0 },
+};
+
+function createInfoTable(rows: Array<{ label: string; value: string }>) {
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: rows.map((row) =>
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: 35, type: WidthType.PERCENTAGE },
+            children: [new Paragraph({ children: [new TextRun({ text: row.label, bold: true, size: 22 })] })],
+            borders: noBorders,
+          }),
+          new TableCell({
+            width: { size: 65, type: WidthType.PERCENTAGE },
+            children: [new Paragraph({ children: [new TextRun({ text: row.value || "—", size: 22 })] })],
+            borders: noBorders,
+          }),
+        ],
+      })
+    ),
+  });
+}
+
+function createMetricsTable(metrics: Array<{ name: string; value: string }>) {
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            children: [new Paragraph({ children: [new TextRun({ text: "Параметр", bold: true, size: 22 })] })],
+            borders: noBorders,
+          }),
+          new TableCell({
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            children: [new Paragraph({ children: [new TextRun({ text: "Значение", bold: true, size: 22 })] })],
+            borders: noBorders,
+          }),
+        ],
+      }),
+      ...metrics.map((metric) =>
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              children: [new Paragraph({ children: [new TextRun({ text: metric.name, size: 22 })] })],
+              borders: noBorders,
+            }),
+            new TableCell({
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              children: [new Paragraph({ children: [new TextRun({ text: metric.value, size: 22 })] })],
+              borders: noBorders,
+            }),
+          ],
+        })
+      ),
+    ],
+  });
+}
+
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    
+
     const { searchParams } = new URL(request.url);
     const daysParam = searchParams.get('days');
     const days = daysParam ? parseInt(daysParam, 10) : 3650;
-    
+
     const snapshot = await getWorkspaceSnapshot(days);
 
+    // Build metric name lookup
+    const metricNameMap = new Map<string, string>();
+    for (const metric of snapshot.metricDefinitions) {
+      metricNameMap.set(metric.id, metric.name);
+    }
+
     const sections: Paragraph[] = [];
-    sections.push(heading("Diary AI — экспорт данных аккаунта", HeadingLevel.TITLE, 34));
-    sections.push(line(`Email: ${user.email ?? "—"}`));
-    sections.push(line(`User ID: ${user.id}`));
-    sections.push(line(`Дата экспорта: ${new Date().toLocaleString("ru-RU")}`, 20));
 
+    // Title
+    sections.push(heading("Экспорт данных", HeadingLevel.TITLE, 36));
+    sections.push(line(`Дата экспорта: ${new Date().toLocaleDateString("ru-RU")}`, 22));
+    sections.push(divider());
+
+    // Profile section
     sections.push(heading("Профиль", HeadingLevel.HEADING_1));
-    sections.push(line(`Имя: ${snapshot.profile.firstName || "—"}`));
-    sections.push(line(`Фамилия: ${snapshot.profile.lastName || "—"}`));
-    sections.push(line(`Локаль: ${snapshot.profile.locale}`));
-    sections.push(line(`Часовой пояс: ${snapshot.profile.timezone}`));
-    sections.push(line(`Фокус: ${snapshot.profile.focus || "—"}`));
-    sections.push(line(`О себе: ${snapshot.profile.bio || "—"}`));
-    sections.push(line(`Цель: ${snapshot.profile.wellbeingGoal || "—"}`));
+    sections.push(
+      createInfoTable([
+        { label: "Имя", value: snapshot.profile.firstName },
+        { label: "Фамилия", value: snapshot.profile.lastName },
+        { label: "Часовой пояс", value: snapshot.profile.timezone },
+        { label: "Фокус", value: snapshot.profile.focus },
+        { label: "О себе", value: snapshot.profile.bio },
+        { label: "Цель", value: snapshot.profile.wellbeingGoal },
+      ])
+    );
 
+    // Metrics definitions
     if (snapshot.metricDefinitions.length > 0) {
+      sections.push(divider());
       sections.push(heading("Метрики", HeadingLevel.HEADING_1));
       for (const metric of snapshot.metricDefinitions) {
-        sections.push(
-          line(
-            `• ${metric.name} (${metric.type}) — единица: ${metric.unit || "—"}; описание: ${metric.description || "—"}`,
-            20,
-            280,
-          ),
-        );
+        sections.push(line(`• ${metric.name}${metric.unit ? ` (${metric.unit})` : ""}`, 22, 200));
+        if (metric.description) {
+          sections.push(line(`  ${metric.description}`, 20, 280));
+        }
       }
     }
 
+    // Group data by day
     const byDay = new Map<string, DayBucket>();
     const ensureDay = (date: string) => {
       if (!byDay.has(date)) {
@@ -141,126 +222,114 @@ export async function GET(request: Request) {
       ensureDay(date).reminders.push(reminder);
     }
 
-    for (const [date, analysis] of Object.entries(snapshot.workspaceSync.periodAnalyses)) {
-      const normalizedDate = normalizeDate(date);
-      if (!normalizedDate) continue;
-      ensureDay(normalizedDate).periodAnalysis = analysis;
-    }
-
     const sortedDays = [...byDay.keys()].sort((a, b) => b.localeCompare(a));
 
-    sections.push(heading("Данные по дням", HeadingLevel.HEADING_1));
+    if (sortedDays.length > 0) {
+      sections.push(divider());
+      sections.push(heading("Записи по дням", HeadingLevel.HEADING_1));
 
-    for (const date of sortedDays) {
-      const day = byDay.get(date);
-      if (!day) continue;
+      for (const date of sortedDays) {
+        const day = byDay.get(date);
+        if (!day) continue;
 
-      sections.push(heading(`📅 ${date}`, HeadingLevel.HEADING_2, 24));
+        sections.push(heading(`📅 ${date}`, HeadingLevel.HEADING_2, 26));
 
-      if (day.entries.length > 0) {
-        sections.push(line("Записи дневника:", 22));
-        for (const entry of day.entries) {
-          sections.push(line(`• Summary: ${entry.summary || "—"}`, 20, 280));
-          sections.push(line(`  Notes: ${entry.notes || "—"}`, 20, 280));
-          sections.push(line(`  AI анализ: ${entry.ai_analysis || "—"}`, 20, 280));
+        // Diary entries
+        if (day.entries.length > 0) {
+          sections.push(line("Дневник", 24, 0, true));
+          for (const entry of day.entries) {
+            if (entry.summary) {
+              sections.push(line(`• ${entry.summary}`, 22, 200));
+            }
+            if (entry.notes) {
+              sections.push(line(`  ${entry.notes}`, 20, 280));
+            }
 
-          const metrics = Object.entries(entry.metric_values ?? {});
-          if (metrics.length > 0) {
-            sections.push(line("  Метрики:", 20, 280));
-            for (const [key, value] of metrics) {
-              sections.push(line(`  - ${key}: ${valueToText(value)}`, 20, 560));
+            // Metrics with names instead of IDs
+            const metrics = Object.entries(entry.metric_values ?? {}).map(([key, value]) => ({
+              name: metricNameMap.get(key) || key,
+              value: valueToText(value),
+            }));
+            if (metrics.length > 0) {
+              sections.push(createMetricsTable(metrics));
             }
           }
         }
-      }
 
-      if (day.workouts.length > 0) {
-        sections.push(line("Тренировки:", 22));
-        for (const workout of day.workouts) {
-          sections.push(line(`• ${workout.title || "Тренировка"}`, 20, 280));
-          sections.push(line(`  Фокус: ${workout.focus || "—"}`, 20, 280));
-          for (const exercise of workout.exercises) {
-            sections.push(line(`  - Упражнение: ${exercise.name}`, 20, 560));
-            if (exercise.note) {
-              sections.push(line(`    Примечание: ${exercise.note}`, 20, 560));
+        // Workouts
+        if (day.workouts.length > 0) {
+          sections.push(line("Тренировки", 24, 0, true));
+          for (const workout of day.workouts) {
+            sections.push(line(`• ${workout.title || "Тренировка"}`, 22, 200));
+            if (workout.focus) {
+              sections.push(line(`  Фокус: ${workout.focus}`, 20, 280));
             }
-            for (const log of exercise.logs) {
-              const values = Object.entries(log.values ?? {})
-                .map(([k, v]) => `${k}: ${valueToText(v)}`)
-                .join(" · ");
-              sections.push(line(`    Подход: ${values || "—"}`, 20, 720));
-              if (log.note) {
-                sections.push(line(`    Комментарий: ${log.note}`, 20, 720));
+
+            for (const exercise of workout.exercises) {
+              sections.push(line(`  ▸ ${exercise.name}`, 22, 280));
+              if (exercise.note) {
+                sections.push(line(`    ${exercise.note}`, 20, 360));
+              }
+
+              for (const log of exercise.logs) {
+                const values = Object.entries(log.values ?? {})
+                  .filter(([_, v]) => v)
+                  .map(([k, v]) => {
+                    const name = metricNameMap.get(k) || k;
+                    return `${name}: ${valueToText(v)}`;
+                  })
+                  .join(" · ");
+                if (values) {
+                  sections.push(line(`    — ${values}`, 20, 440));
+                }
+                if (log.note) {
+                  sections.push(line(`      ${log.note}`, 20, 520));
+                }
               }
             }
           }
         }
-      }
 
-      if (day.tasks.length > 0) {
-        sections.push(line("Задачи:", 22));
-        for (const task of day.tasks) {
-          sections.push(
-            line(
-              `• ${task.title} — ${task.completedAt ? "выполнено" : "активно"} (переносов: ${task.carryCount})`,
-              20,
-              280,
-            ),
-          );
+        // Tasks
+        if (day.tasks.length > 0) {
+          sections.push(line("Задачи", 24, 0, true));
+          for (const task of day.tasks) {
+            const status = task.completedAt ? "✓" : "○";
+            sections.push(line(`${status} ${task.title}`, 22, 200));
+          }
         }
-      }
 
-      if (day.reminders.length > 0) {
-        sections.push(line("Напоминания:", 22));
-        for (const reminder of day.reminders) {
-          sections.push(
-            line(`• ${reminder.title} — ${reminder.status} (${reminder.scheduledAt})`, 20, 280),
-          );
-          sections.push(line(`  ${reminder.body}`, 20, 560));
+        // Reminders
+        if (day.reminders.length > 0) {
+          sections.push(line("Напоминания", 24, 0, true));
+          for (const reminder of day.reminders) {
+            sections.push(line(`• ${reminder.title}`, 22, 200));
+            if (reminder.body) {
+              sections.push(line(`  ${reminder.body}`, 20, 280));
+            }
+          }
         }
-      }
 
-      if (day.periodAnalysis) {
-        sections.push(line("Периодический AI-анализ:", 22));
-        sections.push(line(day.periodAnalysis.analysisText || "—", 20, 280));
-        for (const candidate of day.periodAnalysis.followUpCandidates ?? []) {
-          sections.push(line(`• ${candidate}`, 20, 560));
-        }
+        sections.push(divider());
       }
-
-      sections.push(divider());
     }
 
-    sections.push(heading("Данные без привязки к дате", HeadingLevel.HEADING_1));
-
+    // Workout routines
     if (snapshot.workspaceSync.workoutRoutines.length > 0) {
-      sections.push(line("Шаблоны тренировок:", 22));
+      sections.push(heading("Шаблоны тренировок", HeadingLevel.HEADING_1));
       for (const routine of snapshot.workspaceSync.workoutRoutines) {
-        sections.push(line(`• ${routine.name || "Шаблон"} (${routine.focus || "без фокуса"})`, 20, 280));
+        sections.push(line(`• ${routine.name}`, 22, 200));
+        if (routine.focus) {
+          sections.push(line(`  Фокус: ${routine.focus}`, 20, 280));
+        }
+
+        for (const exercise of routine.exercises) {
+          sections.push(line(`  ▸ ${exercise.name}`, 22, 280));
+          if (exercise.note) {
+            sections.push(line(`    ${exercise.note}`, 20, 360));
+          }
+        }
       }
-    }
-
-    const chatStats = {
-      diary: Object.values(snapshot.workspaceSync.diaryChats).reduce(
-        (count, messages) => count + messages.length,
-        0,
-      ),
-      analytics: Object.values(snapshot.workspaceSync.analyticsChats).reduce(
-        (count, messages) => count + messages.length,
-        0,
-      ),
-      workout: Object.values(snapshot.workspaceSync.workoutChats).reduce(
-        (count, messages) => count + messages.length,
-        0,
-      ),
-    };
-
-    sections.push(line(`Сообщений в дневниковых чатах: ${chatStats.diary}`));
-    sections.push(line(`Сообщений в аналитических чатах: ${chatStats.analytics}`));
-    sections.push(line(`Сообщений в чатах тренировок: ${chatStats.workout}`));
-
-    if (snapshot.error) {
-      sections.push(line(`Предупреждение: ${snapshot.error}`, 20));
     }
 
     const doc = new Document({
