@@ -290,7 +290,7 @@ export function DiarySection() {
       eyebrow="Diary AI"
       title="Дневник"
       currentSection="diary"
-      contentClassName="overflow-hidden"
+      contentClassName="flex min-h-0 flex-col overflow-hidden"
       headerAction={
         isMobileSidebarOpen ? (
           <button
