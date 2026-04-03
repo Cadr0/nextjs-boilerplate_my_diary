@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { WorkoutAssistantPanel } from "@/components/workout-assistant-panel";
 import { WorkspaceSectionShell } from "@/components/workspace-shell";
 import { WorkspaceSidebarFrame, WorkspaceSidebarSection } from "@/components/workspace-sidebar";
 import { WorkspaceUserControls } from "@/components/workspace-user-controls";
@@ -1138,7 +1139,7 @@ function SessionCard(props: {
     <button
       type="button"
       onClick={props.onOpen}
-      className={`grid gap-3 rounded-[22px] border p-4 text-left transition sm:p-5 ${
+      className={`grid gap-2.5 rounded-[20px] border p-3.5 text-left transition sm:p-4 ${
         props.selected
           ? "border-[rgba(47,111,97,0.75)] bg-[rgba(255,255,255,0.98)] shadow-[0_18px_36px_rgba(47,111,97,0.12)]"
           : "border-[var(--border)] bg-white/88 hover:border-[rgba(47,111,97,0.24)]"
@@ -1146,10 +1147,10 @@ function SessionCard(props: {
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-lg font-semibold text-[var(--foreground)]">
+          <p className="text-base font-semibold text-[var(--foreground)]">
             {props.session.title || "Тренировка"}
           </p>
-          <p className="mt-1 text-sm text-[var(--muted)]">
+          <p className="mt-1 text-xs text-[var(--muted)]">
             {props.session.completedAt ? "Завершена" : "В процессе"}
           </p>
         </div>
@@ -1162,16 +1163,16 @@ function SessionCard(props: {
         {getWorkoutSessionHighlights(props.session.summary).map((item) => (
           <span
             key={item}
-            className="rounded-full bg-[rgba(21,52,43,0.06)] px-3 py-1 text-xs text-[var(--muted)]"
+            className="rounded-full bg-[rgba(21,52,43,0.06)] px-2.5 py-1 text-[11px] text-[var(--muted)]"
           >
             {item}
           </span>
         ))}
       </div>
 
-      <div className="rounded-[18px] bg-[rgba(244,247,244,0.88)] px-4 py-3">
+      <div className="rounded-[16px] bg-[rgba(244,247,244,0.88)] px-3.5 py-3">
         <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{metric.label}</p>
-        <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+        <p className="mt-1.5 text-xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
           {metric.formatter(metric.value)}
         </p>
       </div>
@@ -1250,7 +1251,6 @@ export function WorkoutExperience() {
     (sum, session) => sum + session.summary.totalDurationSeconds,
     0,
   );
-
   const openBuilder = (routine?: WorkoutRoutine) => {
     setBuilderDraft(createRoutineDraft(routine));
     setIsBuilderOpen(true);
@@ -1331,7 +1331,7 @@ export function WorkoutExperience() {
           />
         }
         className="xl:items-start"
-        contentClassName="gap-4 xl:max-w-[1180px]"
+        contentClassName="gap-4 xl:max-w-[1360px]"
         mobileHeader={
           <div className="surface-card sticky top-3 z-20 flex items-center justify-between gap-3 rounded-[24px] px-4 py-3 xl:hidden">
             <button
@@ -1358,7 +1358,7 @@ export function WorkoutExperience() {
           </div>
         }
       >
-        <SectionCard className="rounded-[28px] p-4 sm:p-5">
+        <SectionCard className="rounded-[26px] p-4 sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <SectionHeader
               eyebrow={selectedDate === getTodayIsoDate() ? "Сегодня" : formatLongDate(selectedDate)}
@@ -1380,7 +1380,7 @@ export function WorkoutExperience() {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="hidden">
             <StatCard label="Сессий на дату" value={String(workoutSessionsForDate.length)} />
             <StatCard
               label={selectedDayDistance > 0 ? "Дистанция" : selectedDayVolume > 0 ? "Объём" : "Время"}
@@ -1398,7 +1398,7 @@ export function WorkoutExperience() {
         </SectionCard>
 
         {activeSession ? (
-          <SectionCard className="rounded-[28px] p-4 sm:p-5">
+          <SectionCard className="rounded-[26px] p-4 sm:p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
@@ -1526,7 +1526,7 @@ export function WorkoutExperience() {
           </SectionCard>
         ) : null}
 
-        <SectionCard className="rounded-[28px] p-4 sm:p-5">
+        <SectionCard className="rounded-[26px] p-4 sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
@@ -1538,19 +1538,19 @@ export function WorkoutExperience() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 xl:grid-cols-2">
+          <div className="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
             {workoutRoutines.length > 0 ? (
               workoutRoutines.map((routine) => (
                 <article
                   key={routine.id}
-                  className="rounded-[24px] border border-[var(--border)] bg-white/95 p-4 sm:p-5"
+                  className="rounded-[22px] border border-[var(--border)] bg-white/95 p-3.5 sm:p-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-[1.1rem] font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                      <p className="text-base font-semibold tracking-[-0.03em] text-[var(--foreground)]">
                         {routine.name}
                       </p>
-                      <p className="mt-1.5 text-sm leading-6 text-[var(--muted)]">
+                      <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
                         {routine.focus.trim() || "Гибкая программа для повторяющихся сессий."}
                       </p>
                     </div>
@@ -1580,26 +1580,26 @@ export function WorkoutExperience() {
                     </div>
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-[rgba(244,247,244,0.88)] px-2.5 py-1 text-xs text-[var(--muted)]">
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <span className="rounded-full bg-[rgba(244,247,244,0.88)] px-2.5 py-1 text-[11px] text-[var(--muted)]">
                       {routine.exercises.length} упражнений
                     </span>
                     {routine.exercises.slice(0, 3).map((exercise) => (
                       <div
                         key={exercise.id}
-                        className="rounded-full bg-[rgba(244,247,244,0.88)] px-3 py-1.5 text-xs text-[var(--foreground)]"
+                        className="rounded-full bg-[rgba(244,247,244,0.88)] px-2.5 py-1 text-[11px] text-[var(--foreground)]"
                       >
                         <span className="font-medium">{exercise.name}</span>
                       </div>
                     ))}
                     {routine.exercises.length > 3 ? (
-                      <span className="rounded-full bg-[rgba(21,52,43,0.06)] px-3 py-1.5 text-xs text-[var(--muted)]">
+                      <span className="rounded-full bg-[rgba(21,52,43,0.06)] px-2.5 py-1 text-[11px] text-[var(--muted)]">
                         +{routine.exercises.length - 3}
                       </span>
                     ) : null}
                   </div>
 
-                  <div className="mt-4">
+                  <div className="mt-3">
                     <SurfaceButton
                       onClick={() => handleStartRoutine(routine.id)}
                       disabled={Boolean(activeSession && activeSession.routineId !== routine.id)}
@@ -1639,7 +1639,7 @@ export function WorkoutExperience() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-[var(--border)] bg-white/92 px-5 py-4">
+              <div className="rounded-[22px] border border-[var(--border)] bg-white/92 px-4 py-3.5">
                 <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Сравнение</p>
                 <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">
                   {previousSession
@@ -1652,28 +1652,28 @@ export function WorkoutExperience() {
               </div>
             </div>
 
-            <div className="mt-6 grid gap-4 xl:grid-cols-2">
+            <div className="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
               {summarySession.exercises.map((exercise) => (
                 <article
                   key={exercise.id}
-                  className="rounded-[28px] border border-[var(--border)] bg-white/92 p-5"
+                  className="rounded-[22px] border border-[var(--border)] bg-white/92 p-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-lg font-semibold text-[var(--foreground)]">{exercise.name}</p>
-                      <p className="mt-1 text-sm text-[var(--muted)]">
+                      <p className="text-base font-semibold text-[var(--foreground)]">{exercise.name}</p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">
                         {getWorkoutExerciseHighlights(exercise).join(" · ") || "Без числовых метрик"}
                       </p>
                     </div>
-                    <span className="rounded-full bg-[rgba(21,52,43,0.06)] px-3 py-1 text-xs text-[var(--muted)]">
+                    <span className="rounded-full bg-[rgba(21,52,43,0.06)] px-2.5 py-1 text-[11px] text-[var(--muted)]">
                       {getWorkoutPresetDefinition(exercise.config.presetId).label}
                     </span>
                   </div>
-                  <div className="mt-4 grid gap-2">
+                  <div className="mt-3 grid gap-2">
                     {exercise.logs.filter((log) => Boolean(log.completedAt)).map((log) => (
                       <div
                         key={log.id}
-                        className="rounded-[18px] bg-[rgba(244,247,244,0.88)] px-4 py-3 text-sm text-[var(--foreground)]"
+                        className="rounded-[16px] bg-[rgba(244,247,244,0.88)] px-3.5 py-2.5 text-sm text-[var(--foreground)]"
                       >
                         {getWorkoutLogHeadline(log, exercise)}
                       </div>
@@ -1685,7 +1685,7 @@ export function WorkoutExperience() {
           </SectionCard>
         ) : null}
 
-        <SectionCard className="rounded-[28px] p-4 sm:p-5">
+        <SectionCard className="rounded-[26px] p-4 sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
@@ -1697,7 +1697,7 @@ export function WorkoutExperience() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 xl:grid-cols-2">
+          <div className="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
             {workouts.filter((session) => Boolean(session.completedAt)).length > 0 ? (
               workouts
                 .filter((session) => Boolean(session.completedAt))
@@ -1721,6 +1721,8 @@ export function WorkoutExperience() {
             )}
           </div>
         </SectionCard>
+
+        <WorkoutAssistantPanel />
 
       </WorkspaceSectionShell>
 
