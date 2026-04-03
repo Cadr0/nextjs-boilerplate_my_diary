@@ -1355,8 +1355,7 @@ export function WorkoutExperience() {
           </div>
         }
       >
-        <div className="grid gap-0 overflow-hidden">
-        <SectionCard className="rounded-[30px] p-4 sm:p-6">
+        <SectionCard className="workout-panel rounded-[30px] p-4 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <SectionHeader
               eyebrow={selectedDate === getTodayIsoDate() ? "Сегодня" : formatLongDate(selectedDate)}
@@ -1396,7 +1395,7 @@ export function WorkoutExperience() {
         </SectionCard>
 
         {activeSession ? (
-          <SectionCard className="rounded-[30px] p-4 sm:p-6">
+          <SectionCard className="workout-panel rounded-[30px] p-4 sm:p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
@@ -1514,7 +1513,7 @@ export function WorkoutExperience() {
           </SectionCard>
         ) : null}
 
-        <SectionCard className="rounded-[30px] p-4 sm:p-6">
+        <SectionCard className="workout-panel rounded-[30px] p-4 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
@@ -1605,7 +1604,7 @@ export function WorkoutExperience() {
         </SectionCard>
 
         {summarySession ? (
-          <SectionCard className="rounded-[30px] p-4 sm:p-6">
+          <SectionCard className="workout-panel rounded-[30px] p-4 sm:p-6">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
@@ -1673,7 +1672,7 @@ export function WorkoutExperience() {
           </SectionCard>
         ) : null}
 
-        <SectionCard className="rounded-[30px] p-4 sm:p-6">
+        <SectionCard className="workout-panel rounded-[30px] p-4 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
@@ -1711,7 +1710,6 @@ export function WorkoutExperience() {
         </SectionCard>
 
         <WorkoutAssistantPanel />
-        </div>
       </WorkspaceSectionShell>
 
       {isBuilderOpen ? (
