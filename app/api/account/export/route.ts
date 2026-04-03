@@ -5,12 +5,6 @@ import {
   Packer,
   Paragraph,
   TextRun,
-  Table,
-  TableRow,
-  TableCell,
-  WidthType,
-  AlignmentType,
-  BorderStyle,
 } from "docx";
 
 import { requireUser } from "@/lib/auth";
@@ -74,70 +68,25 @@ function valueToText(value: unknown) {
   return String(value);
 }
 
-const noBorders = {
-  top: { style: BorderStyle.NONE, size: 0 },
-  bottom: { style: BorderStyle.NONE, size: 0 },
-  left: { style: BorderStyle.NONE, size: 0 },
-  right: { style: BorderStyle.NONE, size: 0 },
-};
-
-function createInfoTable(rows: Array<{ label: string; value: string }>) {
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: rows.map((row) =>
-      new TableRow({
-        children: [
-          new TableCell({
-            width: { size: 35, type: WidthType.PERCENTAGE },
-            children: [new Paragraph({ children: [new TextRun({ text: row.label, bold: true, size: 22 })] })],
-            borders: noBorders,
-          }),
-          new TableCell({
-            width: { size: 65, type: WidthType.PERCENTAGE },
-            children: [new Paragraph({ children: [new TextRun({ text: row.value || "—", size: 22 })] })],
-            borders: noBorders,
-          }),
-        ],
-      })
-    ),
+function formatProfileField(label: string, value: string | null | undefined) {
+  return new Paragraph({
+    children: [
+      new TextRun({ text: `${label}: `, bold: true, size: 22 }),
+      new TextRun({ text: value || "—", size: 22 }),
+    ],
+    spacing: { after: 80 },
+    indent: { left: 200 },
   });
 }
 
-function createMetricsTable(metrics: Array<{ name: string; value: string }>) {
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [
-      new TableRow({
-        children: [
-          new TableCell({
-            width: { size: 50, type: WidthType.PERCENTAGE },
-            children: [new Paragraph({ children: [new TextRun({ text: "Параметр", bold: true, size: 22 })] })],
-            borders: noBorders,
-          }),
-          new TableCell({
-            width: { size: 50, type: WidthType.PERCENTAGE },
-            children: [new Paragraph({ children: [new TextRun({ text: "Значение", bold: true, size: 22 })] })],
-            borders: noBorders,
-          }),
-        ],
-      }),
-      ...metrics.map((metric) =>
-        new TableRow({
-          children: [
-            new TableCell({
-              width: { size: 50, type: WidthType.PERCENTAGE },
-              children: [new Paragraph({ children: [new TextRun({ text: metric.name, size: 22 })] })],
-              borders: noBorders,
-            }),
-            new TableCell({
-              width: { size: 50, type: WidthType.PERCENTAGE },
-              children: [new Paragraph({ children: [new TextRun({ text: metric.value, size: 22 })] })],
-              borders: noBorders,
-            }),
-          ],
-        })
-      ),
+function formatMetricValue(name: string, value: string) {
+  return new Paragraph({
+    children: [
+      new TextRun({ text: `${name}: `, size: 22 }),
+      new TextRun({ text: value, bold: true, size: 22 }),
     ],
+    spacing: { after: 40 },
+    indent: { left: 400 },
   });
 }
 
@@ -166,16 +115,12 @@ export async function GET(request: Request) {
 
     // Profile section
     sections.push(heading("Профиль", HeadingLevel.HEADING_1));
-    sections.push(
-      createInfoTable([
-        { label: "Имя", value: snapshot.profile.firstName },
-        { label: "Фамилия", value: snapshot.profile.lastName },
-        { label: "Часовой пояс", value: snapshot.profile.timezone },
-        { label: "Фокус", value: snapshot.profile.focus },
-        { label: "О себе", value: snapshot.profile.bio },
-        { label: "Цель", value: snapshot.profile.wellbeingGoal },
-      ])
-    );
+    sections.push(formatProfileField("Имя", snapshot.profile.firstName));
+    sections.push(formatProfileField("Фамилия", snapshot.profile.lastName));
+    sections.push(formatProfileField("Часовой пояс", snapshot.profile.timezone));
+    sections.push(formatProfileField("Фокус", snapshot.profile.focus));
+    sections.push(formatProfileField("О себе", snapshot.profile.bio));
+    sections.push(formatProfileField("Цель", snapshot.profile.wellbeingGoal));
 
     // Metrics definitions
     if (snapshot.metricDefinitions.length > 0) {
@@ -251,7 +196,9 @@ export async function GET(request: Request) {
               value: valueToText(value),
             }));
             if (metrics.length > 0) {
-              sections.push(createMetricsTable(metrics));
+              for (const metric of metrics) {
+                sections.push(formatMetricValue(metric.name, metric.value));
+              }
             }
           }
         }
