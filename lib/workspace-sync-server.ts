@@ -20,6 +20,7 @@ type WorkspaceProfileRow = {
   user_id: string;
   first_name: string | null;
   last_name: string | null;
+  plan?: string | null;
   bio: string | null;
   timezone: string | null;
   locale: string | null;
@@ -60,6 +61,7 @@ const profileSelect = [
   "user_id",
   "first_name",
   "last_name",
+  "plan",
   "bio",
   "timezone",
   "locale",
@@ -131,6 +133,7 @@ function mapProfileRow(
     ...defaultProfile,
     firstName: row?.first_name?.trim() || fallbackFirstName,
     lastName: row?.last_name?.trim() || "",
+    plan: row?.plan === "pro" || row?.plan === "paid" ? "pro" : "free",
     timezone: row?.timezone?.trim() || defaultProfile.timezone,
     locale: row?.locale?.trim() || defaultProfile.locale,
     focus: row?.focus?.trim() || defaultProfile.focus,
@@ -194,6 +197,27 @@ export async function getWorkspaceProfile() {
     .maybeSingle();
 
   if (result.error) {
+    if (isMissingColumn(result.error, "profiles", "plan")) {
+      const fallbackSelect = profileSelect
+        .split(", ")
+        .filter((column) => column !== "plan")
+        .join(", ");
+      const fallbackResult = await supabase
+        .from("profiles")
+        .select(fallbackSelect)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (fallbackResult.error) {
+        throw new Error(mapWorkspaceSyncError(fallbackResult.error));
+      }
+
+      return mapProfileRow(
+        (fallbackResult.data ?? null) as WorkspaceProfileRow | null,
+        fallbackFirstName,
+      );
+    }
+
     throw new Error(mapWorkspaceSyncError(result.error));
   }
 
@@ -210,6 +234,27 @@ export async function updateWorkspaceProfile(profile: WorkspaceProfile) {
     .single();
 
   if (result.error) {
+    if (isMissingColumn(result.error, "profiles", "plan")) {
+      const fallbackSelect = profileSelect
+        .split(", ")
+        .filter((column) => column !== "plan")
+        .join(", ");
+      const fallbackResult = await supabase
+        .from("profiles")
+        .upsert(buildProfileWritePayload(user.id, profile), { onConflict: "user_id" })
+        .select(fallbackSelect)
+        .single();
+
+      if (fallbackResult.error) {
+        throw new Error(mapWorkspaceSyncError(fallbackResult.error));
+      }
+
+      return mapProfileRow(
+        fallbackResult.data as unknown as WorkspaceProfileRow,
+        getUserDisplayName(user),
+      );
+    }
+
     throw new Error(mapWorkspaceSyncError(result.error));
   }
 

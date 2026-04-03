@@ -85,7 +85,7 @@ export function ProfileSection() {
               href="/profile"
               initials={initials}
               name={profileName}
-              subtitle="Профиль, приложение и аккаунт"
+              subtitle={profile.plan === "pro" ? "Pro" : "Free"}
               active
             />
           }

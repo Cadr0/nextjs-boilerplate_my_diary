@@ -103,8 +103,10 @@ export function WorkspaceUserControls({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const menuActionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const profileName = getProfileName(profile);
+  const planLabel = profile.plan === "pro" ? "Pro" : "Free";
   const initials = getProfileInitials(profile);
   const portalTarget = typeof document === "undefined" ? null : document.body;
+  void subtitle;
 
   useEffect(() => {
     if (
@@ -337,7 +339,7 @@ export function WorkspaceUserControls({
         <WorkspaceUserCard
           initials={initials}
           name={profileName}
-          subtitle={subtitle}
+          subtitle={planLabel}
           active={isUserMenuOpen}
           ariaExpanded={isUserMenuOpen}
           ariaHasPopup

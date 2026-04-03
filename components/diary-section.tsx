@@ -159,7 +159,7 @@ function getSidebarDateLabel(value: string) {
     return "Вчера";
   }
 
-  return formatHumanDate(value);
+  return formatHistoryDate(value);
 }
 
 function getHeadingDateLabel(value: string) {

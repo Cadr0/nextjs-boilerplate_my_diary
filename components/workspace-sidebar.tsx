@@ -27,7 +27,7 @@ type WorkspaceSidebarSectionProps = {
 type WorkspaceUserCardProps = {
   initials: string;
   name: string;
-  subtitle: string;
+  subtitle?: string;
   active?: boolean;
   href?: string;
   onClick?: () => void;
@@ -200,25 +200,31 @@ export function WorkspaceUserCard({
   ariaExpanded,
   ariaHasPopup,
 }: WorkspaceUserCardProps) {
-  const className = `flex w-full items-center gap-3 rounded-[24px] border p-4 text-left transition ${
+  const className = `flex w-full items-center gap-2.5 rounded-[20px] border p-3 text-left transition ${
     active
       ? "border-[rgba(47,111,97,0.24)] bg-[rgba(255,255,255,0.98)] shadow-[0_18px_36px_rgba(24,33,29,0.08)]"
       : "border-[var(--border)] bg-white/90 hover:border-[rgba(47,111,97,0.24)]"
   }`;
   const content = (
     <>
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-semibold text-white">
         {initials}
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-base font-semibold text-[var(--foreground)]">{name}</p>
-        <p className="mt-1 text-xs text-[var(--muted)]">{subtitle}</p>
+        <p className="truncate text-[15px] font-semibold leading-5 text-[var(--foreground)]">
+          {name}
+        </p>
+        {subtitle ? (
+          <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--muted)]">
+            {subtitle}
+          </p>
+        ) : null}
       </div>
 
       {onClick ? (
         <span
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--muted)] transition ${
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--muted)] transition ${
             active ? "rotate-180 text-[var(--foreground)]" : ""
           }`}
         >

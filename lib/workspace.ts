@@ -158,6 +158,7 @@ export type PeriodAnalysisSnapshot = {
 export type WorkspaceProfile = {
   firstName: string;
   lastName: string;
+  plan: "free" | "pro";
   timezone: string;
   locale: string;
   focus: string;
@@ -482,6 +483,7 @@ export const workoutExerciseLibrary = workoutExerciseTemplateLibrary;
 export const defaultProfile: WorkspaceProfile = {
   firstName: "Diary",
   lastName: "User",
+  plan: "free",
   timezone: "Europe/Moscow",
   locale: "ru-RU",
   focus: "Спокойный ритм и понятная ежедневная система",

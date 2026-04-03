@@ -331,6 +331,7 @@ export function AnalyticsSection() {
       eyebrow="Analytics"
       title="Период"
       currentSection="analytics"
+      contentClassName="flex min-h-0 flex-col overflow-hidden"
       headerAction={
         isMobileSidebarOpen ? (
           <button
@@ -343,13 +344,10 @@ export function AnalyticsSection() {
           </button>
         ) : null
       }
-      footer={
-        <WorkspaceUserControls
-          subtitle="Настройки, профиль и аккаунт"
-        />
-      }
+      footer={<WorkspaceUserControls />}
     >
-      <WorkspaceSidebarSection
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1 [mask-image:linear-gradient(to_bottom,black_0,black_calc(100%-32px),transparent_100%)]">
+        <WorkspaceSidebarSection
         label="Период анализа"
         meta={`${deferredEntries.length} дней`}
       >
@@ -420,6 +418,7 @@ export function AnalyticsSection() {
         <div className="mt-4 text-sm leading-6 text-[var(--foreground)]">
           AI-разбор запускается только по кнопке. Просмотр диапазона сам по себе не тратит AI-запрос.
         </div>
+      </div>
       </div>
     </WorkspaceSidebarFrame>
   );
