@@ -23,6 +23,7 @@ export function ProfileSection() {
     useState<NotificationPermission | "unsupported">(() =>
       typeof Notification === "undefined" ? "unsupported" : Notification.permission,
     );
+  const [isExporting, setIsExporting] = useState(false);
   const providerLabel =
     accountInfo?.provider === "google"
       ? "Google"
@@ -46,6 +47,30 @@ export function ProfileSection() {
 
     const permission = await Notification.requestPermission();
     setNotificationPermission(permission);
+  };
+
+  const handleExportData = async () => {
+    setIsExporting(true);
+    try {
+      const response = await fetch("/api/account/export");
+      if (!response.ok) {
+        throw new Error("Ошибка экспорта");
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `diary-ai-export-${new Date().toISOString().split("T")[0]}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert("Не удалось экспортировать данные. Попробуйте позже.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -168,6 +193,19 @@ export function ProfileSection() {
                 value={profile.locale}
                 onChange={(value) => updateProfile("locale", value)}
               />
+            </div>
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={handleExportData}
+                disabled={isExporting}
+                className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/90 px-6 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isExporting ? "Экспорт..." : "Экспорт данных в Word"}
+              </button>
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                Скачать все записи дневника, метрики и тренировки в формате .docx
+              </p>
             </div>
           </section>
 
