@@ -1273,7 +1273,7 @@ export function WorkoutExperience() {
             onOpenBuilder={() => openBuilder()}
           />
         }
-        className="overflow-x-hidden xl:items-start"
+        className="xl:items-start"
         contentClassName="gap-5 overflow-x-hidden"
         mobileHeader={
           <div className="surface-card sticky top-3 z-20 flex items-center justify-between gap-3 rounded-[24px] px-4 py-3 xl:hidden">
