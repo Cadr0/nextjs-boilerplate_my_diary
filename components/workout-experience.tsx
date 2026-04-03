@@ -365,66 +365,100 @@ function ModalShell({
 function WorkoutSidebarContent(props: {
   selectedDate: string;
   days: Array<{ date: string; summary: string; notesPreview: string }>;
-  routines: WorkoutRoutine[];
   onSelectDate: (date: string) => void;
-  onOpenBuilder: () => void;
+  isMobileSidebarOpen: boolean;
+  onCloseSidebar: () => void;
 }) {
   return (
     <WorkspaceSidebarFrame
       eyebrow="Diary AI"
-      title="Тренировки"
+      title={"\u0422\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043a\u0438"}
       currentSection="workouts"
-      footer={<WorkspaceUserControls subtitle="Программы, история и AI-помощник" />}
+      contentClassName="flex min-h-0 flex-col overflow-hidden"
+      headerAction={
+        props.isMobileSidebarOpen ? (
+          <button
+            type="button"
+            onClick={props.onCloseSidebar}
+            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
+            aria-label={"\u0417\u0430\u043a\u0440\u044b\u0442\u044c \u0431\u043e\u043a\u043e\u0432\u0443\u044e \u043f\u0430\u043d\u0435\u043b\u044c"}
+          >
+            <CloseIcon />
+          </button>
+        ) : null
+      }
+      footer={
+        <WorkspaceUserControls
+          subtitle={"\u041f\u0440\u043e\u0444\u0438\u043b\u044c, \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u0438 \u0432\u044b\u0445\u043e\u0434"}
+        />
+      }
     >
-      <WorkspaceSidebarSection label="Дни" meta={props.days.length}>
-        <div className="grid max-h-[38vh] gap-1.5 overflow-y-auto pr-1 xl:max-h-none">
+      <WorkspaceSidebarSection
+        label={"\u0414\u043d\u0438"}
+        meta={props.days.length}
+        className="min-h-0 flex flex-1 flex-col overflow-hidden"
+      >
+        <div className="grid min-h-0 flex-1 gap-1.5 overflow-y-auto pr-1 [mask-image:linear-gradient(to_bottom,black_0,black_calc(100%-32px),transparent_100%)]">
           {props.days.slice(0, 40).map((day) => (
             <button
               key={day.date}
               type="button"
-              onClick={() => props.onSelectDate(day.date)}
+              onClick={() => {
+                props.onSelectDate(day.date);
+                props.onCloseSidebar();
+              }}
               className={`grid gap-1 rounded-[20px] px-3 py-3 text-left transition ${
                 day.date === props.selectedDate
                   ? "bg-[var(--accent)] text-white shadow-[0_14px_30px_rgba(47,111,97,0.22)]"
                   : "text-[var(--foreground)] hover:bg-[rgba(47,111,97,0.08)]"
               }`}
             >
-              <span className="text-sm font-medium">{getSidebarDateLabel(day.date)}</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium">{getSidebarDateLabel(day.date)}</span>
+                {day.date === props.selectedDate ? <ChevronDownIcon /> : null}
+              </div>
               <span
                 className={`truncate text-xs ${
                   day.date === props.selectedDate ? "text-white/80" : "text-[var(--muted)]"
                 }`}
               >
-                {day.summary || day.notesPreview || "Без записей"}
+                {day.summary ||
+                  day.notesPreview ||
+                  "\u0411\u0435\u0437 \u0437\u0430\u043f\u0438\u0441\u0435\u0439"}
               </span>
             </button>
           ))}
         </div>
       </WorkspaceSidebarSection>
-
-      <WorkspaceSidebarSection label="Программы" meta={props.routines.length}>
-        <div className="grid gap-3">
-          <SurfaceButton onClick={props.onOpenBuilder} className="w-full">
-            Новая программа
-          </SurfaceButton>
-          {props.routines.length > 0 ? (
-            props.routines.map((routine) => (
-              <div
-                key={routine.id}
-                className="rounded-[22px] border border-[var(--border)] bg-white/88 px-4 py-4"
-              >
-                <p className="text-sm font-semibold text-[var(--foreground)]">{routine.name}</p>
-                <p className="mt-1 text-xs text-[var(--muted)]">
-                  {routine.exercises.length} упражнений
-                </p>
-              </div>
-            ))
-          ) : (
-            <EmptyState copy="Сохранённые программы появятся здесь." />
-          )}
-        </div>
-      </WorkspaceSidebarSection>
     </WorkspaceSidebarFrame>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+    >
+      <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-5 w-5"
+    >
+      <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
@@ -1265,12 +1299,11 @@ export function WorkoutExperience() {
           <WorkoutSidebarContent
             selectedDate={selectedDate}
             days={days}
-            routines={workoutRoutines}
+            isMobileSidebarOpen={isMobileSidebarOpen}
             onSelectDate={(date) => {
               setSelectedDate(date);
-              setIsMobileSidebarOpen(false);
             }}
-            onOpenBuilder={() => openBuilder()}
+            onCloseSidebar={() => setIsMobileSidebarOpen(false)}
           />
         }
         className="xl:items-start"
