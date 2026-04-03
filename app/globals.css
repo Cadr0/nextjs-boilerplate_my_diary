@@ -98,11 +98,6 @@ a {
   backdrop-filter: blur(24px);
 }
 
-.workout-panel {
-  background: rgba(255, 251, 247, 0.94);
-  box-shadow: 0 12px 24px rgba(34, 39, 37, 0.06);
-}
-
 .surface-grid {
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px),

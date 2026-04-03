@@ -1328,7 +1328,7 @@ export function WorkoutExperience() {
           />
         }
         className="xl:items-start"
-        contentClassName="gap-5 overflow-x-hidden bg-[rgba(250,246,240,0.96)]"
+        contentClassName="gap-5 overflow-x-hidden"
         mobileHeader={
           <div className="surface-card sticky top-3 z-20 flex items-center justify-between gap-3 rounded-[24px] px-4 py-3 xl:hidden">
             <button
@@ -1355,7 +1355,7 @@ export function WorkoutExperience() {
           </div>
         }
       >
-        <SectionCard className="workout-panel rounded-[30px] p-4 sm:p-6">
+        <SectionCard className="rounded-[30px] p-4 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <SectionHeader
               eyebrow={selectedDate === getTodayIsoDate() ? "Сегодня" : formatLongDate(selectedDate)}
@@ -1395,7 +1395,7 @@ export function WorkoutExperience() {
         </SectionCard>
 
         {activeSession ? (
-          <SectionCard className="workout-panel rounded-[30px] p-4 sm:p-6">
+          <SectionCard className="rounded-[30px] p-4 sm:p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
@@ -1513,7 +1513,7 @@ export function WorkoutExperience() {
           </SectionCard>
         ) : null}
 
-        <SectionCard className="workout-panel rounded-[30px] p-4 sm:p-6">
+        <SectionCard className="rounded-[30px] p-4 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
@@ -1604,7 +1604,7 @@ export function WorkoutExperience() {
         </SectionCard>
 
         {summarySession ? (
-          <SectionCard className="workout-panel rounded-[30px] p-4 sm:p-6">
+          <SectionCard className="rounded-[30px] p-4 sm:p-6">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
@@ -1672,7 +1672,7 @@ export function WorkoutExperience() {
           </SectionCard>
         ) : null}
 
-        <SectionCard className="workout-panel rounded-[30px] p-4 sm:p-6">
+        <SectionCard className="rounded-[30px] p-4 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
