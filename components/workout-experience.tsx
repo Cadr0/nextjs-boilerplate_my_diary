@@ -1328,7 +1328,7 @@ export function WorkoutExperience() {
           />
         }
         className="xl:items-start"
-        contentClassName="gap-5 overflow-x-hidden"
+        contentClassName="gap-5 overflow-x-hidden bg-[rgba(250,246,240,0.96)]"
         mobileHeader={
           <div className="surface-card sticky top-3 z-20 flex items-center justify-between gap-3 rounded-[24px] px-4 py-3 xl:hidden">
             <button
