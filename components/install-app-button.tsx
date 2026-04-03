@@ -7,6 +7,12 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
+type InstallFeedback = {
+  tone: "info" | "success";
+  title: string;
+  description: string;
+};
+
 function detectIos() {
   if (typeof navigator === "undefined") {
     return false;
@@ -33,7 +39,7 @@ export function InstallAppButton({
 }) {
   const [promptEvent, setPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(() => detectStandalone());
-  const [status, setStatus] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<InstallFeedback | null>(null);
 
   const isIos = useMemo(() => detectIos(), []);
 
@@ -41,12 +47,17 @@ export function InstallAppButton({
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       setPromptEvent(event as BeforeInstallPromptEvent);
+      setFeedback(null);
     };
 
     const handleInstalled = () => {
       setIsInstalled(true);
       setPromptEvent(null);
-      setStatus("Приложение установлено.");
+      setFeedback({
+        tone: "success",
+        title: "Приложение установлено",
+        description: "Теперь оно будет открываться как отдельное приложение.",
+      });
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -60,7 +71,11 @@ export function InstallAppButton({
 
   async function handleInstall() {
     if (isInstalled) {
-      setStatus("Приложение уже установлено.");
+      setFeedback({
+        tone: "success",
+        title: "Приложение уже установлено",
+        description: "Открой его с домашнего экрана или из списка приложений.",
+      });
       return;
     }
 
@@ -69,7 +84,17 @@ export function InstallAppButton({
       const choice = await promptEvent.userChoice;
 
       if (choice.outcome === "accepted") {
-        setStatus("Установка запущена.");
+        setFeedback({
+          tone: "success",
+          title: "Установка запущена",
+          description: "Подтверди действие в системном окне браузера.",
+        });
+      } else {
+        setFeedback({
+          tone: "info",
+          title: "Установка отменена",
+          description: "Можно запустить установку снова в любой момент.",
+        });
       }
 
       setPromptEvent(null);
@@ -77,12 +102,27 @@ export function InstallAppButton({
     }
 
     if (isIos) {
-      setStatus("На iPhone открой меню браузера и выбери «На экран Домой».");
+      setFeedback({
+        tone: "info",
+        title: "Автоустановка недоступна в iPhone Safari",
+        description: "Нажми «Поделиться» и выбери «На экран Домой».",
+      });
       return;
     }
 
-    setStatus("Открой меню браузера и выбери «Установить приложение».");
+    setFeedback({
+      tone: "info",
+      title: "Автоустановка недоступна в этом браузере",
+      description:
+        "Открой меню браузера или значок установки в адресной строке и выбери «Установить приложение».",
+    });
   }
+
+  const buttonLabel = isInstalled
+    ? "Приложение установлено"
+    : promptEvent
+      ? "Установить приложение"
+      : "Как установить";
 
   return (
     <div className="grid gap-2">
@@ -94,9 +134,24 @@ export function InstallAppButton({
           "rounded-full border border-[var(--border)] bg-white/90 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
         }
       >
-        {isInstalled ? "Приложение установлено" : "Скачать приложение"}
+        {buttonLabel}
       </button>
-      {status ? <p className="text-xs leading-5 text-[var(--muted)]">{status}</p> : null}
+      {feedback ? (
+        <div
+          className={`rounded-[16px] border px-3 py-2.5 ${
+            feedback.tone === "success"
+              ? "border-[rgba(47,111,97,0.18)] bg-[rgba(239,248,244,0.95)]"
+              : "border-[rgba(47,111,97,0.12)] bg-[rgba(247,244,239,0.96)]"
+          }`}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--foreground)]">
+            {feedback.title}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+            {feedback.description}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

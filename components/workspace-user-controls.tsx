@@ -22,8 +22,8 @@ type UserMenuPosition = {
   placement: MenuPlacement;
 };
 
-const USER_MENU_MAX_WIDTH = 320;
-const USER_MENU_GAP = 10;
+const USER_MENU_MAX_WIDTH = 296;
+const USER_MENU_GAP = 8;
 const USER_MENU_MARGIN = 12;
 
 function getProfileName(profile: WorkspaceProfile) {
@@ -786,13 +786,14 @@ function WorkspaceUserMenu({
   const profileName = getProfileName(profile);
   const profileHandle = accountEmail ? `@${accountEmail.split("@")[0]}` : "@diary";
   const initials = getProfileInitials(profile);
+  const planLabel = profile.plan === "pro" ? "Pro" : "Free";
 
   return (
     <div
       ref={menuRef}
       role="menu"
       aria-label="Меню пользователя"
-      className={`fixed z-50 rounded-[28px] border border-white/80 bg-[rgba(255,250,246,0.98)] p-3 shadow-[0_30px_70px_rgba(24,33,29,0.16)] transition duration-150 ${
+      className={`fixed z-50 rounded-[24px] border border-white/80 bg-[rgba(255,250,246,0.98)] p-2.5 shadow-[0_24px_56px_rgba(24,33,29,0.14)] transition duration-150 ${
         position?.placement === "top" ? "origin-bottom-right" : "origin-top-right"
       } ${position ? "opacity-100 scale-100" : "opacity-0 scale-[0.98]"}`}
       style={{
@@ -803,19 +804,22 @@ function WorkspaceUserMenu({
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white sm:h-11 sm:w-11">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white">
           {initials}
         </div>
-        <div className="min-w-0">
-          <p className="truncate text-[1.05rem] font-semibold text-[var(--foreground)] sm:text-base">{profileName}</p>
-          <p className="truncate text-xs text-[var(--muted)]">{profileHandle}</p>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[0.98rem] font-semibold leading-5 text-[var(--foreground)]">{profileName}</p>
+          <p className="mt-0.5 truncate text-[12px] leading-4 text-[var(--muted)]">{profileHandle}</p>
         </div>
+        <span className="rounded-full border border-[rgba(47,111,97,0.16)] bg-white/88 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+          {planLabel}
+        </span>
       </div>
 
-      <div className="mt-3 h-px bg-[var(--border)] sm:mt-4" />
+      <div className="mt-2 h-px bg-[var(--border)]" />
 
-      <div className="mt-2.5 grid gap-0.5 sm:mt-3 sm:gap-1">
+      <div className="mt-2 grid gap-1">
         <UserMenuButton
           buttonRef={(element) => onRegisterAction(0, element)}
           icon={<UserIcon />}
@@ -842,11 +846,11 @@ function WorkspaceUserMenu({
         />
       </div>
 
-      <div className="mt-3 h-px bg-[var(--border)] sm:mt-4" />
+      <div className="mt-2.5 h-px bg-[var(--border)]" />
 
-      <div className="mt-3 grid gap-2 sm:mt-4 sm:gap-3">
-        <InstallAppButton className="justify-center rounded-[18px] border border-[var(--border)] bg-white px-4 py-2.5 text-left text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:rounded-[20px] sm:py-3" />
-        <LogoutButton className="inline-flex min-h-11 items-center justify-center rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgb(136,47,63)] hover:text-[rgb(136,47,63)] disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:rounded-[20px]" label="Выйти" />
+      <div className="mt-2.5 grid gap-2">
+        <InstallAppButton className="justify-center rounded-[16px] border border-[var(--border)] bg-white px-4 py-2.5 text-center text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]" />
+        <LogoutButton className="inline-flex min-h-10 items-center justify-center rounded-[16px] border border-[var(--border)] bg-white px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgb(136,47,63)] hover:text-[rgb(136,47,63)] disabled:cursor-not-allowed disabled:opacity-60" label="Выйти" />
       </div>
     </div>
   );
@@ -1008,9 +1012,9 @@ function UserMenuButton({
       type="button"
       role="menuitem"
       onClick={onClick}
-      className="flex min-h-11 items-center gap-2.5 rounded-[18px] px-2.5 text-left text-[0.98rem] text-[var(--foreground)] transition hover:bg-white/80 focus:bg-white/80 focus:outline-none sm:min-h-12 sm:gap-3 sm:rounded-[20px] sm:px-3 sm:text-[1.05rem]"
+      className="flex min-h-10 items-center gap-2.5 rounded-[16px] px-2.5 text-left text-[0.95rem] text-[var(--foreground)] transition hover:bg-white/88 focus:bg-white/88 focus:outline-none"
     >
-      <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)] sm:h-9 sm:w-9">
+      <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)]">
         {icon}
       </span>
       <span>{label}</span>
