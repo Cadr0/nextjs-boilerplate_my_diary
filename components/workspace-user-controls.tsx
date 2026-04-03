@@ -428,6 +428,7 @@ function WorkspaceSettingsModal({
     tone: "success" | "error";
     text: string;
   } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const providerLabel = getProviderLabel(accountInfo?.provider);
   const profileName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
   const microphonePermissionLabel =
@@ -457,6 +458,34 @@ function WorkspaceSettingsModal({
     const permission = await Notification.requestPermission();
     setNotificationPermission(permission);
     return permission;
+  };
+
+  const handleExportData = async () => {
+    setIsExporting(true);
+    try {
+      const response = await fetch("/api/account/export");
+      if (!response.ok) {
+        throw new Error("Ошибка экспорта");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `diary-ai-export-${new Date().toISOString().split("T")[0]}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Export failed:", error);
+      setNotificationTestStatus({
+        tone: "error",
+        text: "Не удалось экспортировать данные. Попробуйте позже.",
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const sendTestNotification = async () => {
@@ -713,6 +742,20 @@ function WorkspaceSettingsModal({
                   <span className="text-sm text-[var(--muted)]">Активных метрик</span>
                   <strong className="text-2xl font-semibold text-[var(--foreground)]">{metricCount}</strong>
                 </div>
+              </div>
+              <div className="grid gap-2 rounded-[24px] border border-[var(--border)] bg-white/80 p-4">
+                <span className="text-sm text-[var(--muted)]">Экспорт данных</span>
+                <button
+                  type="button"
+                  onClick={() => void handleExportData()}
+                  disabled={isExporting}
+                  className="min-h-11 rounded-full border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isExporting ? "Экспорт..." : "Экспорт в Word (.docx)"}
+                </button>
+                <p className="text-xs text-[var(--muted)]">
+                  Выгружает все данные аккаунта в документ по дням.
+                </p>
               </div>
               <AccountSecurityPanel email={accountInfo?.email ?? accountEmail} provider={accountInfo?.provider ?? null} />
             </div>

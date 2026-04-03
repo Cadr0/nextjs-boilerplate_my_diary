@@ -1,701 +1,269 @@
 import { NextResponse } from "next/server";
-
-import { requireUser } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
 import {
   Document,
+  HeadingLevel,
   Packer,
   Paragraph,
   TextRun,
-  HeadingLevel,
-  Table,
-  TableRow,
-  TableCell,
-  WidthType,
-  BorderStyle,
 } from "docx";
+
+import { requireUser } from "@/lib/auth";
+import { getWorkspaceSnapshot } from "@/lib/workspace-sync-server";
+
+type DayBucket = {
+  entries: Array<Awaited<ReturnType<typeof getWorkspaceSnapshot>>["entries"][number]>;
+  workouts: Array<
+    Awaited<ReturnType<typeof getWorkspaceSnapshot>>["workspaceSync"]["workouts"][number]
+  >;
+  tasks: Array<Awaited<ReturnType<typeof getWorkspaceSnapshot>>["workspaceSync"]["tasks"][number]>;
+  reminders: Array<
+    Awaited<ReturnType<typeof getWorkspaceSnapshot>>["workspaceSync"]["reminders"][number]
+  >;
+  periodAnalysis?: Awaited<
+    ReturnType<typeof getWorkspaceSnapshot>
+  >["workspaceSync"]["periodAnalyses"][string];
+};
+
+function normalizeDate(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  return value.slice(0, 10);
+}
+
+function heading(text: string, level: HeadingLevel, size = 28) {
+  return new Paragraph({
+    children: [new TextRun({ text, bold: true, size })],
+    heading: level,
+    spacing: { before: 280, after: 120 },
+  });
+}
+
+function line(text: string, size = 22, indent = 0) {
+  return new Paragraph({
+    children: [new TextRun({ text, size })],
+    indent: indent ? { left: indent } : undefined,
+    spacing: { after: 60 },
+  });
+}
+
+function divider() {
+  return new Paragraph({
+    children: [new TextRun({ text: "", size: 20 })],
+    spacing: { after: 180 },
+  });
+}
+
+function valueToText(value: unknown) {
+  if (value === null || value === undefined) {
+    return "—";
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Да" : "Нет";
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
 
 export async function GET() {
   try {
     const user = await requireUser();
-    const admin = createAdminClient();
+    const snapshot = await getWorkspaceSnapshot(3650);
 
-    // Fetch daily entries with metric values
-    const { data: entries, error: entriesError } = await admin
-      .from("daily_entries")
-      .select(
-        `
-        *,
-        daily_entry_metric_values (
-          *,
-          metric_definitions (*)
-        )
-      `,
-      )
-      .eq("user_id", user.id)
-      .order("entry_date", { ascending: false });
+    const sections: Paragraph[] = [];
+    sections.push(heading("Diary AI — экспорт данных аккаунта", HeadingLevel.TITLE, 34));
+    sections.push(line(`Email: ${user.email ?? "—"}`));
+    sections.push(line(`User ID: ${user.id}`));
+    sections.push(line(`Дата экспорта: ${new Date().toLocaleString("ru-RU")}`, 20));
 
-    if (entriesError) {
-      throw new Error(entriesError.message);
-    }
+    sections.push(heading("Профиль", HeadingLevel.HEADING_1));
+    sections.push(line(`Имя: ${snapshot.profile.firstName || "—"}`));
+    sections.push(line(`Фамилия: ${snapshot.profile.lastName || "—"}`));
+    sections.push(line(`Локаль: ${snapshot.profile.locale}`));
+    sections.push(line(`Часовой пояс: ${snapshot.profile.timezone}`));
+    sections.push(line(`Фокус: ${snapshot.profile.focus || "—"}`));
+    sections.push(line(`О себе: ${snapshot.profile.bio || "—"}`));
+    sections.push(line(`Цель: ${snapshot.profile.wellbeingGoal || "—"}`));
 
-    // Fetch workout sessions
-    const { data: workouts, error: workoutsError } = await admin
-      .from("workout_sessions")
-      .select(
-        `
-        *,
-        workout_exercises (
-          *,
-          workout_logs (*)
-        )
-      `,
-      )
-      .eq("user_id", user.id)
-      .order("date", { ascending: false });
-
-    if (workoutsError) {
-      throw new Error(workoutsError.message);
-    }
-
-    // Fetch metric definitions
-    const { data: metricDefinitions, error: metricsError } = await admin
-      .from("metric_definitions")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("is_active", true);
-
-    if (metricsError) {
-      throw new Error(metricsError.message);
-    }
-
-    // Build document sections
-    const documentSections: Paragraph[] = [];
-
-    // Title
-    documentSections.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: "Diary AI - Экспорт данных пользователя",
-            bold: true,
-            size: 36,
-          }),
-        ],
-        heading: HeadingLevel.TITLE,
-        spacing: { after: 400 },
-      }),
-    );
-
-    // User info section
-    documentSections.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: "Информация об учетной записи",
-            bold: true,
-            size: 28,
-          }),
-        ],
-        heading: HeadingLevel.HEADING_1,
-        spacing: { before: 400, after: 200 },
-      }),
-    );
-
-    documentSections.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `Email: ${user.email}`,
-            size: 22,
-          }),
-        ],
-        spacing: { after: 100 },
-      }),
-    );
-
-    documentSections.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `ID пользователя: ${user.id}`,
-            size: 22,
-          }),
-        ],
-        spacing: { after: 200 },
-      }),
-    );
-
-    // Metric definitions section
-    if (metricDefinitions && metricDefinitions.length > 0) {
-      documentSections.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: "Определения метрик",
-              bold: true,
-              size: 28,
-            }),
-          ],
-          heading: HeadingLevel.HEADING_1,
-          spacing: { before: 400, after: 200 },
-        }),
-      );
-
-      const metricsTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          new TableRow({
-            children: [
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [
-                      new TextRun({ text: "Название", bold: true, size: 20 }),
-                    ],
-                  }),
-                ],
-                width: { size: 30, type: WidthType.PERCENTAGE },
-              }),
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [
-                      new TextRun({ text: "Тип", bold: true, size: 20 }),
-                    ],
-                  }),
-                ],
-                width: { size: 20, type: WidthType.PERCENTAGE },
-              }),
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [
-                      new TextRun({ text: "Единица", bold: true, size: 20 }),
-                    ],
-                  }),
-                ],
-                width: { size: 20, type: WidthType.PERCENTAGE },
-              }),
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [
-                      new TextRun({ text: "Описание", bold: true, size: 20 }),
-                    ],
-                  }),
-                ],
-                width: { size: 30, type: WidthType.PERCENTAGE },
-              }),
-            ],
-          }),
-          ...metricDefinitions.map(
-            (metric) =>
-              new TableRow({
-                children: [
-                  new TableCell({
-                    children: [
-                      new Paragraph({
-                        children: [
-                          new TextRun({
-                            text: metric.name || metric.slug,
-                            size: 20,
-                          }),
-                        ],
-                      }),
-                    ],
-                  }),
-                  new TableCell({
-                    children: [
-                      new Paragraph({
-                        children: [
-                          new TextRun({ text: metric.type, size: 20 }),
-                        ],
-                      }),
-                    ],
-                  }),
-                  new TableCell({
-                    children: [
-                      new Paragraph({
-                        children: [
-                          new TextRun({
-                            text: metric.unit_label || metric.unit_preset || "—",
-                            size: 20,
-                          }),
-                        ],
-                      }),
-                    ],
-                  }),
-                  new TableCell({
-                    children: [
-                      new Paragraph({
-                        children: [
-                          new TextRun({
-                            text: metric.description || "—",
-                            size: 20,
-                          }),
-                        ],
-                      }),
-                    ],
-                  }),
-                ],
-              }),
+    if (snapshot.metricDefinitions.length > 0) {
+      sections.push(heading("Метрики", HeadingLevel.HEADING_1));
+      for (const metric of snapshot.metricDefinitions) {
+        sections.push(
+          line(
+            `• ${metric.name} (${metric.type}) — единица: ${metric.unit || "—"}; описание: ${metric.description || "—"}`,
+            20,
+            280,
           ),
-        ],
-      });
-
-      documentSections.push(
-        new Paragraph({
-          children: [],
-          spacing: { after: 200 },
-        }),
-      );
+        );
+      }
     }
 
-    // Daily entries section
-    if (entries && entries.length > 0) {
-      documentSections.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: "Записи дневника",
-              bold: true,
-              size: 28,
-            }),
-          ],
-          heading: HeadingLevel.HEADING_1,
-          spacing: { before: 400, after: 200 },
-        }),
-      );
-
-      // Group entries by date
-      const entriesByDate = new Map<
-        string,
-        typeof entries
-      >();
-
-      for (const entry of entries) {
-        const date = entry.entry_date;
-        if (!entriesByDate.has(date)) {
-          entriesByDate.set(date, []);
-        }
-        entriesByDate.get(date)!.push(entry);
+    const byDay = new Map<string, DayBucket>();
+    const ensureDay = (date: string) => {
+      if (!byDay.has(date)) {
+        byDay.set(date, { entries: [], workouts: [], tasks: [], reminders: [] });
       }
+      return byDay.get(date)!;
+    };
 
-      for (const [date, dateEntries] of entriesByDate) {
-        documentSections.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: `📅 ${date}`,
-                bold: true,
-                size: 24,
-              }),
-            ],
-            heading: HeadingLevel.HEADING_2,
-            spacing: { before: 300, after: 150 },
-          }),
-        );
+    for (const entry of snapshot.entries) {
+      const date = normalizeDate(entry.entry_date);
+      if (!date) continue;
+      ensureDay(date).entries.push(entry);
+    }
 
-        for (const entry of dateEntries) {
-          if (entry.summary) {
-            documentSections.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "Краткое описание:",
-                    bold: true,
-                    size: 22,
-                  }),
-                ],
-                spacing: { before: 150, after: 50 },
-              }),
-            );
+    for (const workout of snapshot.workspaceSync.workouts) {
+      const date = normalizeDate(workout.date);
+      if (!date) continue;
+      ensureDay(date).workouts.push(workout);
+    }
 
-            documentSections.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: entry.summary,
-                    size: 22,
-                  }),
-                ],
-                spacing: { after: 100 },
-              }),
-            );
-          }
+    for (const task of snapshot.workspaceSync.tasks) {
+      const date = normalizeDate(task.scheduledDate || task.originDate);
+      if (!date) continue;
+      ensureDay(date).tasks.push(task);
+    }
 
-          if (entry.notes) {
-            documentSections.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "Заметки:",
-                    bold: true,
-                    size: 22,
-                  }),
-                ],
-                spacing: { before: 100, after: 50 },
-              }),
-            );
+    for (const reminder of snapshot.workspaceSync.reminders) {
+      const date = normalizeDate(reminder.sourceDate || reminder.scheduledAt);
+      if (!date) continue;
+      ensureDay(date).reminders.push(reminder);
+    }
 
-            documentSections.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: entry.notes,
-                    size: 22,
-                  }),
-                ],
-                spacing: { after: 100 },
-              }),
-            );
-          }
+    for (const [date, analysis] of Object.entries(snapshot.workspaceSync.periodAnalyses)) {
+      const normalizedDate = normalizeDate(date);
+      if (!normalizedDate) continue;
+      ensureDay(normalizedDate).periodAnalysis = analysis;
+    }
 
-          if (entry.ai_analysis) {
-            documentSections.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "AI анализ:",
-                    bold: true,
-                    size: 22,
-                  }),
-                ],
-                spacing: { before: 100, after: 50 },
-              }),
-            );
+    const sortedDays = [...byDay.keys()].sort((a, b) => b.localeCompare(a));
 
-            documentSections.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: entry.ai_analysis,
-                    size: 22,
-                    italics: true,
-                  }),
-                ],
-                spacing: { after: 100 },
-              }),
-            );
-          }
+    sections.push(heading("Данные по дням", HeadingLevel.HEADING_1));
 
-          // Metric values for this entry
-          const metricValues = entry.daily_entry_metric_values || [];
-          if (metricValues.length > 0) {
-            documentSections.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "Метрики:",
-                    bold: true,
-                    size: 22,
-                  }),
-                ],
-                spacing: { before: 100, after: 50 },
-              }),
-            );
+    for (const date of sortedDays) {
+      const day = byDay.get(date);
+      if (!day) continue;
 
-            for (const mv of metricValues) {
-              const metricDef = mv.metric_definitions;
-              const metricName =
-                mv.metric_name_snapshot || metricDef?.name || "Метрика";
-              let value = "—";
+      sections.push(heading(`📅 ${date}`, HeadingLevel.HEADING_2, 24));
 
-              if (mv.value_number !== null && mv.value_number !== undefined) {
-                value = String(mv.value_number);
-                if (mv.metric_unit_snapshot || metricDef?.unit_label) {
-                  value += ` ${mv.metric_unit_snapshot || metricDef?.unit_label}`;
-                }
-              } else if (mv.value_boolean !== null && mv.value_boolean !== undefined) {
-                value = mv.value_boolean ? "Да" : "Нет";
-              } else if (mv.value_text) {
-                value = mv.value_text;
-              } else if (mv.value_json) {
-                value = JSON.stringify(mv.value_json);
-              }
+      if (day.entries.length > 0) {
+        sections.push(line("Записи дневника:", 22));
+        for (const entry of day.entries) {
+          sections.push(line(`• Summary: ${entry.summary || "—"}`, 20, 280));
+          sections.push(line(`  Notes: ${entry.notes || "—"}`, 20, 280));
+          sections.push(line(`  AI анализ: ${entry.ai_analysis || "—"}`, 20, 280));
 
-              documentSections.push(
-                new Paragraph({
-                  children: [
-                    new TextRun({
-                      text: `• ${metricName}: ${value}`,
-                      size: 20,
-                    }),
-                  ],
-                  spacing: { after: 50 },
-                  indent: { left: 360 },
-                }),
-              );
+          const metrics = Object.entries(entry.metric_values ?? {});
+          if (metrics.length > 0) {
+            sections.push(line("  Метрики:", 20, 280));
+            for (const [key, value] of metrics) {
+              sections.push(line(`  - ${key}: ${valueToText(value)}`, 20, 560));
             }
           }
-
-          documentSections.push(
-            new Paragraph({
-              children: [],
-              spacing: { after: 200 },
-            }),
-          );
         }
       }
-    }
 
-    // Workouts section
-    if (workouts && workouts.length > 0) {
-      documentSections.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: "Тренировки",
-              bold: true,
-              size: 28,
-            }),
-          ],
-          heading: HeadingLevel.HEADING_1,
-          spacing: { before: 400, after: 200 },
-        }),
-      );
-
-      // Group workouts by date
-      const workoutsByDate = new Map<
-        string,
-        typeof workouts
-      >();
-
-      for (const workout of workouts) {
-        const date = workout.date;
-        if (!workoutsByDate.has(date)) {
-          workoutsByDate.set(date, []);
-        }
-        workoutsByDate.get(date)!.push(workout);
-      }
-
-      for (const [date, dateWorkouts] of workoutsByDate) {
-        documentSections.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: `🏋️ ${date}`,
-                bold: true,
-                size: 24,
-              }),
-            ],
-            heading: HeadingLevel.HEADING_2,
-            spacing: { before: 300, after: 150 },
-          }),
-        );
-
-        for (const workout of dateWorkouts) {
-          documentSections.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: workout.title || "Тренировка",
-                  bold: true,
-                  size: 22,
-                }),
-              ],
-              spacing: { before: 150, after: 50 },
-            }),
-          );
-
-          if (workout.focus) {
-            documentSections.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: `Фокус: ${workout.focus}`,
-                    size: 20,
-                  }),
-                ],
-                spacing: { after: 100 },
-              }),
-            );
-          }
-
-          const exercises = workout.workout_exercises || [];
-          if (exercises.length > 0) {
-            documentSections.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "Упражнения:",
-                    bold: true,
-                    size: 20,
-                  }),
-                ],
-                spacing: { before: 100, after: 50 },
-              }),
-            );
-
-            for (const exercise of exercises) {
-              documentSections.push(
-                new Paragraph({
-                  children: [
-                    new TextRun({
-                      text: `• ${exercise.name}`,
-                      bold: true,
-                      size: 20,
-                    }),
-                  ],
-                  spacing: { after: 50 },
-                  indent: { left: 360 },
-                }),
-              );
-
-              if (exercise.note) {
-                documentSections.push(
-                  new Paragraph({
-                    children: [
-                      new TextRun({
-                        text: exercise.note,
-                        size: 18,
-                        italics: true,
-                      }),
-                    ],
-                    spacing: { after: 50 },
-                    indent: { left: 720 },
-                  }),
-                );
-              }
-
-              const logs = exercise.workout_logs || [];
-              if (logs.length > 0) {
-                for (const log of logs) {
-                  if (log.completed_at) {
-                    const values = log.values || {};
-                    const valueParts: string[] = [];
-
-                    for (const [key, val] of Object.entries(values)) {
-                      if (val) {
-                        valueParts.push(`${key}: ${val}`);
-                      }
-                    }
-
-                    if (valueParts.length > 0) {
-                      documentSections.push(
-                        new Paragraph({
-                          children: [
-                            new TextRun({
-                              text: valueParts.join(" · "),
-                              size: 18,
-                            }),
-                          ],
-                          spacing: { after: 30 },
-                          indent: { left: 720 },
-                        }),
-                      );
-                    }
-
-                    if (log.note) {
-                      documentSections.push(
-                        new Paragraph({
-                          children: [
-                            new TextRun({
-                              text: log.note,
-                              size: 18,
-                              italics: true,
-                            }),
-                          ],
-                          spacing: { after: 30 },
-                          indent: { left: 720 },
-                        }),
-                      );
-                    }
-                  }
-                }
+      if (day.workouts.length > 0) {
+        sections.push(line("Тренировки:", 22));
+        for (const workout of day.workouts) {
+          sections.push(line(`• ${workout.title || "Тренировка"}`, 20, 280));
+          sections.push(line(`  Фокус: ${workout.focus || "—"}`, 20, 280));
+          for (const exercise of workout.exercises) {
+            sections.push(line(`  - Упражнение: ${exercise.name}`, 20, 560));
+            if (exercise.note) {
+              sections.push(line(`    Примечание: ${exercise.note}`, 20, 560));
+            }
+            for (const log of exercise.logs) {
+              const values = Object.entries(log.values ?? {})
+                .map(([k, v]) => `${k}: ${valueToText(v)}`)
+                .join(" · ");
+              sections.push(line(`    Подход: ${values || "—"}`, 20, 720));
+              if (log.note) {
+                sections.push(line(`    Комментарий: ${log.note}`, 20, 720));
               }
             }
           }
+        }
+      }
 
-          documentSections.push(
-            new Paragraph({
-              children: [],
-              spacing: { after: 200 },
-            }),
+      if (day.tasks.length > 0) {
+        sections.push(line("Задачи:", 22));
+        for (const task of day.tasks) {
+          sections.push(
+            line(
+              `• ${task.title} — ${task.completedAt ? "выполнено" : "активно"} (переносов: ${task.carryCount})`,
+              20,
+              280,
+            ),
           );
         }
       }
+
+      if (day.reminders.length > 0) {
+        sections.push(line("Напоминания:", 22));
+        for (const reminder of day.reminders) {
+          sections.push(
+            line(`• ${reminder.title} — ${reminder.status} (${reminder.scheduledAt})`, 20, 280),
+          );
+          sections.push(line(`  ${reminder.body}`, 20, 560));
+        }
+      }
+
+      if (day.periodAnalysis) {
+        sections.push(line("Периодический AI-анализ:", 22));
+        sections.push(line(day.periodAnalysis.analysisText || "—", 20, 280));
+        for (const candidate of day.periodAnalysis.followUpCandidates ?? []) {
+          sections.push(line(`• ${candidate}`, 20, 560));
+        }
+      }
+
+      sections.push(divider());
     }
 
-    // Summary section
-    documentSections.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: "Сводка",
-            bold: true,
-            size: 28,
-          }),
-        ],
-        heading: HeadingLevel.HEADING_1,
-        spacing: { before: 400, after: 200 },
-      }),
-    );
+    sections.push(heading("Данные без привязки к дате", HeadingLevel.HEADING_1));
 
-    documentSections.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `Всего записей дневника: ${entries?.length || 0}`,
-            size: 22,
-          }),
-        ],
-        spacing: { after: 100 },
-      }),
-    );
+    if (snapshot.workspaceSync.workoutRoutines.length > 0) {
+      sections.push(line("Шаблоны тренировок:", 22));
+      for (const routine of snapshot.workspaceSync.workoutRoutines) {
+        sections.push(line(`• ${routine.title || "Шаблон"} (${routine.focus || "без фокуса"})`, 20, 280));
+      }
+    }
 
-    documentSections.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `Всего тренировок: ${workouts?.length || 0}`,
-            size: 22,
-          }),
-        ],
-        spacing: { after: 100 },
-      }),
-    );
+    const chatStats = {
+      diary: Object.values(snapshot.workspaceSync.diaryChats).reduce(
+        (count, messages) => count + messages.length,
+        0,
+      ),
+      analytics: Object.values(snapshot.workspaceSync.analyticsChats).reduce(
+        (count, messages) => count + messages.length,
+        0,
+      ),
+      workout: Object.values(snapshot.workspaceSync.workoutChats).reduce(
+        (count, messages) => count + messages.length,
+        0,
+      ),
+    };
 
-    documentSections.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `Активных метрик: ${metricDefinitions?.length || 0}`,
-            size: 22,
-          }),
-        ],
-        spacing: { after: 200 },
-      }),
-    );
+    sections.push(line(`Сообщений в дневниковых чатах: ${chatStats.diary}`));
+    sections.push(line(`Сообщений в аналитических чатах: ${chatStats.analytics}`));
+    sections.push(line(`Сообщений в чатах тренировок: ${chatStats.workout}`));
 
-    documentSections.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `Дата экспорта: ${new Date().toLocaleString("ru-RU")}`,
-            size: 20,
-            italics: true,
-          }),
-        ],
-        spacing: { before: 400, after: 200 },
-      }),
-    );
+    if (snapshot.error) {
+      sections.push(line(`Предупреждение: ${snapshot.error}`, 20));
+    }
 
-    // Create document
     const doc = new Document({
-      sections: [
-        {
-          properties: {},
-          children: documentSections,
-        },
-      ],
+      sections: [{ properties: {}, children: sections }],
     });
 
-    // Generate buffer
     const buffer = await Packer.toBuffer(doc);
 
-    // Return file
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
