@@ -15,7 +15,6 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import Link from "next/link";
 import type {
   MouseEvent as ReactMouseEvent,
   TouchEvent as ReactTouchEvent,
@@ -348,7 +347,7 @@ export function DiarySection() {
         onMobileSidebarOpenChange={setIsMobileSidebarOpen}
         sidebar={sidebarContent}
         mobileHeader={
-          <div className="surface-card sticky top-3 z-20 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-[24px] px-4 py-3">
+          <div className="surface-card sticky top-3 z-20 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 rounded-[24px] px-4 py-3">
             <div className="flex justify-start">
               <button
                 type="button"
@@ -386,22 +385,7 @@ export function DiarySection() {
               </button>
             </div>
 
-            <div className="flex justify-end gap-2">
-              <Link
-                href="/workouts"
-                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                aria-label="Открыть тренировки"
-              >
-                <WorkoutLogIcon />
-              </Link>
-              <Link
-                href="/analytics"
-                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                aria-label="Открыть период и тренды"
-              >
-                <AiAnalysisIcon />
-              </Link>
-            </div>
+            <div aria-hidden="true" />
           </div>
         }
       >
@@ -446,20 +430,6 @@ export function DiarySection() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Link
-                  href="/workouts"
-                  className="hidden min-h-11 items-center rounded-full border border-[var(--border)] bg-white/94 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] xl:inline-flex"
-                >
-                  Тренировки
-                </Link>
-                <Link
-                  href="/analytics"
-                  className="hidden min-h-11 items-center rounded-full border border-[var(--border)] bg-white/94 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] xl:inline-flex"
-                >
-                  Период и тренды
-                </Link>
-              </div>
             </div>
 
             <div className="mt-4 grid gap-3 sm:mt-5 sm:gap-4">
@@ -1442,18 +1412,6 @@ function MenuIcon() {
   );
 }
 
-function AiAnalysisIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
-      <path d="M5 18h14" />
-      <path d="M8 18v-4" />
-      <path d="M12 18v-6" />
-      <path d="M16 18v-8" />
-      <path d="m15.5 5 .9 2.2 2.1.9-2.1.9-.9 2.2-.9-2.2-2.1-.9 2.1-.9.9-2.2Z" />
-    </svg>
-  );
-}
-
 function ChevronLeftIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
@@ -1686,16 +1644,3 @@ function ChatIcon() {
     </svg>
   );
 }
-
-function WorkoutLogIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
-      <path d="M8 4.5h8.8c1.5 0 2.7 1.2 2.7 2.7V18c0 .8-.7 1.5-1.5 1.5H9.2c-1.5 0-2.7-1.2-2.7-2.7V6.5C6.5 5.4 7.4 4.5 8 4.5Z" />
-      <path d="M9.2 4.8V19" strokeLinecap="round" />
-      <path d="M9 11h6" strokeLinecap="round" />
-      <path d="m11 9-2 2 2 2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="m13 15 2-2-2-2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-

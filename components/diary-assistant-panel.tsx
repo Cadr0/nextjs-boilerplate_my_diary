@@ -824,22 +824,22 @@ function ModelPicker({
   return (
     <div className="relative">
       {isOpen ? (
-        <div className="absolute bottom-full right-0 z-30 mb-2 w-[min(76vw,240px)] overflow-hidden rounded-[22px] border border-[rgba(24,33,29,0.12)] bg-[rgba(255,255,255,0.98)] p-2 shadow-[0_24px_48px_rgba(24,33,29,0.18)] backdrop-blur">
+        <div className="absolute bottom-full left-0 z-30 mb-2 w-[min(82vw,220px)] overflow-hidden rounded-[20px] border border-[rgba(24,33,29,0.12)] bg-[rgba(255,255,255,0.98)] p-2 shadow-[0_24px_48px_rgba(24,33,29,0.18)] backdrop-blur sm:left-auto sm:right-0 sm:w-[min(76vw,240px)] sm:rounded-[22px]">
           <div className="grid gap-1">
             {aiModelOptions.map((option) => (
               <button
                 key={option.id}
                 type="button"
                 onClick={() => onSelect(option.id)}
-                className={`rounded-[16px] px-3 py-2.5 text-left transition ${
+                className={`rounded-[14px] px-3 py-2 text-left transition sm:rounded-[16px] sm:py-2.5 ${
                   option.id === activeOption.id
                     ? "bg-[var(--accent)] text-white shadow-[0_12px_24px_rgba(47,111,97,0.2)]"
                     : "text-[var(--foreground)] hover:bg-[rgba(47,111,97,0.08)]"
                 }`}
               >
-                <div className="text-sm font-medium">{option.label}</div>
+                <div className="text-[13px] font-medium sm:text-sm">{option.label}</div>
                 <div
-                  className={`mt-1 text-[11px] leading-5 ${
+                  className={`mt-1 text-[10px] leading-4 sm:text-[11px] sm:leading-5 ${
                     option.id === activeOption.id ? "text-white/78" : "text-[var(--muted)]"
                   }`}
                 >
@@ -854,7 +854,7 @@ function ModelPicker({
       <button
         type="button"
         onClick={onToggle}
-        className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3.5 text-xs text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition hover:border-[rgba(47,111,97,0.24)] sm:min-h-11 sm:px-4 sm:text-sm"
+        className="inline-flex h-9 max-w-[156px] items-center gap-1.5 rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] px-3 text-[11px] text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition hover:border-[rgba(47,111,97,0.24)] sm:h-11 sm:max-w-none sm:gap-2 sm:px-4 sm:text-sm"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
