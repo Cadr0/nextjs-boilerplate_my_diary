@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { WorkoutAssistantPanel } from "@/components/workout-assistant-panel";
 import { WorkspaceSectionShell } from "@/components/workspace-shell";
@@ -349,11 +349,11 @@ function ModalShell({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(25,31,30,0.28)] p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(21,30,28,0.34)] p-0 sm:items-center sm:p-3"
       onClick={onClose}
     >
       <div
-        className="surface-card flex h-[100dvh] w-full max-w-4xl flex-col overflow-hidden rounded-none border border-white/70 bg-[rgba(255,251,247,0.98)] shadow-[0_28px_60px_rgba(24,33,29,0.16)] sm:h-auto sm:max-h-[88dvh] sm:rounded-[30px]"
+        className="surface-card flex h-[100dvh] w-full flex-col overflow-hidden rounded-none border border-white/75 bg-[linear-gradient(180deg,rgba(255,251,247,0.985)_0%,rgba(250,246,239,0.98)_100%)] shadow-[0_34px_90px_rgba(24,33,29,0.2)] sm:h-[calc(100dvh-24px)] sm:max-h-[calc(100dvh-24px)] sm:w-[min(1540px,calc(100vw-24px))] sm:rounded-[34px]"
         onClick={(event) => event.stopPropagation()}
       >
         {children}
@@ -494,6 +494,19 @@ function BuilderModal(props: {
   const [expandedExerciseIds, setExpandedExerciseIds] = useState<string[]>(() =>
     props.draft.exercises.length > 0 ? [props.draft.exercises[0].id] : [],
   );
+  useEffect(() => {
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, []);
+
   const updateExercise = (
     exerciseId: string,
     updater: (exercise: BuilderExerciseDraft) => BuilderExerciseDraft,
@@ -553,9 +566,12 @@ function BuilderModal(props: {
 
   return (
     <ModalShell onClose={requestClose}>
-      <div className="border-b border-[var(--border)] px-4 pb-4 pt-4 sm:px-6 sm:pb-5 sm:pt-6">
+      <div className="border-b border-[rgba(47,111,97,0.12)] bg-[radial-gradient(circle_at_top_left,rgba(74,159,141,0.18),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.72),rgba(255,255,255,0.36))] px-4 pb-4 pt-4 sm:px-7 sm:pb-5 sm:pt-6">
         <div className="flex items-start justify-between gap-4">
           <div>
+            <span className="inline-flex rounded-full border border-[rgba(47,111,97,0.14)] bg-white/72 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--accent)] shadow-[0_10px_24px_rgba(47,111,97,0.08)]">
+              Конструктор
+            </span>
             <h2 className="text-[1.85rem] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[2.25rem]">
               {props.draft.id ? "Редактирование программы" : "Конструктор тренировки"}
             </h2>
@@ -566,18 +582,18 @@ function BuilderModal(props: {
           <button
             type="button"
             onClick={requestClose}
-            className="rounded-full p-2 text-sm text-[var(--muted)] transition hover:bg-[rgba(21,52,43,0.05)] hover:text-[var(--foreground)]"
+            className="rounded-full border border-transparent px-3 py-2 text-sm text-[var(--muted)] transition hover:border-[rgba(47,111,97,0.14)] hover:bg-white/72 hover:text-[var(--foreground)]"
           >
             Закрыть
           </button>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-        <div className="grid gap-4">
-          <section className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:p-5">
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]">
-              <label className="grid gap-2">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-7 sm:py-6">
+        <div className="grid gap-4 xl:gap-5">
+          <section className="rounded-[28px] border border-[rgba(47,111,97,0.12)] bg-white/88 p-4 shadow-[0_18px_44px_rgba(47,111,97,0.06)] sm:p-5">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+              <label className="grid min-w-0 gap-2">
                 <span className="text-sm font-semibold text-[var(--foreground)]">Название программы</span>
                 <input
                   value={props.draft.name}
@@ -589,7 +605,7 @@ function BuilderModal(props: {
                 />
               </label>
 
-              <label className="grid gap-2">
+              <label className="grid min-w-0 gap-2">
                 <span className="text-sm font-semibold text-[var(--foreground)]">Фокус</span>
                 <input
                   value={props.draft.focus}
@@ -603,15 +619,16 @@ function BuilderModal(props: {
             </div>
           </section>
 
-          <section className="rounded-[24px] border border-[var(--border)] bg-white/92 p-4 sm:p-5">
+          <section className="rounded-[28px] border border-[rgba(47,111,97,0.12)] bg-[linear-gradient(180deg,rgba(255,255,255,0.84),rgba(247,251,249,0.92))] p-4 shadow-[0_18px_44px_rgba(47,111,97,0.06)] sm:p-5">
             <p className="text-sm font-semibold text-[var(--foreground)]">Быстрые шаблоны</p>
+            <p className="mt-1 text-xs text-[var(--muted)]">Добавь основу одним нажатием, потом уточни детали ниже.</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {workoutExerciseLibrary.map((template) => (
                 <button
                   key={template.id}
                   type="button"
                   onClick={() => addExercise(template)}
-                  className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-xs text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  className="rounded-full border border-[rgba(47,111,97,0.14)] bg-white/92 px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:bg-[rgba(47,111,97,0.08)] hover:text-[var(--accent)]"
                 >
                   {template.name}
                 </button>
@@ -636,7 +653,11 @@ function BuilderModal(props: {
               return (
                 <section
                   key={exercise.id}
-                  className="rounded-[22px] border border-[var(--border)] bg-white/95 p-4"
+                  className={`rounded-[26px] border p-4 shadow-[0_18px_44px_rgba(47,111,97,0.05)] transition sm:p-5 ${
+                    expandedExerciseIds.includes(exercise.id)
+                      ? "border-[rgba(47,111,97,0.22)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,251,249,0.94))]"
+                      : "border-[var(--border)] bg-white/95"
+                  }`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -682,8 +703,8 @@ function BuilderModal(props: {
 
                   {expandedExerciseIds.includes(exercise.id) ? (
                     <div className="mt-4 grid gap-4">
-                      <div className="grid gap-3 md:grid-cols-2">
-                    <label className="grid gap-2">
+                      <div className="grid gap-3 xl:grid-cols-2">
+                    <label className="grid min-w-0 gap-2">
                       <span className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
                         Название
                       </span>
@@ -700,7 +721,7 @@ function BuilderModal(props: {
                       />
                     </label>
 
-                    <label className="grid gap-2">
+                    <label className="grid min-w-0 gap-2">
                       <span className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
                         Подсказка
                       </span>
@@ -718,8 +739,8 @@ function BuilderModal(props: {
                     </label>
                   </div>
 
-                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_140px]">
-                    <label className="grid gap-2">
+                  <div className="grid gap-3 xl:grid-cols-12">
+                    <label className="grid min-w-0 gap-2 xl:col-span-6">
                       <span className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
                         Режим
                       </span>
@@ -751,7 +772,7 @@ function BuilderModal(props: {
                       </select>
                     </label>
 
-                    <label className="grid gap-2">
+                    <label className="grid min-w-0 gap-2 xl:col-span-3">
                       <span className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
                         Формат
                       </span>
@@ -773,7 +794,7 @@ function BuilderModal(props: {
                       </select>
                     </label>
 
-                    <label className="grid gap-2">
+                    <label className="grid min-w-0 gap-2 xl:col-span-3">
                       <span className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
                         Записей
                       </span>
@@ -797,11 +818,12 @@ function BuilderModal(props: {
                     </label>
                   </div>
 
-                  <div>
+                  <div className="rounded-[22px] border border-[rgba(47,111,97,0.1)] bg-[rgba(246,250,248,0.95)] p-3.5 sm:p-4">
                     <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
                       Метрики
                     </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <p className="mt-1 text-xs text-[var(--muted)]">Выбери только те поля, которые реально нужны в записи.</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
                       {fieldKeys.map((key) => {
                         const definition = getWorkoutFieldDefinition(key);
                         const active = selected.has(key);
@@ -847,7 +869,7 @@ function BuilderModal(props: {
             })}
           </div>
 
-          <div className="flex flex-col gap-3 rounded-[24px] border border-dashed border-[var(--border-strong)] bg-[rgba(247,249,246,0.82)] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-[28px] border border-dashed border-[rgba(47,111,97,0.26)] bg-[linear-gradient(180deg,rgba(248,252,250,0.94),rgba(244,249,246,0.9))] p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-[var(--foreground)]">Структура программы</p>
               <p className="mt-1 text-sm text-[var(--muted)]">
@@ -861,7 +883,7 @@ function BuilderModal(props: {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-[var(--border)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
+      <div className="flex flex-col gap-3 border-t border-[rgba(47,111,97,0.12)] bg-[rgba(255,255,255,0.68)] px-4 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-5">
         <div className="flex items-center justify-between gap-3">
           {props.draft.id && props.onDelete ? (
             <QuietButton
@@ -880,7 +902,7 @@ function BuilderModal(props: {
             </span>
           )}
         </div>
-        <div className="grid gap-3 sm:grid-cols-[140px_minmax(0,1fr)]">
+        <div className="grid gap-3 sm:grid-cols-[160px_minmax(240px,1fr)]">
           <SurfaceButton variant="secondary" onClick={requestClose} className="w-full">
             Отмена
           </SurfaceButton>
@@ -1331,7 +1353,7 @@ export function WorkoutExperience() {
           />
         }
         className="xl:items-start"
-        contentClassName="gap-4 xl:max-w-[1360px]"
+        contentClassName="gap-4"
         mobileHeader={
           <div className="surface-card sticky top-3 z-20 flex items-center justify-between gap-3 rounded-[24px] px-4 py-3 xl:hidden">
             <button
