@@ -32,7 +32,7 @@ function normalizeDate(value: string | null | undefined) {
   return value.slice(0, 10);
 }
 
-function heading(text: string, level: HeadingLevel, size = 28) {
+function heading(text: string, level: typeof HeadingLevel[keyof typeof HeadingLevel], size = 28) {
   return new Paragraph({
     children: [new TextRun({ text, bold: true, size })],
     heading: level,
@@ -71,10 +71,15 @@ function valueToText(value: unknown) {
   return String(value);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const snapshot = await getWorkspaceSnapshot(3650);
+    
+    const { searchParams } = new URL(request.url);
+    const daysParam = searchParams.get('days');
+    const days = daysParam ? parseInt(daysParam, 10) : 3650;
+    
+    const snapshot = await getWorkspaceSnapshot(days);
 
     const sections: Paragraph[] = [];
     sections.push(heading("Diary AI — экспорт данных аккаунта", HeadingLevel.TITLE, 34));

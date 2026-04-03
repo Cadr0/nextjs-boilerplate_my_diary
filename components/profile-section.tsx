@@ -24,6 +24,7 @@ export function ProfileSection() {
       typeof Notification === "undefined" ? "unsupported" : Notification.permission,
     );
   const [isExporting, setIsExporting] = useState(false);
+  const [exportPeriod, setExportPeriod] = useState("3650");
   const providerLabel =
     accountInfo?.provider === "google"
       ? "Google"
@@ -52,7 +53,7 @@ export function ProfileSection() {
   const handleExportData = async () => {
     setIsExporting(true);
     try {
-      const response = await fetch("/api/account/export");
+      const response = await fetch(`/api/account/export?days=${exportPeriod}`);
       if (!response.ok) {
         throw new Error("Ошибка экспорта");
       }
@@ -195,16 +196,31 @@ export function ProfileSection() {
               />
             </div>
             <div className="mt-4">
-              <button
-                type="button"
-                onClick={handleExportData}
-                disabled={isExporting}
-                className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/90 px-6 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isExporting ? "Экспорт..." : "Экспорт данных в Word"}
-              </button>
+              <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+                <select
+                  value={exportPeriod}
+                  onChange={(e) => setExportPeriod(e.target.value)}
+                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/90 px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                >
+                  <option value="7">Последняя неделя</option>
+                  <option value="30">Последний месяц</option>
+                  <option value="90">Последние 3 месяца</option>
+                  <option value="180">Последние 6 месяцев</option>
+                  <option value="365">Последний год</option>
+                  <option value="3650">Все данные</option>
+                </select>
+                
+                <button
+                  type="button"
+                  onClick={handleExportData}
+                  disabled={isExporting}
+                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/90 px-6 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isExporting ? "Экспорт..." : "Экспорт в Word"}
+                </button>
+              </div>
               <p className="mt-2 text-xs text-[var(--muted)]">
-                Скачать все записи дневника, метрики и тренировки в формате .docx
+                Скачать записи дневника, метрики, тренировки, задачи и напоминания в формате Microsoft Word .docx
               </p>
             </div>
           </section>
