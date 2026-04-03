@@ -434,6 +434,27 @@ function WorkoutSidebarContent(props: {
   );
 }
 
+function MenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
+    </svg>
+  );
+}
+
+function RoutineIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <rect x="4.5" y="5" width="15" height="14" rx="2.5" />
+      <path d="M8 9h8" strokeLinecap="round" />
+      <path d="M8 12.5h8" strokeLinecap="round" />
+      <path d="M8 16h4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function ChevronDownIcon() {
   return (
     <svg
@@ -1313,9 +1334,10 @@ export function WorkoutExperience() {
             <button
               type="button"
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="rounded-[18px] border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--foreground)]"
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              aria-label={"\u041e\u0442\u043a\u0440\u044b\u0442\u044c \u0431\u043e\u043a\u043e\u0432\u0443\u044e \u043f\u0430\u043d\u0435\u043b\u044c"}
             >
-              Меню
+              <MenuIcon />
             </button>
             <div className="min-w-0 text-center">
               <p className="truncate text-sm font-semibold text-[var(--foreground)]">
@@ -1325,9 +1347,10 @@ export function WorkoutExperience() {
             <button
               type="button"
               onClick={() => openBuilder()}
-              className="rounded-[18px] border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--foreground)]"
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              aria-label={"\u041e\u0442\u043a\u0440\u044b\u0442\u044c \u043a\u043e\u043d\u0441\u0442\u0440\u0443\u043a\u0442\u043e\u0440 \u043f\u0440\u043e\u0433\u0440\u0430\u043c\u043c\u044b"}
             >
-              Программа
+              <RoutineIcon />
             </button>
           </div>
         }

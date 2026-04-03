@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { BrandGlyph } from "@/components/brand-glyph";
+
 export type WorkspaceSection = "diary" | "workouts" | "analytics";
 
 type WorkspaceSidebarFrameProps = {
@@ -123,15 +125,14 @@ export function WorkspaceSidebarFrame({
 }: WorkspaceSidebarFrameProps) {
   const pathname = usePathname();
   const activeSection = getCurrentSection(pathname, currentSection);
-  const headerSection = activeSection ?? currentSection ?? "diary";
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <div className="shrink-0 rounded-[26px] border border-[var(--border)] bg-white/90 p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] shadow-[0_10px_20px_rgba(32,77,67,0.12)]">
-              <WorkspaceSectionIcon section={headerSection} />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]">
+              <BrandGlyph className="h-9 w-9 rounded-xl shadow-[0_10px_20px_rgba(32,77,67,0.24)]" />
             </div>
 
             <div className="min-w-0">
@@ -264,56 +265,6 @@ function ChevronDownIcon() {
       className="h-4 w-4"
     >
       <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function WorkspaceSectionIcon({ section }: { section: WorkspaceSection }) {
-  if (section === "workouts") {
-    return (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        className="h-5 w-5"
-      >
-        <path d="M7.5 8.5 5 11l3.5 3.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="m16.5 8.5 2.5 2.5-2.5 3.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M9 7.5 15 13.5" strokeLinecap="round" />
-        <path d="M9 10.5 15 16.5" strokeLinecap="round" />
-      </svg>
-    );
-  }
-
-  if (section === "analytics") {
-    return (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        className="h-5 w-5"
-      >
-        <rect x="4" y="5" width="16" height="14" rx="3" />
-        <path d="M8 14.5 11 11.5l2.3 2.3L16.5 10" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M15.5 10h1v1" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="h-5 w-5"
-    >
-      <path d="M7 4.5h8.8c1.5 0 2.7 1.2 2.7 2.7V18c0 .8-.7 1.5-1.5 1.5H8.2c-1.5 0-2.7-1.2-2.7-2.7V6.5C5.5 5.4 6.4 4.5 7 4.5Z" />
-      <path d="M9 8.5h6" strokeLinecap="round" />
-      <path d="M9 12h6" strokeLinecap="round" />
-      <path d="M9 15.5h4" strokeLinecap="round" />
     </svg>
   );
 }
