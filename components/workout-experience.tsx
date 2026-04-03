@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 
-import { WorkoutAssistantPanel } from "@/components/workout-assistant-panel";
 import { WorkspaceSectionShell } from "@/components/workspace-shell";
 import { WorkspaceSidebarFrame, WorkspaceSidebarSection } from "@/components/workspace-sidebar";
 import { WorkspaceUserControls } from "@/components/workspace-user-controls";
@@ -353,7 +352,7 @@ function ModalShell({
       onClick={onClose}
     >
       <div
-        className="surface-card flex h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-none border border-white/70 bg-[rgba(255,251,247,0.98)] shadow-[0_34px_80px_rgba(24,33,29,0.2)] sm:h-auto sm:max-h-[92dvh] sm:rounded-[34px]"
+        className="surface-card flex h-[100dvh] w-full max-w-4xl flex-col overflow-hidden rounded-none border border-white/70 bg-[rgba(255,251,247,0.98)] shadow-[0_28px_60px_rgba(24,33,29,0.16)] sm:h-auto sm:max-h-[88dvh] sm:rounded-[30px]"
         onClick={(event) => event.stopPropagation()}
       >
         {children}
@@ -636,7 +635,7 @@ function BuilderModal(props: {
               return (
                 <section
                   key={exercise.id}
-                  className="rounded-[24px] border border-[var(--border)] bg-white/95 p-4 sm:p-5"
+                  className="rounded-[22px] border border-[var(--border)] bg-white/95 p-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -967,7 +966,7 @@ function ExerciseEditorCard(props: {
   const highlightItems = getWorkoutExerciseHighlights(props.exercise);
 
   return (
-    <section className="rounded-[24px] border border-[var(--border)] bg-white/95 p-4 sm:p-5">
+    <section className="rounded-[22px] border border-[var(--border)] bg-white/95 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <input
@@ -1139,7 +1138,7 @@ function SessionCard(props: {
     <button
       type="button"
       onClick={props.onOpen}
-      className={`grid gap-3 rounded-[28px] border p-5 text-left transition sm:p-6 ${
+      className={`grid gap-3 rounded-[22px] border p-4 text-left transition sm:p-5 ${
         props.selected
           ? "border-[rgba(47,111,97,0.75)] bg-[rgba(255,255,255,0.98)] shadow-[0_18px_36px_rgba(47,111,97,0.12)]"
           : "border-[var(--border)] bg-white/88 hover:border-[rgba(47,111,97,0.24)]"
@@ -1170,7 +1169,7 @@ function SessionCard(props: {
         ))}
       </div>
 
-      <div className="rounded-[20px] bg-[rgba(244,247,244,0.88)] px-4 py-4">
+      <div className="rounded-[18px] bg-[rgba(244,247,244,0.88)] px-4 py-3">
         <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{metric.label}</p>
         <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
           {metric.formatter(metric.value)}
@@ -1194,6 +1193,7 @@ export function WorkoutExperience() {
     addWorkoutExercise,
     updateWorkoutExercise,
     removeWorkoutExercise,
+    deleteWorkoutSession,
     addWorkoutSet,
     updateWorkoutSet,
     duplicateWorkoutSet,
@@ -1213,6 +1213,7 @@ export function WorkoutExperience() {
   const [sessionExerciseName, setSessionExerciseName] = useState("");
   const [sessionExercisePresetId, setSessionExercisePresetId] =
     useState<WorkoutTrackingPresetId>("strength");
+  const [selectedSummarySessionId, setSelectedSummarySessionId] = useState<string | null>(null);
 
   const activeSession =
     selectedWorkoutSession && !selectedWorkoutSession.completedAt
@@ -1228,9 +1229,11 @@ export function WorkoutExperience() {
     [workoutSessionsForDate],
   );
   const summarySession =
-    selectedWorkoutSession && selectedWorkoutSession.completedAt
-      ? selectedWorkoutSession
-      : completedSessions[0] ?? null;
+    (selectedSummarySessionId
+      ? completedSessions.find((session) => session.id === selectedSummarySessionId) ?? null
+      : null) ??
+    completedSessions[0] ??
+    null;
   const previousSession = useMemo(
     () => getPreviousComparableSession(summarySession, workouts),
     [summarySession, workouts],
@@ -1328,7 +1331,7 @@ export function WorkoutExperience() {
           />
         }
         className="xl:items-start"
-        contentClassName="gap-5"
+        contentClassName="gap-4 xl:max-w-[1180px]"
         mobileHeader={
           <div className="surface-card sticky top-3 z-20 flex items-center justify-between gap-3 rounded-[24px] px-4 py-3 xl:hidden">
             <button
@@ -1355,21 +1358,21 @@ export function WorkoutExperience() {
           </div>
         }
       >
-        <SectionCard className="rounded-[30px] p-4 sm:p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <SectionCard className="rounded-[28px] p-4 sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <SectionHeader
               eyebrow={selectedDate === getTodayIsoDate() ? "Сегодня" : formatLongDate(selectedDate)}
               title="Тренировки"
               description="Программы, текущая сессия и история в одном спокойном блоке. Основные действия оставлены на виду, редкие убраны из центра внимания."
             />
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-2">
               <SurfaceButton onClick={() => openBuilder()} className="w-full">
                 Создать программу
               </SurfaceButton>
               <SurfaceButton
                 variant="secondary"
                 onClick={() => saveWorkoutAsRoutine()}
-                disabled={!activeSession && !summarySession}
+                disabled={!activeSession}
                 className="w-full"
               >
                 Сохранить как программу
@@ -1377,7 +1380,7 @@ export function WorkoutExperience() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-4">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Сессий на дату" value={String(workoutSessionsForDate.length)} />
             <StatCard
               label={selectedDayDistance > 0 ? "Дистанция" : selectedDayVolume > 0 ? "Объём" : "Время"}
@@ -1395,7 +1398,7 @@ export function WorkoutExperience() {
         </SectionCard>
 
         {activeSession ? (
-          <SectionCard className="rounded-[30px] p-4 sm:p-6">
+          <SectionCard className="rounded-[28px] p-4 sm:p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
@@ -1404,7 +1407,7 @@ export function WorkoutExperience() {
                 <input
                   value={activeSession.title}
                   onChange={(event) => updateWorkoutSession({ title: event.target.value })}
-                  className="mt-2 w-full rounded-[18px] border border-transparent bg-transparent px-0 text-[2rem] font-semibold tracking-[-0.05em] text-[var(--foreground)] outline-none transition focus:border-[var(--border)] focus:bg-white focus:px-4 focus:py-3 sm:text-[2.5rem]"
+                  className="mt-2 w-full rounded-[16px] border border-transparent bg-transparent px-0 text-[1.6rem] font-semibold tracking-[-0.05em] text-[var(--foreground)] outline-none transition focus:border-[var(--border)] focus:bg-white focus:px-3 focus:py-2.5 sm:text-[2rem]"
                 />
                 <input
                   value={activeSession.focus}
@@ -1417,9 +1420,9 @@ export function WorkoutExperience() {
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-[var(--border)] bg-white/92 px-4 py-3.5">
+              <div className="rounded-[20px] border border-[var(--border)] bg-white/92 px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Прогресс</p>
-                <p className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-[var(--foreground)]">
+                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[var(--foreground)]">
                   {activeSession.summary.completedExercises}/{activeSession.summary.totalExercises}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -1461,7 +1464,7 @@ export function WorkoutExperience() {
                 />
               ))}
 
-              <section className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-[rgba(247,249,246,0.82)] p-4 sm:p-5">
+              <section className="rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[rgba(247,249,246,0.82)] p-4">
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_auto] lg:items-end">
                   <label className="grid gap-2">
                     <span className="text-sm font-semibold text-[var(--foreground)]">Добавить упражнение</span>
@@ -1508,12 +1511,22 @@ export function WorkoutExperience() {
               <SurfaceButton onClick={finishWorkoutSession} className="w-full sm:w-auto">
                 Завершить тренировку
               </SurfaceButton>
+              <QuietButton
+                onClick={() => {
+                  if (window.confirm("Удалить эту тренировку целиком?")) {
+                    deleteWorkoutSession(activeSession.id);
+                  }
+                }}
+                className="w-full sm:w-auto text-[rgb(161,72,87)] hover:border-[rgb(161,72,87)] hover:text-[rgb(161,72,87)]"
+              >
+                Удалить
+              </QuietButton>
               </div>
             </div>
           </SectionCard>
         ) : null}
 
-        <SectionCard className="rounded-[30px] p-4 sm:p-6">
+        <SectionCard className="rounded-[28px] p-4 sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
@@ -1604,7 +1617,7 @@ export function WorkoutExperience() {
         </SectionCard>
 
         {summarySession ? (
-          <SectionCard className="rounded-[30px] p-4 sm:p-6">
+          <SectionCard className="rounded-[28px] p-4 sm:p-5">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
@@ -1672,7 +1685,7 @@ export function WorkoutExperience() {
           </SectionCard>
         ) : null}
 
-        <SectionCard className="rounded-[30px] p-4 sm:p-6">
+        <SectionCard className="rounded-[28px] p-4 sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-3xl">
@@ -1699,7 +1712,7 @@ export function WorkoutExperience() {
                     selected={summarySession?.id === session.id}
                     onOpen={() => {
                       setSelectedDate(session.date);
-                      setSelectedWorkoutSession(session.id);
+                      setSelectedSummarySessionId(session.id);
                     }}
                   />
                 ))
@@ -1709,7 +1722,6 @@ export function WorkoutExperience() {
           </div>
         </SectionCard>
 
-        <WorkoutAssistantPanel />
       </WorkspaceSectionShell>
 
       {isBuilderOpen ? (

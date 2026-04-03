@@ -118,6 +118,7 @@ export type WorkoutSession = {
   routineId: string | null;
   startedAt: string;
   completedAt: string | null;
+  deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
   summary: WorkoutSessionSummary;
@@ -141,6 +142,7 @@ export type WorkoutRoutine = {
   createdAt: string;
   updatedAt: string;
   lastUsedAt: string | null;
+  deletedAt: string | null;
 };
 
 export type WorkoutExerciseTemplate = {
@@ -991,6 +993,7 @@ export function createWorkoutSession(
     routineId: options.routineId ?? null,
     startedAt: timestamp,
     completedAt: null,
+    deletedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
     summary: buildEmptyWorkoutSessionSummary(),
@@ -1044,6 +1047,7 @@ export function createWorkoutRoutine(
     createdAt: timestamp,
     updatedAt: timestamp,
     lastUsedAt: null,
+    deletedAt: null,
   };
 }
 
@@ -1461,6 +1465,9 @@ export function sanitizeWorkoutSession(value: unknown): WorkoutSession | null {
     completedAt: isIsoTimestamp(candidate.completedAt)
       ? new Date(candidate.completedAt).toISOString()
       : null,
+    deletedAt: isIsoTimestamp(candidate.deletedAt)
+      ? new Date(candidate.deletedAt).toISOString()
+      : null,
     createdAt: new Date(createdAt).toISOString(),
     updatedAt: new Date(updatedAt).toISOString(),
     summary: sanitizeWorkoutSessionSummary(candidate.summary, computedSummary),
@@ -1506,7 +1513,18 @@ export function sanitizeWorkoutRoutine(value: unknown): WorkoutRoutine | null {
     lastUsedAt: isIsoTimestamp(candidate.lastUsedAt)
       ? new Date(candidate.lastUsedAt).toISOString()
       : null,
+    deletedAt: isIsoTimestamp(candidate.deletedAt)
+      ? new Date(candidate.deletedAt).toISOString()
+      : null,
   };
+}
+
+export function isWorkoutSessionDeleted(session: Pick<WorkoutSession, "deletedAt">) {
+  return Boolean(session.deletedAt);
+}
+
+export function isWorkoutRoutineDeleted(routine: Pick<WorkoutRoutine, "deletedAt">) {
+  return Boolean(routine.deletedAt);
 }
 
 function formatMetricDisplay(key: WorkoutMetricKey, value: number) {

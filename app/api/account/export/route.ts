@@ -8,6 +8,7 @@ import {
 } from "docx";
 
 import { requireUser } from "@/lib/auth";
+import { isWorkoutRoutineDeleted, isWorkoutSessionDeleted } from "@/lib/workouts";
 import { getWorkspaceSnapshot } from "@/lib/workspace-sync-server";
 
 type DayBucket = {
@@ -150,6 +151,7 @@ export async function GET(request: Request) {
     }
 
     for (const workout of snapshot.workspaceSync.workouts) {
+      if (isWorkoutSessionDeleted(workout)) continue;
       const date = normalizeDate(workout.date);
       if (!date) continue;
       ensureDay(date).workouts.push(workout);
@@ -262,9 +264,13 @@ export async function GET(request: Request) {
     }
 
     // Workout routines
-    if (snapshot.workspaceSync.workoutRoutines.length > 0) {
+    const visibleRoutines = snapshot.workspaceSync.workoutRoutines.filter(
+      (routine) => !isWorkoutRoutineDeleted(routine),
+    );
+
+    if (visibleRoutines.length > 0) {
       sections.push(heading("Шаблоны тренировок", HeadingLevel.HEADING_1));
-      for (const routine of snapshot.workspaceSync.workoutRoutines) {
+      for (const routine of visibleRoutines) {
         sections.push(line(`• ${routine.name}`, 22, 200));
         if (routine.focus) {
           sections.push(line(`  Фокус: ${routine.focus}`, 20, 280));
