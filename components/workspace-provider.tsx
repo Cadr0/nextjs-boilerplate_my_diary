@@ -70,6 +70,7 @@ import {
   metricTemplateLibrary,
   normalizeMetricValue,
   sanitizeMetricDefinition,
+  serializeMetricDefinitionsForSave,
   serializeServerPayload,
   shiftIsoDate,
 } from "@/lib/workspace";
@@ -318,6 +319,8 @@ type WorkspaceSyncResponse =
       error: string;
     };
 
+const ENTRY_AUTOSAVE_IDLE_MS = 5000;
+
 function buildEntriesByDate(entries: DiaryEntry[]) {
   return entries.reduce<Record<string, DiaryEntry>>((result, entry) => {
     if (!result[entry.entry_date]) {
@@ -341,6 +344,41 @@ function buildMemoryDraftFingerprint(summary: string, notes: string) {
     summary: normalizedSummary,
     notes: normalizedNotes,
   });
+}
+
+function getRevisionTimestamp(value: string | null | undefined) {
+  const timestamp = Date.parse(value ?? "");
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function isRevisionAfter(candidate: string | null | undefined, baseline: string | null | undefined) {
+  const candidateTimestamp = getRevisionTimestamp(candidate);
+  const baselineTimestamp = getRevisionTimestamp(baseline);
+
+  if (candidateTimestamp === null || baselineTimestamp === null) {
+    return false;
+  }
+
+  return candidateTimestamp > baselineTimestamp;
+}
+
+function normalizeDraftMetricValues(
+  definitions: MetricDefinition[],
+  values: Record<string, MetricValue>,
+) {
+  return definitions.reduce<Record<string, MetricValue>>((result, definition) => {
+    if (!definition.isActive) {
+      return result;
+    }
+
+    const currentValue = values[definition.id];
+    result[definition.id] =
+      currentValue === undefined
+        ? getMetricDefaultValue(definition)
+        : normalizeMetricValue(definition, currentValue);
+
+    return result;
+  }, {});
 }
 
 function isIsoTimestamp(value: unknown): value is string {
@@ -672,12 +710,15 @@ export function WorkspaceProvider({
   const [saveState, setSaveState] = useState<SaveState>(
     isConfigured ? (initialError ? "error" : "saved") : "local",
   );
+  const [isEntrySaveInFlight, setIsEntrySaveInFlight] = useState(false);
   const [error, setError] = useState<string | null>(isConfigured ? initialError : null);
   const [analysisState, setAnalysisState] = useState<"idle" | "loading" | "error">("idle");
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const lastServerRefreshRef = useRef(0);
+  const autosaveTimeoutRef = useRef<number | null>(null);
   const refreshTimeoutRef = useRef<number | null>(null);
+  const pendingServerRefreshRef = useRef(false);
   const bootstrapAbortRef = useRef<AbortController | null>(null);
   const storageKey = accountInfo?.userId
     ? `${WORKSPACE_STORAGE_KEY}:${accountInfo.userId}`
@@ -1168,6 +1209,7 @@ export function WorkspaceProvider({
         throw new Error(("error" in result ? result.error : null) ?? "Failed to refresh workspace.");
       }
 
+      lastServerRefreshRef.current = Date.now();
       applyServerSnapshot({
         entries: result.entries,
         metricDefinitions: result.metricDefinitions,
@@ -1193,10 +1235,20 @@ export function WorkspaceProvider({
   });
 
   const queueWorkspaceRefresh = useEffectEvent((delay = 250) => {
+    if (
+      document.visibilityState === "hidden" ||
+      hasUnsavedChanges ||
+      isEntrySaveInFlight
+    ) {
+      pendingServerRefreshRef.current = true;
+      return;
+    }
+
     if (refreshTimeoutRef.current !== null) {
       window.clearTimeout(refreshTimeoutRef.current);
     }
 
+    pendingServerRefreshRef.current = false;
     refreshTimeoutRef.current = window.setTimeout(() => {
       refreshTimeoutRef.current = null;
       void refreshWorkspaceSnapshot();
@@ -1205,6 +1257,11 @@ export function WorkspaceProvider({
 
   useEffect(() => {
     return () => {
+      if (autosaveTimeoutRef.current !== null) {
+        window.clearTimeout(autosaveTimeoutRef.current);
+        autosaveTimeoutRef.current = null;
+      }
+
       if (refreshTimeoutRef.current !== null) {
         window.clearTimeout(refreshTimeoutRef.current);
         refreshTimeoutRef.current = null;
@@ -1213,6 +1270,20 @@ export function WorkspaceProvider({
       bootstrapAbortRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      !canPersistToServer ||
+      !pendingServerRefreshRef.current ||
+      document.visibilityState === "hidden" ||
+      hasUnsavedChanges ||
+      isEntrySaveInFlight
+    ) {
+      return;
+    }
+
+    queueWorkspaceRefresh(0);
+  }, [canPersistToServer, hasUnsavedChanges, isEntrySaveInFlight]);
 
   useEffect(() => {
     if (!canPersistToServer) {
@@ -1224,7 +1295,7 @@ export function WorkspaceProvider({
         return;
       }
 
-      if (saveState === "saving" || hasUnsavedChanges) {
+      if (hasUnsavedChanges || isEntrySaveInFlight) {
         return;
       }
 
@@ -1251,7 +1322,7 @@ export function WorkspaceProvider({
       window.removeEventListener("focus", refreshFromServer);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [canPersistToServer, hasUnsavedChanges, saveState]);
+  }, [canPersistToServer, hasUnsavedChanges, isEntrySaveInFlight]);
 
   useEffect(() => {
     if (!supabase || !accountInfo?.userId) {
@@ -1259,10 +1330,6 @@ export function WorkspaceProvider({
     }
 
     const scheduleRefresh = () => {
-      if (document.visibilityState === "hidden") {
-        return;
-      }
-
       queueWorkspaceRefresh(150);
     };
     const tables = [
@@ -1312,8 +1379,10 @@ export function WorkspaceProvider({
   const saveSelectedPayload = async (
     payloadFingerprint: string,
     payload: typeof selectedPayload,
+    draftSnapshot: WorkspaceDraft,
   ) => {
     try {
+      setIsEntrySaveInFlight(true);
       setSaveState(canPersistToServer ? "saving" : initialError ? "error" : "local");
       setError(initialError);
 
@@ -1340,25 +1409,55 @@ export function WorkspaceProvider({
       }
 
       const nextMetricDefinitions = result.metricDefinitions.map(sanitizeMetricDefinition);
-      savedFingerprints.current[payload.entry_date] = payloadFingerprint;
+      const savedFingerprint = buildEntryFingerprint(
+        result.entry,
+        payload.entry_date,
+        nextMetricDefinitions,
+      );
+      const sentDefinitionsFingerprint = serializeMetricDefinitionsForSave(
+        payload.metric_definitions,
+      );
+
+      savedFingerprints.current[payload.entry_date] = savedFingerprint;
+      lastServerRefreshRef.current = Date.now();
       setServerEntries((current) =>
         sortEntries([
           result.entry,
           ...current.filter((entry) => entry.entry_date !== result.entry.entry_date),
         ]),
       );
-      setWorkspaceState((current) => ({
-        ...current,
-        metricDefinitions: nextMetricDefinitions,
-        drafts: {
-          ...current.drafts,
-          [payload.entry_date]: createDraftFromEntry(
-            result.entry,
-            nextMetricDefinitions,
-            payload.entry_date,
-          ),
-        },
-      }));
+      setWorkspaceState((current) => {
+        const currentDefinitionsFingerprint = serializeMetricDefinitionsForSave(
+          current.metricDefinitions,
+        );
+        const mergedMetricDefinitions =
+          currentDefinitionsFingerprint === sentDefinitionsFingerprint
+            ? nextMetricDefinitions
+            : mergeMetricDefinitions(nextMetricDefinitions, current.metricDefinitions);
+        const currentDraft =
+          current.drafts[payload.entry_date] ??
+          createDraftFromEntry(result.entry, mergedMetricDefinitions, payload.entry_date);
+        const nextDraft = isRevisionAfter(currentDraft.updatedAt, draftSnapshot.updatedAt)
+          ? {
+              ...currentDraft,
+              date: payload.entry_date,
+              metricValues: normalizeDraftMetricValues(
+                mergedMetricDefinitions,
+                currentDraft.metricValues,
+              ),
+              serverUpdatedAt: result.entry.updated_at,
+            }
+          : createDraftFromEntry(result.entry, mergedMetricDefinitions, payload.entry_date);
+
+        return {
+          ...current,
+          metricDefinitions: mergedMetricDefinitions,
+          drafts: {
+            ...current.drafts,
+            [payload.entry_date]: nextDraft,
+          },
+        };
+      });
       setSaveState("saved");
 
       const memoryFingerprint = buildMemoryDraftFingerprint(
@@ -1381,6 +1480,8 @@ export function WorkspaceProvider({
           : "Не удалось сохранить изменения.",
       );
       return null;
+    } finally {
+      setIsEntrySaveInFlight(false);
     }
   };
 
@@ -1446,8 +1547,12 @@ export function WorkspaceProvider({
   };
 
   const syncSelectedPayload = useEffectEvent(
-    (payloadFingerprint: string, payload: typeof selectedPayload) => {
-      void saveSelectedPayload(payloadFingerprint, payload);
+    (
+      payloadFingerprint: string,
+      payload: typeof selectedPayload,
+      draftSnapshot: WorkspaceDraft,
+    ) => {
+      void saveSelectedPayload(payloadFingerprint, payload, draftSnapshot);
     },
   );
 
@@ -1461,25 +1566,44 @@ export function WorkspaceProvider({
       return;
     }
 
+    if (autosaveTimeoutRef.current !== null) {
+      window.clearTimeout(autosaveTimeoutRef.current);
+      autosaveTimeoutRef.current = null;
+    }
+
     if (!hasUnsavedChanges) {
-      setSaveState("saved");
+      if (!isEntrySaveInFlight) {
+        setSaveState("saved");
+      }
       return;
     }
 
-    setSaveState("saving");
+    if (isEntrySaveInFlight) {
+      return;
+    }
 
-    const timeoutId = window.setTimeout(() => {
-      void syncSelectedPayload(selectedPayloadFingerprint, selectedPayload);
-    }, 700);
+    autosaveTimeoutRef.current = window.setTimeout(() => {
+      autosaveTimeoutRef.current = null;
+      void syncSelectedPayload(
+        selectedPayloadFingerprint,
+        selectedPayload,
+        selectedDraft,
+      );
+    }, ENTRY_AUTOSAVE_IDLE_MS);
 
     return () => {
-      window.clearTimeout(timeoutId);
+      if (autosaveTimeoutRef.current !== null) {
+        window.clearTimeout(autosaveTimeoutRef.current);
+        autosaveTimeoutRef.current = null;
+      }
     };
   }, [
     canPersistToServer,
     hasUnsavedChanges,
+    isEntrySaveInFlight,
     initialError,
     isHydrated,
+    selectedDraft,
     selectedPayload,
     selectedPayloadFingerprint,
   ]);
@@ -1618,7 +1742,18 @@ export function WorkspaceProvider({
     });
   };
 
-  const saveEntry = async () => saveSelectedPayload(selectedPayloadFingerprint, selectedPayload);
+  const saveEntry = async () => {
+    if (isEntrySaveInFlight) {
+      return null;
+    }
+
+    if (autosaveTimeoutRef.current !== null) {
+      window.clearTimeout(autosaveTimeoutRef.current);
+      autosaveTimeoutRef.current = null;
+    }
+
+    return saveSelectedPayload(selectedPayloadFingerprint, selectedPayload, selectedDraft);
+  };
 
   const setSelectedDate = (date: string) => {
     setSelectedDateState(date);

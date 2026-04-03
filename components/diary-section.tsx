@@ -244,8 +244,10 @@ export function DiarySection() {
   const saveStatusTitle =
     saveState === "error"
       ? error ?? "Не удалось сохранить изменения."
-      : saveState === "saving" || hasUnsavedChanges
+      : saveState === "saving"
         ? "Сохраняем изменения..."
+        : hasUnsavedChanges
+          ? "Сохраним изменения через 5 секунд после последнего изменения."
         : saveState === "local"
           ? "Локальный режим: изменения не отправляются на сервер."
           : "Все изменения сохранены.";

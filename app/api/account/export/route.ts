@@ -92,7 +92,7 @@ function formatMetricValue(name: string, value: string) {
 
 export async function GET(request: Request) {
   try {
-    const user = await requireUser();
+    await requireUser();
 
     const { searchParams } = new URL(request.url);
     const daysParam = searchParams.get('days');
@@ -220,7 +220,7 @@ export async function GET(request: Request) {
 
               for (const log of exercise.logs) {
                 const values = Object.entries(log.values ?? {})
-                  .filter(([_, v]) => v)
+                  .filter(([, v]) => v)
                   .map(([k, v]) => {
                     const name = metricNameMap.get(k) || k;
                     return `${name}: ${valueToText(v)}`;

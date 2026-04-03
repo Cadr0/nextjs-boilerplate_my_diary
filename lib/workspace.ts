@@ -930,6 +930,28 @@ function sortMetricDefinitions(definitions: MetricDefinition[]) {
     .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name));
 }
 
+function getSerializableMetricDefinitions(definitions: MetricDefinition[]) {
+  return sortMetricDefinitions(definitions).map((metric) => ({
+    id: metric.id,
+    slug: metric.slug,
+    name: metric.name,
+    description: metric.description,
+    type: metric.type,
+    unitPreset: metric.unitPreset,
+    unit: metric.unit,
+    min: metric.min ?? null,
+    max: metric.max ?? null,
+    step: metric.step ?? null,
+    accent: metric.accent,
+    icon: metric.icon,
+    sortOrder: metric.sortOrder,
+    showInDiary: metric.showInDiary,
+    showInAnalytics: metric.showInAnalytics,
+    isActive: metric.isActive,
+    carryForward: metric.carryForward,
+  }));
+}
+
 const metricSemanticKeywords: Record<MetricSemanticKey, string[]> = {
   mood: ["mood", "настроение"],
   energy: ["energy", "энергия"],
@@ -958,26 +980,12 @@ export function findMetricDefinitionBySemantic(
   );
 }
 
+export function serializeMetricDefinitionsForSave(definitions: MetricDefinition[]) {
+  return JSON.stringify(getSerializableMetricDefinitions(definitions));
+}
+
 export function serializeServerPayload(payload: DiaryEntryInput) {
-  const sortedDefinitions = sortMetricDefinitions(payload.metric_definitions).map((metric) => ({
-    id: metric.id,
-    slug: metric.slug,
-    name: metric.name,
-    description: metric.description,
-    type: metric.type,
-    unitPreset: metric.unitPreset,
-    unit: metric.unit,
-    min: metric.min ?? null,
-    max: metric.max ?? null,
-    step: metric.step ?? null,
-    accent: metric.accent,
-    icon: metric.icon,
-    sortOrder: metric.sortOrder,
-    showInDiary: metric.showInDiary,
-    showInAnalytics: metric.showInAnalytics,
-    isActive: metric.isActive,
-    carryForward: metric.carryForward,
-  }));
+  const sortedDefinitions = getSerializableMetricDefinitions(payload.metric_definitions);
   const sortedValues = sortedDefinitions.reduce<Record<string, MetricValue>>((result, metric) => {
     result[metric.id] = payload.metric_values[metric.id];
     return result;
@@ -1017,7 +1025,7 @@ export function buildServerPayload(
     notes: draft.notes,
     metric_definitions: sortedMetricDefinitions,
     metric_values: metricValues,
-    client_updated_at: draft.updatedAt,
+    client_updated_at: draft.serverUpdatedAt ?? undefined,
   };
 }
 
