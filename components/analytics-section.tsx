@@ -24,18 +24,6 @@ import {
 
 type AnalyticsView = "trends" | "list";
 
-type QuickRangePreset = {
-  id: string;
-  label: string;
-  days: number;
-};
-
-const QUICK_RANGE_PRESETS: QuickRangePreset[] = [
-  { id: "week", label: "7 дней", days: 6 },
-  { id: "fortnight", label: "14 дней", days: 13 },
-  { id: "month", label: "30 дней", days: 29 },
-];
-
 function average(values: number[]) {
   if (values.length === 0) {
     return null;
@@ -81,8 +69,7 @@ export function AnalyticsSection() {
     serverEntries,
     workouts,
   } = useWorkspace();
-  const [fromDate, setFromDate] = useState(() => shiftIsoDate(selectedDate, -13));
-  const [toDate, setToDate] = useState(() => selectedDate);
+  const [daysBack, setDaysBack] = useState(13);
   const [view, setView] = useState<AnalyticsView>("trends");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [analysisState, setAnalysisState] = useState<"idle" | "loading" | "error">("idle");
@@ -90,8 +77,8 @@ export function AnalyticsSection() {
   const [analysisText, setAnalysisText] = useState("");
   const [analysisFollowUps, setAnalysisFollowUps] = useState<string[]>([]);
   const analysisAbortRef = useRef<AbortController | null>(null);
-  const rangeStart = fromDate <= toDate ? fromDate : toDate;
-  const rangeEnd = fromDate <= toDate ? toDate : fromDate;
+  const rangeEnd = selectedDate;
+  const rangeStart = shiftIsoDate(selectedDate, -(daysBack - 1));
   const rangeKey = useMemo(() => `${rangeStart}:${rangeEnd}`, [rangeEnd, rangeStart]);
   const persistedAnalysis = periodAnalyses[rangeKey] ?? null;
 
@@ -163,9 +150,6 @@ export function AnalyticsSection() {
   );
 
   const totalNotes = deferredEntries.reduce((sum, entry) => sum + entry.notes.trim().length, 0);
-  const activeRangePreset = QUICK_RANGE_PRESETS.find(
-    (preset) => fromDate === shiftIsoDate(toDate, -preset.days),
-  )?.id;
   const rangePayload = deferredEntries.map((entry) => ({
     entry_date: entry.entry_date,
     summary: entry.summary,
@@ -342,11 +326,6 @@ export function AnalyticsSection() {
     }
   };
 
-  const applyQuickRange = (days: number) => {
-    setToDate(selectedDate);
-    setFromDate(shiftIsoDate(selectedDate, -days));
-  };
-
   const sidebarContent = (
     <WorkspaceSidebarFrame
       eyebrow="Analytics"
@@ -371,42 +350,35 @@ export function AnalyticsSection() {
       }
     >
       <WorkspaceSidebarSection
-        label="Быстрый диапазон"
+        label="Период анализа"
         meta={`${deferredEntries.length} дней`}
       >
-        <div className="grid gap-2">
-          {QUICK_RANGE_PRESETS.map((preset) => {
-            const isActive = activeRangePreset === preset.id;
-
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => {
-                  applyQuickRange(preset.days);
-                  setIsMobileSidebarOpen(false);
-                }}
-                className={`rounded-[20px] px-4 py-3 text-left transition ${
-                  isActive
-                    ? "bg-[var(--accent)] text-white shadow-[0_14px_30px_rgba(47,111,97,0.22)]"
-                    : "bg-white/74 text-[var(--foreground)] hover:bg-[rgba(47,111,97,0.08)]"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-semibold">{preset.label}</span>
-                  <span
-                    className={`rounded-full px-2 py-1 text-[11px] ${
-                      isActive
-                        ? "bg-white/16 text-white"
-                        : "bg-[rgba(47,111,97,0.08)] text-[var(--accent)]"
-                    }`}
-                  >
-                    до {formatCompactDate(selectedDate)}
-                  </span>
-                </div>
-              </button>
-              );
-          })}
+        <div className="grid gap-3">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-sm text-[var(--foreground)]">Дней назад</span>
+            <span className="rounded-full border border-[var(--border)] bg-white/95 px-3 py-1 text-sm font-medium text-[var(--foreground)]">
+              {daysBack}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={1}
+            max={90}
+            value={daysBack}
+            onChange={(event) => {
+              setDaysBack(Number(event.target.value));
+              setIsMobileSidebarOpen(false);
+            }}
+            className="h-2.5 w-full cursor-pointer appearance-none rounded-full"
+            style={{
+              accentColor: "var(--accent)",
+              background: `linear-gradient(90deg, var(--accent) 0%, var(--accent) ${((daysBack - 1) / 89) * 100}%, rgba(24,33,29,0.08) ${((daysBack - 1) / 89) * 100}%, rgba(24,33,29,0.08) 100%)`,
+            }}
+          />
+          <div className="flex justify-between px-1 text-[11px] text-[var(--muted)]">
+            <span>1 день</span>
+            <span>90 дней</span>
+          </div>
         </div>
       </WorkspaceSidebarSection>
 
@@ -521,27 +493,30 @@ export function AnalyticsSection() {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] lg:items-end">
-          <label className="grid gap-2">
-            <span className="text-sm font-medium text-[var(--foreground)]">От</span>
+      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <label className="grid gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-[var(--foreground)]">Период анализа</span>
+              <span className="rounded-full border border-[var(--border)] bg-white/95 px-3 py-1 text-sm font-medium text-[var(--foreground)]">
+                {daysBack} дней
+              </span>
+            </div>
             <input
-              type="date"
-              value={fromDate}
-              onChange={(event) => setFromDate(event.target.value)}
-              className="min-h-12 rounded-[20px] border border-[var(--border)] bg-white/95 px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+              type="range"
+              min={1}
+              max={90}
+              value={daysBack}
+              onChange={(event) => setDaysBack(Number(event.target.value))}
+              className="h-2.5 w-full cursor-pointer appearance-none rounded-full"
+              style={{
+                accentColor: "var(--accent)",
+                background: `linear-gradient(90deg, var(--accent) 0%, var(--accent) ${((daysBack - 1) / 89) * 100}%, rgba(24,33,29,0.08) ${((daysBack - 1) / 89) * 100}%, rgba(24,33,29,0.08) 100%)`,
+              }}
             />
-          </label>
-
-          <div className="hidden pb-3 text-sm text-[var(--muted)] lg:block">—</div>
-
-          <label className="grid gap-2">
-            <span className="text-sm font-medium text-[var(--foreground)]">До</span>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(event) => setToDate(event.target.value)}
-              className="min-h-12 rounded-[20px] border border-[var(--border)] bg-white/95 px-4 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-            />
+            <div className="flex justify-between text-[11px] text-[var(--muted)]">
+              <span>1 день</span>
+              <span>90 дней</span>
+            </div>
           </label>
 
           <button
