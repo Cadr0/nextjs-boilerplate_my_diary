@@ -290,6 +290,7 @@ export function DiarySection() {
       eyebrow="Diary AI"
       title="Дневник"
       currentSection="diary"
+      contentClassName="overflow-hidden"
       headerAction={
         isMobileSidebarOpen ? (
           <button
@@ -306,8 +307,8 @@ export function DiarySection() {
         <WorkspaceUserControls subtitle="Профиль, приложение и выход" />
       }
     >
-      <WorkspaceSidebarSection label="Дни" meta={days.length} className="min-h-0 flex-1">
-        <div className="grid max-h-[52vh] gap-1.5 overflow-y-auto pr-1">
+      <WorkspaceSidebarSection label="Дни" meta={days.length} className="min-h-0 flex flex-1 flex-col overflow-hidden">
+        <div className="grid min-h-0 flex-1 gap-1.5 overflow-y-auto pr-1 [mask-image:linear-gradient(to_bottom,black_0,black_calc(100%-32px),transparent_100%)]">
           {days.slice(0, 40).map((day) => (
             <button
               key={day.date}

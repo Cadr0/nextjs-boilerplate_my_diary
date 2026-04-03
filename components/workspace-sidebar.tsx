@@ -14,6 +14,7 @@ type WorkspaceSidebarFrameProps = {
   children: React.ReactNode;
   footer?: React.ReactNode;
   headerAction?: React.ReactNode;
+  contentClassName?: string;
 };
 
 type WorkspaceSidebarSectionProps = {
@@ -120,6 +121,7 @@ export function WorkspaceSidebarFrame({
   children,
   footer,
   headerAction,
+  contentClassName,
 }: WorkspaceSidebarFrameProps) {
   const pathname = usePathname();
   const activeSection = getCurrentSection(pathname, currentSection);
@@ -158,7 +160,7 @@ export function WorkspaceSidebarFrame({
         </nav>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      <div className={`min-h-0 flex-1 ${contentClassName ?? "overflow-y-auto"}`}>{children}</div>
 
       {footer ? <div className="shrink-0 pt-4">{footer}</div> : null}
     </div>
