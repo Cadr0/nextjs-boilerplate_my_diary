@@ -307,7 +307,7 @@ export function DiarySection() {
       }
     >
       <WorkspaceSidebarSection label="Дни" meta={days.length} className="min-h-0 flex flex-1 flex-col overflow-hidden">
-        <div className="grid min-h-0 flex-1 gap-1.5 overflow-y-auto pr-1 [mask-image:linear-gradient(to_bottom,black_0,black_calc(100%-32px),transparent_100%)]">
+        <div className="grid auto-rows-max content-start min-h-0 flex-1 gap-1.5 overflow-y-auto pr-1 [mask-image:linear-gradient(to_bottom,black_0,black_calc(100%-32px),transparent_100%)]">
           {days.slice(0, 40).map((day) => (
             <button
               key={day.date}
