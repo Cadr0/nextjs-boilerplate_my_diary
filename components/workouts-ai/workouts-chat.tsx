@@ -45,25 +45,26 @@ export function WorkoutsChat({
     <section className="surface-card flex min-h-[72vh] flex-col overflow-hidden rounded-[34px] p-3 sm:p-4">
       <header className="fade-up rounded-[28px] border border-[var(--border)] bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(247,241,231,0.9))] px-4 py-4">
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
-                Workout Copilot
-              </p>
-              <h1 className="mt-1 font-display text-3xl tracking-[-0.05em] text-[var(--foreground)] sm:text-4xl">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
+              Workout Copilot
+            </p>
+
+            <div className="mt-1 flex items-center gap-3">
+              <h1 className="font-display text-3xl tracking-[-0.05em] text-[var(--foreground)] sm:text-4xl">
                 {getHeadingDayLabel(selectedDate)}
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-                Это отдельный AI-чат дня. Всё, что ты напишешь здесь, сохранится именно в
-                тренировочный контекст выбранной даты.
-              </p>
+              <span
+                className="inline-flex h-3.5 w-3.5 shrink-0 rounded-full border border-[rgba(47,111,97,0.22)] bg-[var(--accent)]"
+                aria-hidden="true"
+              />
             </div>
 
-            <div className="hidden items-center gap-2 sm:flex">
+            <div className="mt-4 hidden items-center gap-2 sm:flex">
               <button
                 type="button"
                 onClick={onPreviousDay}
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
                 aria-label="Предыдущий день"
               >
                 <ChevronLeftIcon />
@@ -74,12 +75,17 @@ export function WorkoutsChat({
               <button
                 type="button"
                 onClick={onNextDay}
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/92 text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
                 aria-label="Следующий день"
               >
                 <ChevronRightIcon />
               </button>
             </div>
+
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
+              Это отдельный AI-чат дня. Всё, что ты напишешь здесь, сохранится именно в
+              тренировочный контекст выбранной даты.
+            </p>
           </div>
 
           <div className="mt-1 flex flex-wrap gap-2">
