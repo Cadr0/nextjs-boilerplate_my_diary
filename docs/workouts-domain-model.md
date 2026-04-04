@@ -399,3 +399,30 @@ Backend pipeline сохраняется в два слоя:
 - создаёт typed projections;
 - создаёт correction relation `supersedes`;
 - обновляет status/result у `workout_messages`.
+
+## Custom Activities
+
+The catalog has two classes of activities:
+
+- global canonical activities seeded by the product;
+- user-owned custom activities created when a valid fact names an activity that is not in the catalog yet.
+
+Custom catalog rows use:
+
+- `workout_activity_catalog.is_custom = true`
+- `workout_activity_catalog.created_by_user_id = auth.uid()`
+
+Behavior:
+
+- Unknown activity text is first matched against aliases and fuzzy candidates.
+- If no safe match exists, the backend may create a custom catalog row and attach aliases from the user text.
+- The fact still lands in `workout_events` and the proper typed projection table, so analytics stay usable.
+- Custom activities are private to their owner at the catalog/alias level and are not exposed as global shared vocabulary.
+
+Example:
+
+- `делал упражнения укрепления кисти 10 минут`
+  - creates or reuses a custom timed activity;
+  - stores the fact in `workout_events`;
+  - stores the duration in `workout_timed_entries`;
+  - lets future logs of the same movement aggregate into one metric line instead of becoming free-text noise.

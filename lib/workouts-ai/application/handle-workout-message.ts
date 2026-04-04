@@ -9,6 +9,7 @@ import {
   persistClarificationResult,
   saveIncomingWorkoutMessage,
 } from "@/lib/workouts-ai/application/apply-events";
+import { ensureResolvedActivities } from "@/lib/workouts-ai/application/ensure-activities";
 import {
   loadWorkoutSessionContext,
   resolveContext,
@@ -106,7 +107,9 @@ async function loadWorkoutCatalog(): Promise<WorkoutCatalogLookupItem[]> {
   const [catalogResult, aliasesResult] = await Promise.all([
     supabase
       .from("workout_activity_catalog")
-      .select("id, slug, canonical_name, display_name, activity_type, measurement_mode")
+      .select(
+        "id, slug, canonical_name, display_name, activity_type, measurement_mode, is_custom",
+      )
       .order("display_name", { ascending: true }),
     supabase.from("workout_activity_aliases").select("activity_id, alias"),
   ]);
@@ -134,6 +137,7 @@ async function loadWorkoutCatalog(): Promise<WorkoutCatalogLookupItem[]> {
     displayName: item.display_name,
     activityType: item.activity_type,
     measurementMode: item.measurement_mode,
+    isCustom: Boolean(item.is_custom),
     aliases: aliasMap.get(item.id) ?? [],
   }));
 }
@@ -209,30 +213,38 @@ export async function handleWorkoutMessage(
     catalog,
     entryDate: input.entryDate ?? null,
   });
+  const resolvedWithActivities = await ensureResolvedActivities({
+    userId: input.userId,
+    normalized: resolved,
+    catalog,
+    sessionScope: resolved.sessionContext.activeSessionId,
+  });
 
   const validation = validateParsedResult({
-    intent: resolved.intent,
-    normalized: resolved,
+    intent: resolvedWithActivities.intent,
+    normalized: resolvedWithActivities,
   });
 
   const duplicateInfo = await checkDuplicate({
     userId: input.userId,
     clientMessageId: input.clientMessageId,
-    dedupeKeys: resolved.facts.flatMap((fact) => (fact.dedupeKey ? [fact.dedupeKey] : [])),
+    dedupeKeys: resolvedWithActivities.facts.flatMap((fact) =>
+      fact.dedupeKey ? [fact.dedupeKey] : []
+    ),
   });
 
   if (!validation.canSave) {
     const analysis = analyzeSession({
-      intent: resolved.intent,
-      normalizedFacts: resolved.facts,
+      intent: resolvedWithActivities.intent,
+      normalizedFacts: resolvedWithActivities.facts,
       savedEvents: [],
     });
     const reply = buildAssistantReply({
-      intent: resolved.intent,
-      normalizedFacts: resolved.facts,
+      intent: resolvedWithActivities.intent,
+      normalizedFacts: resolvedWithActivities.facts,
       analysis,
       clarificationQuestion:
-        resolved.clarificationQuestion ??
+        resolvedWithActivities.clarificationQuestion ??
         (validation.requiresClarification ? "Нужна небольшая уточняющая деталь, чтобы сохранить это без ошибки." : null),
       duplicate: false,
     });
@@ -242,25 +254,25 @@ export async function handleWorkoutMessage(
       userId: input.userId,
       rawText: input.message,
       parsed,
-      normalized: resolved,
+      normalized: resolvedWithActivities,
       status: validation.requiresClarification ? "clarification_required" : "processed",
       reply,
-      sessionId: resolved.sessionContext.activeSessionId,
+      sessionId: resolvedWithActivities.sessionContext.activeSessionId,
     })) as Record<string, unknown>;
 
     return {
       duplicate: false,
       messageId: messageSave.message.id,
       clientMessageId: input.clientMessageId,
-      sessionId: resolved.sessionContext.activeSessionId,
+      sessionId: resolvedWithActivities.sessionContext.activeSessionId,
       status: validation.requiresClarification ? "clarification_required" : "processed",
-      intent: resolved.intent,
-      confidence: resolved.confidence,
+      intent: resolvedWithActivities.intent,
+      confidence: resolvedWithActivities.confidence,
       requiresClarification: validation.requiresClarification,
-      clarificationQuestion: resolved.clarificationQuestion,
+      clarificationQuestion: resolvedWithActivities.clarificationQuestion,
       reply,
       parse: parsed,
-      normalized: resolved,
+      normalized: resolvedWithActivities,
       validation,
       analysis,
       savedEvents: [],
@@ -270,11 +282,11 @@ export async function handleWorkoutMessage(
 
   const applyResult = await applyWorkoutEvents({
     messageId: messageSave.message.id,
-    intent: resolved.intent,
-    confidence: resolved.confidence,
-    requiresConfirmation: resolved.requiresConfirmation,
-    facts: resolved.facts,
-    sessionContext: resolved.sessionContext,
+    intent: resolvedWithActivities.intent,
+    confidence: resolvedWithActivities.confidence,
+    requiresConfirmation: resolvedWithActivities.requiresConfirmation,
+    facts: resolvedWithActivities.facts,
+    sessionContext: resolvedWithActivities.sessionContext,
   });
 
   const duplicate =
@@ -282,13 +294,13 @@ export async function handleWorkoutMessage(
     applyResult.savedEvents.every((event) => event.status === "duplicate");
 
   const analysis = analyzeSession({
-    intent: resolved.intent,
-    normalizedFacts: resolved.facts,
+    intent: resolvedWithActivities.intent,
+    normalizedFacts: resolvedWithActivities.facts,
     savedEvents: applyResult.savedEvents,
   });
   const reply = buildAssistantReply({
-    intent: resolved.intent,
-    normalizedFacts: resolved.facts,
+    intent: resolvedWithActivities.intent,
+    normalizedFacts: resolvedWithActivities.facts,
     analysis,
     clarificationQuestion: null,
     duplicate,
@@ -316,15 +328,15 @@ export async function handleWorkoutMessage(
     sessionId:
       typeof applyResult.resultJson.session_id === "string"
         ? applyResult.resultJson.session_id
-        : resolved.sessionContext.activeSessionId,
+        : resolvedWithActivities.sessionContext.activeSessionId,
     status: duplicate ? "duplicate" : "processed",
-    intent: resolved.intent,
-    confidence: resolved.confidence,
+    intent: resolvedWithActivities.intent,
+    confidence: resolvedWithActivities.confidence,
     requiresClarification: false,
     clarificationQuestion: null,
     reply,
     parse: parsed,
-    normalized: resolved,
+    normalized: resolvedWithActivities,
     validation,
     analysis,
     savedEvents: applyResult.savedEvents,

@@ -127,6 +127,8 @@ export type WorkoutActivityCatalogRow = {
   display_name: string;
   activity_type: WorkoutActivityType;
   measurement_mode: WorkoutMeasurementMode;
+  created_by_user_id?: string | null;
+  is_custom?: boolean;
   created_at: IsoTimestamp;
 };
 

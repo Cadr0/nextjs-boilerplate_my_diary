@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 
+import { findBestCatalogActivityMatch } from "@/lib/workouts-ai/domain/activity-catalog";
+
 import type {
   WorkoutAiParsedResult,
   WorkoutNormalizedFact,
@@ -169,6 +171,16 @@ function resolveActivity(
   activityCandidate: string | null,
   catalog: WorkoutCatalogLookupItem[],
 ) {
+  const scoredMatch = findBestCatalogActivityMatch({
+    activityCandidate,
+    fact: { factType: "mixed" },
+    catalog,
+  });
+
+  if (scoredMatch) {
+    return scoredMatch;
+  }
+
   const normalizedCandidate = normalizeText(activityCandidate);
 
   if (!normalizedCandidate) {
@@ -359,7 +371,12 @@ export function normalizeParseResult(
       fact.fact_type === "strength_set"
         ? "strength"
         : (fact.fact_type as WorkoutNormalizedFact["factType"]);
-    const activity = resolveActivity(fact.activity, input.catalog);
+    const activity =
+      findBestCatalogActivityMatch({
+        activityCandidate: fact.activity,
+        fact: { factType },
+        catalog: input.catalog,
+      }) ?? resolveActivity(fact.activity, input.catalog);
     const metrics = buildMetricsByFactType(factType, fact.metrics);
     const occurredAt = readNullableString(fact.occurred_at) ?? nowIso;
 

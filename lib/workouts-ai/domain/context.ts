@@ -7,6 +7,7 @@ export type WorkoutCatalogLookupItem = {
   displayName: string;
   activityType: string;
   measurementMode: string;
+  isCustom?: boolean;
   aliases: string[];
 };
 
