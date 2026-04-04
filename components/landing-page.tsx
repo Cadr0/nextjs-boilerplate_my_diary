@@ -1,94 +1,27 @@
 import Link from "next/link";
 
 import { BrandGlyph } from "@/components/brand-glyph";
+import { BrandWordmark } from "@/components/landing/brand-wordmark";
+import { LandingAnalysisBlock } from "@/components/landing/landing-analysis-block";
+import { LandingCta } from "@/components/landing/landing-cta";
+import { LandingHero } from "@/components/landing/landing-hero";
+import { LandingMemoryBlock } from "@/components/landing/landing-memory-block";
+import { LandingStoryBlock } from "@/components/landing/landing-story-block";
 
 type LandingPageProps = {
   isAuthenticated: boolean;
   isConfigured: boolean;
 };
 
-type FeatureItem = {
-  id: string;
-  title: string;
-  description: string;
-  note: string;
-};
-
-const featureItems: FeatureItem[] = [
-  {
-    id: "journal",
-    title: "Запись дня",
-    description:
-      "Короткий текст или голосовой ввод. Можно просто описать день без автоматических изменений.",
-    note: "Базовый сценарий: заметка + итоги дня.",
-  },
-  {
-    id: "metrics",
-    title: "Метрики под себя",
-    description:
-      "Шкалы, числа, да/нет и текстовые поля. Вы сами выбираете, какие показатели вести и как часто.",
-    note: "Конструктор метрик внутри кабинета.",
-  },
-  {
-    id: "voice",
-    title: "Голос в текст",
-    description:
-      "Аудио переводится в транскрипт. По переключателю можно включать или отключать автозаполнение метрик.",
-    note: "Удобно, когда нет времени печатать.",
-  },
-  {
-    id: "analysis",
-    title: "AI-разбор по кнопке",
-    description:
-      "Анализ запускается явно, а не сам по себе. Есть разбор дня, периодов и чат с учетом ваших данных.",
-    note: "Вы контролируете, когда отправлять запрос.",
-  },
-  {
-    id: "reminders",
-    title: "Умные напоминания",
-    description:
-      "Уведомления включаются в настройках. Рекомендации из анализа можно превращать в конкретные напоминания.",
-    note: "Работает только при разрешении браузера.",
-  },
-  {
-    id: "privacy",
-    title: "Понятный доступ",
-    description:
-      "Вход через email или Google. Данные привязаны к вашему аккаунту, а все ключевые действия видны в интерфейсе.",
-    note: "Без скрытых автодействий.",
-  },
-];
-
-const flowItems = [
-  {
-    title: "Утро: короткая фиксация",
-    text: "Отмечаете состояние и важные метрики. Это занимает пару минут и задает точку отсчета.",
-  },
-  {
-    title: "День: заметка или голос",
-    text: "Добавляете запись как удобно. При необходимости запускаете AI-чат, чтобы получить спокойный разбор.",
-  },
-  {
-    title: "Неделя: анализ периода",
-    text: "Смотрите тренды за диапазон дат и запускаете AI-анализ периода, если хотите увидеть повторяющиеся паттерны.",
-  },
-];
-
-const transparencyItems = [
-  "Сервис не обещает «исправить жизнь за 7 дней» и не заменяет врача или психотерапевта.",
-  "AI выводы — это рекомендации на основе ваших записей, а не медицинская диагностика.",
-  "Метрики и уведомления настраиваются вручную: вы решаете, что учитывать и что отключить.",
-];
-
 export function LandingPage({ isAuthenticated, isConfigured }: LandingPageProps) {
   const primaryHref = isAuthenticated ? "/diary" : "/register";
   const primaryLabel = isAuthenticated ? "Открыть дневник" : "Создать аккаунт";
   const secondaryHref = isAuthenticated ? "/analytics" : "/login";
-  const secondaryLabel = isAuthenticated ? "Период и тренды" : "Войти";
+  const secondaryLabel = isAuthenticated ? "Аналитика" : "Войти";
 
   return (
     <main className="overflow-hidden">
-      <section className="mx-auto w-full max-w-7xl px-4 pb-16 pt-4 sm:px-6 lg:px-8 lg:pb-20">
+      <section className="mx-auto w-full max-w-7xl px-4 pb-2 pt-4 sm:px-6 lg:px-8">
         <header className="glass-panel soft-ring rounded-[2rem] border border-white/75 px-4 py-4 sm:rounded-full sm:px-6 sm:py-3">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <Link href="/" className="flex items-center gap-3">
@@ -97,27 +30,27 @@ export function LandingPage({ isAuthenticated, isConfigured }: LandingPageProps)
             </Link>
 
             <nav className="hidden items-center gap-7 text-sm text-slate-600 lg:flex">
-              <a href="#features" className="transition hover:text-slate-900">
-                Возможности
-              </a>
-              <a href="#flow" className="transition hover:text-slate-900">
+              <a href="#story" className="transition hover:text-slate-900">
                 Как это работает
               </a>
-              <a href="#honest" className="transition hover:text-slate-900">
-                Важно знать
+              <a href="#memory" className="transition hover:text-slate-900">
+                AI-память
+              </a>
+              <a href="#analysis" className="transition hover:text-slate-900">
+                Разбор периода
               </a>
             </nav>
 
             <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center">
               <Link
                 href={secondaryHref}
-                className="min-w-[6.8rem] rounded-full border border-slate-200 bg-white px-4 py-2.5 text-center text-sm font-medium text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-[0_10px_22px_rgba(15,23,42,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/25"
+                className="min-w-[6.8rem] rounded-full border border-slate-200 bg-white px-4 py-2.5 text-center text-sm font-medium text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-[0_10px_22px_rgba(15,23,42,0.08)]"
               >
                 {secondaryLabel}
               </Link>
               <Link
                 href={primaryHref}
-                className="min-w-[10.8rem] rounded-full bg-[linear-gradient(135deg,#1f9a96_0%,#2b73a8_100%)] px-5 py-2.5 text-center text-[0.96rem] font-semibold tracking-[-0.01em] !text-white shadow-[0_14px_30px_rgba(33,116,143,0.3)] ring-1 ring-white/30 transition-all duration-300 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_20px_38px_rgba(33,116,143,0.36)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2b73a8]/35"
+                className="min-w-[10.8rem] rounded-full bg-[linear-gradient(135deg,#1f9a96_0%,#2b73a8_100%)] px-5 py-2.5 text-center text-[0.96rem] font-semibold tracking-[-0.01em] !text-white shadow-[0_14px_30px_rgba(33,116,143,0.3)] ring-1 ring-white/30 transition-all duration-300 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_20px_38px_rgba(33,116,143,0.36)]"
               >
                 {primaryLabel}
               </Link>
@@ -125,311 +58,20 @@ export function LandingPage({ isAuthenticated, isConfigured }: LandingPageProps)
           </div>
         </header>
 
-        <div className="grid items-center gap-8 pt-8 lg:grid-cols-[1fr_0.95fr] lg:gap-12 lg:pt-14">
-          <div className="fade-up max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-white/80 px-4 py-2 text-[0.68rem] uppercase tracking-[0.24em] text-[var(--accent)]">
-              Понятный дневник с AI
-            </div>
-
-            <h1 className="mt-6 text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-6xl sm:leading-[1.02]">
-              Diary AI — это личный кабинет,
-              <br />
-              где записи дня превращаются
-              <br />
-              в полезную динамику.
-            </h1>
-
-            <p className="mt-6 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">
-              Вы регистрируетесь в сервисе для ежедневных заметок, метрик и осознанного анализа.
-              Здесь нет «магии в фоне»: транскрипция, анализ и уведомления запускаются только по
-              понятным действиям.
-            </p>
-
-            {!isConfigured ? (
-              <div className="mt-6 rounded-[1.4rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-                Сейчас auth в проекте настроен не полностью. После подключения всех ключей Supabase
-                вход и регистрация будут доступны в штатном режиме.
-              </div>
-            ) : null}
-          </div>
-
-          <div className="fade-up-delay rounded-[2.4rem] border border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(246,241,233,0.96))] p-5 shadow-[0_26px_74px_rgba(24,33,29,0.1)] sm:p-6">
-            <div className="rounded-[1.6rem] border border-[var(--line)] bg-white/85 p-4 sm:p-5">
-              <div className="flex items-center justify-between">
-                <BrandWordmark />
-                <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
-                  живой макет
-                </span>
-              </div>
-
-              <div className="mt-4 grid gap-3">
-                <article className="rounded-[1.2rem] border border-[var(--line)] bg-white/92 px-3 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
-                        <SectionIcon id="voice" />
-                      </span>
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">Голосовой ввод</p>
-                        <p className="text-xs text-slate-500">Транскрипт + авто-метрики</p>
-                      </div>
-                    </div>
-                    <span className="rounded-full border border-[var(--line)] bg-white px-2.5 py-1 text-[0.68rem] font-medium text-slate-500">
-                      до 3 минут
-                    </span>
-                  </div>
-
-                  <div className="mt-3 rounded-[1rem] border border-[var(--line)] bg-[rgba(247,249,246,0.94)] px-3 py-2.5">
-                    <p className="text-xs leading-5 text-slate-600">
-                      «Сегодня проснулся рано, настроение 8 из 10, сон 7 часов, тренировка 20 минут.
-                      Вечером хочу лечь до 23:30».
-                    </p>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                      Заполнять метрики: включено
-                    </span>
-                    <span>Текст извлечен</span>
-                  </div>
-                </article>
-
-                <article className="rounded-[1.2rem] border border-[var(--line)] bg-white/92 px-3 py-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-sm font-semibold text-slate-900">Измененные метрики</p>
-                    <span className="text-xs text-slate-500">авто по голосу</span>
-                  </div>
-                  <div className="grid gap-2.5">
-                    <MetricSliderRow label="Энергия" valueLabel="8/10" defaultValue={8} />
-                    <MetricSliderRow label="Настроение" valueLabel="8/10" defaultValue={8} />
-                    <MetricSliderRow label="Сон" valueLabel="7 ч" defaultValue={7} />
-                    <MetricSliderRow label="Тренировка" valueLabel="20 мин" defaultValue={6} />
-                  </div>
-                </article>
-
-                <article className="rounded-[1.2rem] border border-[var(--line)] bg-[linear-gradient(180deg,#f8fbff,#ffffff)] px-3 py-3">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
-                      <SectionIcon id="analysis" />
-                    </span>
-                    <p className="text-sm font-semibold text-slate-900">Короткий вывод AI</p>
-                  </div>
-                  <div className="mt-2 rounded-[0.9rem] border border-[var(--line)] bg-white/92 px-3 py-2.5">
-                    <p className="text-xs leading-5 text-slate-700">
-                      День выглядит стабильно: энергия и настроение в верхней зоне. Чтобы сохранить
-                      ритм, планируйте отбой до 23:30 и оставьте короткую вечернюю заметку.
-                    </p>
-                  </div>
-                </article>
-              </div>
-            </div>
-          </div>
-        </div>
+        <LandingHero
+          primaryHref={primaryHref}
+          primaryLabel={primaryLabel}
+          secondaryHref={secondaryHref}
+          isConfigured={isConfigured}
+        />
       </section>
 
-      <section id="features" className="mx-auto w-full max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
-        <div className="mb-5">
-          <p className="text-[0.72rem] uppercase tracking-[0.28em] text-[var(--accent)]">
-            Возможности
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-slate-950 sm:text-4xl">
-            Что реально есть в сервисе
-          </h2>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {featureItems.map((item) => (
-            <article
-              key={item.title}
-              className="glass-panel rounded-[1.9rem] border border-white/75 p-5 shadow-[0_20px_46px_rgba(24,33,29,0.08)]"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
-                  <SectionIcon id={item.id} />
-                </div>
-                <span className="rounded-full border border-[var(--line)] bg-white/90 px-3 py-1 text-[0.68rem] uppercase tracking-[0.16em] text-slate-400">
-                  Diary AI
-                </span>
-              </div>
-              <h3 className="mt-4 text-2xl font-semibold text-slate-900">{item.title}</h3>
-              <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">{item.description}</p>
-              <p className="mt-4 text-xs leading-6 text-slate-500">{item.note}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section id="flow" className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
-        <div className="rounded-[2.4rem] border border-white/75 bg-[linear-gradient(180deg,rgba(246,251,249,0.92),rgba(255,250,244,0.95))] p-6 shadow-[0_24px_70px_rgba(24,33,29,0.09)] sm:p-8">
-          <p className="text-[0.72rem] uppercase tracking-[0.28em] text-[var(--accent)]">
-            Как это выглядит
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-slate-950 sm:text-4xl">
-            Спокойный рабочий цикл без перегруза
-          </h2>
-
-          <div className="mt-6 grid gap-4 lg:grid-cols-3">
-            {flowItems.map((item, index) => (
-              <article
-                key={item.title}
-                className="rounded-[1.7rem] border border-[var(--line)] bg-white/85 p-5"
-              >
-                <span className="text-[0.7rem] uppercase tracking-[0.2em] text-slate-400">
-                  Шаг {index + 1}
-                </span>
-                <h3 className="mt-3 text-xl font-semibold text-slate-900">{item.title}</h3>
-                <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">{item.text}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="honest" className="mx-auto w-full max-w-7xl px-4 pb-16 pt-2 sm:px-6 lg:px-8 lg:pb-24">
-        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-[2.2rem] border border-white/75 bg-white/78 p-6 shadow-[0_24px_60px_rgba(24,33,29,0.08)] sm:p-8">
-            <p className="text-[0.72rem] uppercase tracking-[0.28em] text-[var(--accent)]">
-              Важно знать заранее
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-slate-950 sm:text-4xl">
-              Честные рамки сервиса
-            </h2>
-
-            <div className="mt-6 grid gap-3">
-              {transparencyItems.map((item) => (
-                <div
-                  key={item}
-                  className="flex items-start gap-3 rounded-[1.4rem] border border-[var(--line)] bg-[rgba(247,250,247,0.9)] px-4 py-3"
-                >
-                  <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
-                    <CheckIcon />
-                  </span>
-                  <p className="text-sm leading-7 text-slate-600">{item}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[2.2rem] border border-white/75 bg-[var(--accent-strong)] p-6 text-white shadow-[0_24px_60px_rgba(24,33,29,0.12)] sm:p-8">
-            <h2 className="text-3xl font-semibold tracking-[-0.03em]">Готово к старту</h2>
-            <p className="mt-4 text-sm leading-7 text-white/80 sm:text-base">
-              Регистрация нужна для личного кабинета, истории записей и ваших настроек. После входа
-              вы сразу попадаете в дневник дня и можете работать в своем темпе.
-            </p>
-
-            <div className="mt-6 rounded-[1rem] border border-white/20 bg-white/8 px-4 py-3 text-sm leading-6 text-white/80">
-              Вход и регистрация вынесены в верхнюю панель. Здесь мы оставили только описание, без
-              дублирующих кнопок.
-            </div>
-          </div>
-        </div>
+      <section className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <LandingStoryBlock />
+        <LandingMemoryBlock />
+        <LandingAnalysisBlock />
+        <LandingCta registerHref="/register" loginHref="/login" />
       </section>
     </main>
-  );
-}
-
-function BrandWordmark({ compact = false }: { compact?: boolean }) {
-  return (
-    <span className={`leading-none ${compact ? "text-2xl" : "text-[2rem] sm:text-[2.3rem]"}`}>
-      <span className="font-semibold tracking-[-0.04em] text-[#1f9a96]">Diary</span>
-      <span className="ml-2 font-semibold tracking-[-0.04em] text-[#2b73a8]">AI</span>
-    </span>
-  );
-}
-
-function MetricSliderRow({
-  label,
-  valueLabel,
-  defaultValue,
-}: {
-  label: string;
-  valueLabel: string;
-  defaultValue: number;
-}) {
-  return (
-    <div className="rounded-[0.95rem] border border-[var(--line)] bg-[rgba(247,249,246,0.94)] px-2.5 py-2">
-      <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
-        <span className="font-medium text-slate-700">{label}</span>
-        <span className="rounded-full bg-white px-2 py-0.5 font-semibold text-[var(--accent-strong)]">
-          {valueLabel}
-        </span>
-      </div>
-      <input
-        type="range"
-        min={0}
-        max={10}
-        defaultValue={defaultValue}
-        className="h-2 w-full cursor-pointer accent-[var(--accent)]"
-        aria-label={label}
-      />
-    </div>
-  );
-}
-
-function SectionIcon({ id }: { id: string }) {
-  if (id === "journal") {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <rect x="5" y="4" width="14" height="16" rx="2.5" />
-        <path d="M8 4v16" />
-      </svg>
-    );
-  }
-
-  if (id === "metrics") {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-        <path d="M5 19V9" />
-        <path d="M12 19V5" />
-        <path d="M19 19v-7" />
-      </svg>
-    );
-  }
-
-  if (id === "voice") {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-        <rect x="9" y="3" width="6" height="11" rx="3" />
-        <path d="M6 11a6 6 0 0 0 12 0" />
-        <path d="M12 17v4" />
-      </svg>
-    );
-  }
-
-  if (id === "analysis") {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-        <path d="M4 19h16" />
-        <path d="M7 19v-5" />
-        <path d="M12 19V9" />
-        <path d="M17 19v-8" />
-        <path d="m16.4 4 .6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6.6-1.5Z" />
-      </svg>
-    );
-  }
-
-  if (id === "reminders") {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-        <path d="M7 10a5 5 0 1 1 10 0v4l2 2H5l2-2v-4Z" />
-        <path d="M10 19a2 2 0 0 0 4 0" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-      <path d="M12 4 5 7v5c0 4 3.4 6.8 7 8 3.6-1.2 7-4 7-8V7l-7-3Z" />
-      <path d="m9.3 12 2 2 3.4-3.4" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="m5 12 4 4 10-10" />
-    </svg>
   );
 }
