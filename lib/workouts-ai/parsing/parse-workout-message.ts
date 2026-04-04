@@ -4,6 +4,7 @@ import { resolveAiProvider } from "@/lib/ai/models";
 import { getOpenRouterConfigError } from "@/lib/openrouter";
 import { getRouterAiConfigError } from "@/lib/routerai";
 import type { WorkoutSessionContext } from "@/lib/workouts-ai/domain/context";
+import { detectWorkoutReplyLanguage } from "@/lib/workouts-ai/domain/language";
 import type { WorkoutAiParsedResult } from "@/lib/workouts-ai/domain/types";
 import {
   buildWorkoutParserSystemPrompt,
@@ -156,6 +157,7 @@ function parseDuration(text: string) {
 
 function parseFallback(message: string): WorkoutAiParsedResult {
   const normalized = message.trim().toLowerCase();
+  const language = detectWorkoutReplyLanguage(message);
 
   if (
     /(какие|что еще|что ещё|что лучше|лучше всего|посоветуй|рекомендуй)/i.test(normalized) &&
@@ -314,7 +316,10 @@ function parseFallback(message: string): WorkoutAiParsedResult {
     requires_confirmation: false,
     facts: [],
     actions: [],
-    clarification_question: "Не до конца понял запись. Что именно ты сделал?",
+    clarification_question:
+      language === "ru"
+        ? "Не до конца понял запись. Что именно ты сделал?"
+        : "I didn't fully understand that. What exactly did you do?",
   };
 }
 

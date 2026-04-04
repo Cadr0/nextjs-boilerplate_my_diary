@@ -136,6 +136,7 @@ export function buildWorkoutParserSystemPrompt() {
     "If the activity is unfamiliar or not in the known catalog, still return the user's activity label instead of forcing it into a known activity.",
     "Prefer preserving a precise raw activity label over guessing the nearest catalog item.",
     "If the text is ambiguous, lower confidence and ask a clarification question.",
+    "clarification_question must be written in the same language as the user's message.",
     "One user message may create many facts.",
     "Use neutral activity labels such as 'bench press', 'running', 'treadmill running', 'cycling', 'plank hold'.",
     "For corrections like 'не 65, а 62.5', intent must be 'correction'.",

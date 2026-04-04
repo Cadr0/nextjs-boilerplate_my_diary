@@ -16,6 +16,7 @@ import {
 } from "@/lib/workouts-ai/application/resolve-context";
 import type { WorkoutCatalogLookupItem } from "@/lib/workouts-ai/domain/context";
 import { validateParsedResult } from "@/lib/workouts-ai/domain/validators";
+import { detectWorkoutReplyLanguage } from "@/lib/workouts-ai/domain/language";
 import type {
   WorkoutAiParsedResult,
   WorkoutMessageRow,
@@ -169,6 +170,7 @@ async function persistFinalMessageResult(args: {
 export async function handleWorkoutMessage(
   input: HandleWorkoutMessageInput,
 ): Promise<WorkoutPipelineResult> {
+  const replyLanguage = detectWorkoutReplyLanguage(input.message);
   const messageSave = await saveIncomingWorkoutMessage({
     userId: input.userId,
     clientMessageId: input.clientMessageId,
@@ -238,6 +240,7 @@ export async function handleWorkoutMessage(
       intent: resolvedWithActivities.intent,
       normalizedFacts: resolvedWithActivities.facts,
       savedEvents: [],
+      language: replyLanguage,
     });
     const reply = buildAssistantReply({
       intent: resolvedWithActivities.intent,
@@ -298,6 +301,7 @@ export async function handleWorkoutMessage(
     intent: resolvedWithActivities.intent,
     normalizedFacts: resolvedWithActivities.facts,
     savedEvents: applyResult.savedEvents,
+    language: replyLanguage,
   });
   const reply = buildAssistantReply({
     intent: resolvedWithActivities.intent,
