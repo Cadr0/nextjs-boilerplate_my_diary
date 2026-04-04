@@ -9,21 +9,54 @@ type SessionAnalysis = {
   nextStep: string | null;
 };
 
+function uppercaseFirst(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function cleanReplyActivityLabel(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  let cleaned = value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
+  const prefixPattern =
+    /^(сегодня|сейчас|теперь|потом|буду|будем|делал|делала|делали|сделал|сделала|сделали|делаю|делаем|у меня будут|у меня будет|хочу сделать|хочу делать|мини тренировку|мини тренировку сейчас|тренировку|упражнение|упражнения)\s+/i;
+
+  while (prefixPattern.test(cleaned)) {
+    cleaned = cleaned.replace(prefixPattern, "").trim();
+  }
+
+  cleaned = cleaned
+    .replace(/\b\d+([.,]\d+)?\s*(раз|повтор(?:а|ов|ения|ений)?|мин(?:ут|ута|уты)?|сек(?:унд|унда|унды)?|км|м|кг)\b.*$/i, "")
+    .trim();
+
+  return cleaned.length > 0 ? uppercaseFirst(cleaned) : null;
+}
+
 function formatStrengthFact(fact: WorkoutNormalizedFact) {
-  const activity = fact.activityCandidate ?? fact.activitySlug ?? "силовое упражнение";
+  const activity =
+    cleanReplyActivityLabel(fact.activityCandidate) ??
+    cleanReplyActivityLabel(fact.activitySlug) ??
+    "Силовое упражнение";
   const weight =
     typeof fact.metrics.weight_kg === "number"
       ? `${fact.metrics.weight_kg} кг`
       : null;
   const reps =
-    typeof fact.metrics.reps === "number" ? `${fact.metrics.reps}` : null;
-  const joined = [weight, reps ? `${reps} повторений` : null].filter(Boolean).join(" × ");
+    typeof fact.metrics.reps === "number" ? `${fact.metrics.reps} повторений` : null;
+  const joined =
+    weight && typeof fact.metrics.reps === "number"
+      ? `${weight} × ${fact.metrics.reps}`
+      : [weight, reps].filter(Boolean).join(", ");
 
   return joined ? `${activity}: ${joined}` : activity;
 }
 
 function formatCardioFact(fact: WorkoutNormalizedFact) {
-  const activity = fact.activityCandidate ?? fact.activitySlug ?? "кардио";
+  const activity =
+    cleanReplyActivityLabel(fact.activityCandidate) ??
+    cleanReplyActivityLabel(fact.activitySlug) ??
+    "Кардио";
   const duration =
     typeof fact.metrics.duration_sec === "number"
       ? `${Math.round(fact.metrics.duration_sec / 60)} мин`
@@ -34,14 +67,19 @@ function formatCardioFact(fact: WorkoutNormalizedFact) {
       : null;
   const pace =
     typeof fact.metrics.pace_sec_per_km === "number"
-      ? `${Math.floor(fact.metrics.pace_sec_per_km / 60)}:${String(Math.round(fact.metrics.pace_sec_per_km % 60)).padStart(2, "0")} /км`
+      ? `${Math.floor(fact.metrics.pace_sec_per_km / 60)}:${String(
+          Math.round(fact.metrics.pace_sec_per_km % 60),
+        ).padStart(2, "0")} /км`
       : null;
 
   return [activity, duration, distance, pace].filter(Boolean).join(", ");
 }
 
 function formatTimedFact(fact: WorkoutNormalizedFact) {
-  const activity = fact.activityCandidate ?? fact.activitySlug ?? "упражнение на время";
+  const activity =
+    cleanReplyActivityLabel(fact.activityCandidate) ??
+    cleanReplyActivityLabel(fact.activitySlug) ??
+    "Упражнение на время";
   const duration =
     typeof fact.metrics.duration_sec === "number"
       ? `${Math.round(fact.metrics.duration_sec)} сек`
@@ -58,12 +96,15 @@ export function analyzeSession(args: {
   if (args.intent === "complete_session") {
     return {
       summary: "Тренировка завершена.",
-      recommendation: "Зафиксируй самочувствие и восстановление, чтобы оценить сессию позже.",
+      recommendation:
+        "Зафиксируй самочувствие и восстановление, чтобы оценить сессию позже.",
       nextStep: "Можешь открыть анализ или перейти к следующему дню.",
     };
   }
 
-  const latestFact = [...args.normalizedFacts].reverse().find((fact) => fact.factType !== "lifecycle");
+  const latestFact = [...args.normalizedFacts]
+    .reverse()
+    .find((fact) => fact.factType !== "lifecycle");
 
   if (!latestFact) {
     return {
@@ -74,9 +115,12 @@ export function analyzeSession(args: {
   }
 
   if (latestFact.factType === "strength") {
-    const reps = typeof latestFact.metrics.reps === "number" ? latestFact.metrics.reps : null;
+    const reps =
+      typeof latestFact.metrics.reps === "number" ? latestFact.metrics.reps : null;
     const weight =
-      typeof latestFact.metrics.weight_kg === "number" ? latestFact.metrics.weight_kg : null;
+      typeof latestFact.metrics.weight_kg === "number"
+        ? latestFact.metrics.weight_kg
+        : null;
 
     if (reps !== null && weight !== null && reps >= 10) {
       return {
@@ -96,7 +140,8 @@ export function analyzeSession(args: {
   if (latestFact.factType === "cardio" || latestFact.factType === "distance") {
     return {
       summary: "Кардио записано.",
-      recommendation: "Сохраняй ровный темп, если цель сегодня объем и стабильность.",
+      recommendation:
+        "Сохраняй ровный темп, если цель сегодня объём и стабильность.",
       nextStep: "Можно записать следующий отрезок или завершить сессию.",
     };
   }
@@ -104,7 +149,8 @@ export function analyzeSession(args: {
   if (latestFact.factType === "timed") {
     return {
       summary: "Упражнение на время записано.",
-      recommendation: "Если держалось уверенно, в следующий раз можно увеличить длительность на 10-15 секунд.",
+      recommendation:
+        "Если держалось уверенно, в следующий раз можно увеличить длительность на 10-15 секунд.",
       nextStep: "Запиши следующий подход или переходи к следующему блоку.",
     };
   }
@@ -136,21 +182,13 @@ export function buildAssistantReply(args: {
   }
 
   if (args.intent === "start_session") {
-    return [
-      "Тренировку открыл.",
-      args.analysis.recommendation,
-      args.analysis.nextStep,
-    ]
+    return ["Тренировку открыл.", args.analysis.recommendation, args.analysis.nextStep]
       .filter(Boolean)
       .join("\n");
   }
 
   if (args.intent === "complete_session") {
-    return [
-      "Тренировку закрыл.",
-      args.analysis.recommendation,
-      args.analysis.nextStep,
-    ]
+    return ["Тренировку закрыл.", args.analysis.recommendation, args.analysis.nextStep]
       .filter(Boolean)
       .join("\n");
   }
@@ -180,7 +218,11 @@ export function buildAssistantReply(args: {
         return formatTimedFact(fact);
       }
 
-      return fact.activityCandidate ?? fact.activitySlug ?? "событие";
+      return (
+        cleanReplyActivityLabel(fact.activityCandidate) ??
+        cleanReplyActivityLabel(fact.activitySlug) ??
+        "Событие"
+      );
     });
 
   return [

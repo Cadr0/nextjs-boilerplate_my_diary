@@ -258,6 +258,42 @@ function prettifyActivity(value: string) {
   return uppercaseFirst(value.replace(/_/g, " "));
 }
 
+function cleanUiActivityLabel(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  let cleaned = value.trim().replace(/\s+/g, " ");
+  const prefixPattern =
+    /^(сегодня|сейчас|теперь|потом|буду|будем|делал|делала|делали|сделал|сделала|сделали|делаю|делаем|у меня будут|у меня будет|хочу сделать|хочу делать|мини тренировку|мини тренировку сейчас|тренировку|упражнение|упражнения)\s+/i;
+
+  while (prefixPattern.test(cleaned)) {
+    cleaned = cleaned.replace(prefixPattern, "").trim();
+  }
+
+  cleaned = cleaned
+    .replace(/\b\d+([.,]\d+)?\s*(раз|повтор(?:а|ов|ения|ений)?|мин(?:ут|ута|уты)?|сек(?:унд|унда|унды)?|км|м|кг)\b.*$/i, "")
+    .trim();
+
+  return cleaned.length > 0 ? uppercaseFirst(cleaned) : null;
+}
+
+function buildStrengthMetricSummary(weightKg: number | null, reps: number | null) {
+  if (weightKg !== null && reps !== null) {
+    return `${Number(weightKg.toFixed(2)).toString().replace(".", ",")} × ${Math.round(reps)}`;
+  }
+
+  if (weightKg !== null) {
+    return formatWeight(weightKg);
+  }
+
+  if (reps !== null) {
+    return formatReps(reps);
+  }
+
+  return null;
+}
+
 function buildActivityLabel(args: {
   candidate?: string | null;
   slug?: string | null;
@@ -265,16 +301,18 @@ function buildActivityLabel(args: {
   activityMap?: Map<string, string>;
   fallback: string;
 }) {
-  if (args.candidate) {
-    return args.candidate;
+  if (args.activityId && args.activityMap?.has(args.activityId)) {
+    return args.activityMap.get(args.activityId) ?? args.fallback;
+  }
+
+  const cleanedCandidate = cleanUiActivityLabel(args.candidate);
+
+  if (cleanedCandidate) {
+    return cleanedCandidate;
   }
 
   if (args.slug) {
     return prettifyActivity(args.slug);
-  }
-
-  if (args.activityId && args.activityMap?.has(args.activityId)) {
-    return args.activityMap.get(args.activityId) ?? args.fallback;
   }
 
   return args.fallback;
@@ -299,8 +337,9 @@ function buildStrengthCard(input: {
           .filter(Boolean)
           .join(" × ")
       : null;
-  const chips = primaryMetric
-    ? [primaryMetric]
+  const displayMetric = buildStrengthMetricSummary(input.weightKg, input.reps) ?? primaryMetric;
+  const chips = displayMetric
+    ? [displayMetric]
     : [formatWeight(input.weightKg), formatReps(input.reps)].filter(
         (value): value is string => Boolean(value),
       );
@@ -443,8 +482,7 @@ export function buildEventCardFromStoredFact(args: {
   const activityTitle = buildActivityLabel({
     candidate:
       readString(args.fact.activityCandidate) ??
-      readString(args.fact.activity) ??
-      readString(payload?.rawInput),
+      readString(args.fact.activity),
     slug: readString(args.fact.activitySlug),
     activityId: readString(args.fact.activityId) ?? readString(args.fact.activity_id),
     activityMap: args.activityMap,
@@ -659,11 +697,17 @@ export function buildOptimisticSidebar(args: {
   result: WorkoutPipelineResult;
 }) {
   const createdCount = args.result.savedEvents.filter((event) => event.status === "created").length;
-  const latestActivityLabel =
-    args.result.normalized.facts.find((fact) => fact.activityCandidate || fact.activitySlug)
-      ?.activityCandidate ??
-    args.result.normalized.facts.find((fact) => fact.activitySlug)?.activitySlug ??
-    null;
+  const latestActivityFact = args.result.normalized.facts.find(
+    (fact) => fact.factType !== "lifecycle" && (fact.activityCandidate || fact.activitySlug),
+  );
+  const latestActivityLabel = latestActivityFact
+    ? buildActivityLabel({
+        candidate: latestActivityFact.activityCandidate,
+        slug: latestActivityFact.activitySlug,
+        activityId: latestActivityFact.activityId,
+        fallback: "Тренировка",
+      })
+    : null;
   const nextSidebar: WorkoutsSidebarData = {
     selectedDate: args.sidebar.selectedDate,
     activeSession: args.sidebar.activeSession,
