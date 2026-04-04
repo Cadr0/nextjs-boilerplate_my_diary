@@ -37,6 +37,47 @@ function createClientMessageId() {
   return `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function mergeChatItems(
+  current: WorkoutsChatItem[],
+  incoming: WorkoutsChatItem[],
+) {
+  if (current.length === 0) {
+    return incoming;
+  }
+
+  if (incoming.length === 0) {
+    return current;
+  }
+
+  const byId = new Map<string, WorkoutsChatItem>();
+
+  for (const item of current) {
+    byId.set(item.id, item);
+  }
+
+  for (const item of incoming) {
+    const existing = byId.get(item.id);
+
+    byId.set(
+      item.id,
+      existing
+        ? {
+            ...existing,
+            ...item,
+          }
+        : item,
+    );
+  }
+
+  return [...byId.values()].sort((left, right) => {
+    if (left.createdAt === right.createdAt) {
+      return left.id.localeCompare(right.id);
+    }
+
+    return left.createdAt.localeCompare(right.createdAt);
+  });
+}
+
 export function WorkoutsPageShell({
   initialChat,
   initialSidebar,
@@ -55,10 +96,17 @@ export function WorkoutsPageShell({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [analysisRefreshKey, setAnalysisRefreshKey] = useState(0);
   const [, startRefreshTransition] = useTransition();
+  const hydratedDateRef = useRef(initialSidebar.selectedDate);
 
   useEffect(() => {
-    setChatItems(initialChat);
-  }, [initialChat]);
+    if (hydratedDateRef.current !== initialSidebar.selectedDate) {
+      hydratedDateRef.current = initialSidebar.selectedDate;
+      setChatItems(initialChat);
+      return;
+    }
+
+    setChatItems((current) => mergeChatItems(current, initialChat));
+  }, [initialChat, initialSidebar.selectedDate]);
 
   useEffect(() => {
     setSidebarData(initialSidebar);
