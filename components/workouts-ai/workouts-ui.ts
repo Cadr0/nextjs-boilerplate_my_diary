@@ -582,7 +582,7 @@ export function buildAssistantActions(args: {
   followUpOptions: string[];
   requiresClarification: boolean;
 }): WorkoutsQuickAction[] {
-  if (args.requiresClarification) {
+  if (args.requiresClarification || args.mode === "clarify") {
     return [] satisfies WorkoutsQuickAction[];
   }
 
@@ -737,7 +737,7 @@ export function buildAssistantMessageFromPipelineResult(args: {
         Boolean(args.result.sessionId),
       hasWorkoutProposal: Boolean(args.result.workoutProposal),
       followUpOptions: args.result.orchestration.followUpOptions,
-      requiresClarification: args.result.requiresClarification,
+      requiresClarification: args.result.mode === "clarify",
     }),
   } satisfies WorkoutsChatItem;
 }

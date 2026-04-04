@@ -74,7 +74,7 @@ async function requestOpenRouter(messages: ChatMessage[], model?: string) {
     },
     body: JSON.stringify({
       model: model ?? openRouterStructuredModel,
-      temperature: 0.35,
+      temperature: 0.45,
       messages,
     }),
     cache: "no-store",
@@ -113,7 +113,7 @@ async function requestRouterAi(messages: ChatMessage[], model?: string) {
     },
     body: JSON.stringify({
       model: model ?? routerAiStructuredModel,
-      temperature: 0.35,
+      temperature: 0.45,
       messages,
     }),
     cache: "no-store",
@@ -171,6 +171,20 @@ function t(
   return copy[lang];
 }
 
+function buildDiaryContextCue(context: WorkoutAdviceContext) {
+  const snippet = context.diarySnippets[0];
+
+  if (snippet?.summary) {
+    return snippet.summary;
+  }
+
+  if (snippet?.aiAnalysisSnippet) {
+    return snippet.aiAnalysisSnippet;
+  }
+
+  return null;
+}
+
 function buildContextLead(
   lang: "ru" | "en",
   context: WorkoutAdviceContext,
@@ -178,35 +192,35 @@ function buildContextLead(
 ) {
   if (mode === "conversational_advice" && context.fatigueHints[0]) {
     return t(lang, {
-      ru: `С учётом недавней нагрузки лучше оставить запас, а не давить объёмом.`,
+      ru: "С учётом недавней нагрузки сегодня лучше оставить запас и не добивать себя объёмом.",
       en: "Given the recent load, it makes more sense to leave some room instead of pushing volume today.",
     });
   }
 
-  if (mode === "suggested_exercises" && context.dailyContext?.hadWorkout) {
+  if (mode === "suggested_exercises" && context.recentWorkoutDays[0]) {
     return t(lang, {
-      ru: "Опираюсь на недавние логи, чтобы не предлагать совсем случайный набор.",
-      en: "I'm leaning on your recent logs so this isn't just a random list of exercises.",
+      ru: "Я отталкиваюсь от нескольких последних дней, а не просто выдаю случайный домашний набор.",
+      en: "I'm leaning on your recent days instead of giving you a random home list.",
     });
   }
 
   if (mode === "proposed_workout" || mode === "start_workout_session") {
     return t(lang, {
-      ru: "Собрал вариант вокруг твоего запроса и недавней нагрузки, без лишней жёсткости.",
-      en: "I built this around your request and recent load without making it needlessly rigid.",
+      ru: "Собрал вариант вокруг твоего запроса, недавней нагрузки и общего ритма последних дней.",
+      en: "I built this around your request, recent load, and overall rhythm.",
     });
   }
 
   if (mode === "log_workout_fact") {
     return t(lang, {
-      ru: "Похоже, это уже факт тренировки, а не просто план.",
-      en: "This reads like an actual workout fact, not just a plan.",
+      ru: "Это похоже на реальный факт тренировки, а не просто на идею.",
+      en: "This reads like an actual workout fact, not just an idea.",
     });
   }
 
   return t(lang, {
-    ru: "Смотрю на запрос, недавние тренировки и общий ритм, чтобы совет был не из воздуха.",
-    en: "I'm using your request, recent workouts, and overall rhythm so the advice isn't generic.",
+    ru: "Смотрю на запрос, несколько недавних тренировочных дней, дневниковый контекст и память, чтобы ответ был по делу.",
+    en: "I'm using your request, recent workout days, diary context, and memory so the advice isn't generic.",
   });
 }
 
@@ -220,14 +234,17 @@ function buildFallbackAssistantText(
   },
 ) {
   const lead = buildContextLead(lang, args.context, args.mode);
+  const diaryCue = buildDiaryContextCue(args.context);
+  const recentActivities = args.context.recentWorkoutDays[0]?.topActivities.slice(0, 2) ?? [];
 
   if (args.mode === "suggested_exercises") {
     return [
       lead,
-      t(lang, {
-        ru: "Ниже дал несколько уместных вариантов без автоматического запуска тренировки.",
-        en: "I listed a few relevant options below without starting a workout automatically.",
-      }),
+      diaryCue
+        ? `Вижу недавний контекст: ${diaryCue}. Ниже собрал варианты, которые не повторяют один в один недавний акцент.`
+        : recentActivities.length > 0
+          ? `Ниже собрал варианты, которые не дублируют дословно недавний акцент на ${recentActivities.join(" и ")}.`
+          : "Ниже дал несколько уместных вариантов без автоматического запуска тренировки.",
     ].join(" ");
   }
 
@@ -235,18 +252,9 @@ function buildFallbackAssistantText(
     return [
       lead,
       args.workoutProposal
-        ? t(lang, {
-            ru: `Ниже уже есть структурированная тренировка примерно на ${args.workoutProposal.estimatedDurationMin ?? 20} минут.`,
-            en: `There's a structured workout below for about ${args.workoutProposal.estimatedDurationMin ?? 20} minutes.`,
-          })
-        : t(lang, {
-            ru: "Ниже собрал структурированный вариант тренировки.",
-            en: "I put together a structured workout below.",
-          }),
-      t(lang, {
-        ru: "Она пока только предложена и не запускается автоматически.",
-        en: "It's still just a proposal and won't start automatically.",
-      }),
+        ? `Ниже уже есть структурированная тренировка примерно на ${args.workoutProposal.estimatedDurationMin ?? 20} минут.`
+        : "Ниже собрал структурированный вариант тренировки.",
+      "Это пока предложение, а не уже начатая сессия.",
     ].join(" ");
   }
 
@@ -254,40 +262,30 @@ function buildFallbackAssistantText(
     return [
       lead,
       args.context.activeSession
-        ? t(lang, {
-            ru: "Сессия уже открыта, так что можно просто идти по структуре ниже.",
-            en: "A session is already open, so you can just follow the structure below.",
-          })
-        : t(lang, {
-            ru: "Если подтверждаем старт, я открою сессию и можно будет логировать всё по ходу.",
-            en: "If we confirm the start, I'll open the session and you can log everything as you go.",
-          }),
+        ? "Сессия уже открыта, можно идти по структуре ниже и логировать по ходу."
+        : "Ниже оставил структуру, от которой можно сразу стартовать и потом отмечать факты по ходу.",
     ].join(" ");
   }
 
   if (args.mode === "log_workout_fact") {
     return [
       lead,
-      t(lang, {
-        ru: "Сохраню запись и, если нужно, помогу выбрать следующий шаг.",
-        en: "I'll save the log and help with the next step if you want.",
-      }),
+      "Сохраняю запись и при желании подскажу следующий шаг.",
     ].join(" ");
   }
 
   if (args.mode === "clarify") {
     return t(lang, {
-      ru: "Нужна одна короткая деталь, чтобы не угадать лишнего.",
+      ru: "Нужна одна короткая деталь, чтобы я не угадал лишнего.",
       en: "I need one short detail so I don't guess incorrectly.",
     });
   }
 
   return [
     lead,
-    t(lang, {
-      ru: "Если хочешь, дальше могу либо дать упражнения, либо собрать короткую тренировку.",
-      en: "If you want, I can either suggest exercises or build a short workout next.",
-    }),
+    diaryCue
+      ? `С учётом последнего контекста дня я бы двигался мягко и без лишнего повторения того, что уже нагружалось.`
+      : "Если хочешь, дальше могу либо предложить упражнения, либо собрать короткую тренировку под сегодняшний день.",
   ].join(" ");
 }
 
@@ -298,7 +296,7 @@ function buildFallbackFollowUps(
 ) {
   if (mode === "suggested_exercises") {
     return lang === "ru"
-      ? ["сделай из этого короткую тренировку", "подбери вариант полегче"]
+      ? ["собери из этого короткую тренировку", "подбери вариант помягче"]
       : ["turn this into a short workout", "make it easier"];
   }
 
@@ -346,6 +344,15 @@ function buildStructuredPrompt(input: BuildWorkoutAiResponseInput) {
   const proposalSummary = input.workoutProposal
     ? JSON.stringify(input.workoutProposal, null, 2)
     : "null";
+  const diarySummary =
+    input.context.diarySnippets.length > 0
+      ? input.context.diarySnippets
+          .map(
+            (snippet) =>
+              `${snippet.entryDate}: ${snippet.summary ?? snippet.aiAnalysisSnippet ?? "entry"}`,
+          )
+          .join("\n")
+      : "none";
 
   return [
     "User message:",
@@ -363,6 +370,9 @@ function buildStructuredPrompt(input: BuildWorkoutAiResponseInput) {
     "Workout context summary:",
     input.context.contextSummary,
     "",
+    "Recent diary snippets:",
+    diarySummary,
+    "",
     "Candidate suggestions:",
     suggestionsSummary,
     "",
@@ -375,6 +385,11 @@ function buildSystemPrompt() {
   return [
     "You write concise workout coach replies for a conversational workout journal.",
     "Use only the structured context you are given.",
+    "If the user writes in Russian, answer in natural Russian only.",
+    "Avoid English exercise names when a natural Russian equivalent exists.",
+    "Do not repeat the same text in assistant_text and clarification_question.",
+    "When suggestions exist, make them feel tailored to several recent days, diary context, and memory.",
+    "Avoid repeating the same stock home exercises across different requests unless the context strongly points there.",
     "Do not invent injuries, restrictions, completed workouts, or equipment.",
     "Do not claim that a workout session has started unless the candidate mode is start_workout_session.",
     "Do not turn suggestions into logged facts.",
@@ -418,15 +433,19 @@ function normalizeModelResponse(
     typeof record.assistant_text === "string" && record.assistant_text.trim().length > 0
       ? record.assistant_text.trim()
       : fallbackText;
+  const clarificationQuestion =
+    typeof record.clarification_question === "string" &&
+    record.clarification_question.trim().length > 0
+      ? record.clarification_question.trim()
+      : null;
 
   return {
     candidateMode: normalizeMode(record.candidate_mode, fallbackMode),
     assistantText,
     followUpOptions: normalizeStringArray(record.follow_up_options),
     clarificationQuestion:
-      typeof record.clarification_question === "string" &&
-      record.clarification_question.trim().length > 0
-        ? record.clarification_question.trim()
+      clarificationQuestion && clarificationQuestion !== assistantText
+        ? clarificationQuestion
         : null,
   };
 }

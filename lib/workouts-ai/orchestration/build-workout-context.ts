@@ -153,7 +153,7 @@ async function loadDiarySnippets(userId: string, currentDate: string) {
     .lte("entry_date", currentDate)
     .or("summary.not.is.null,ai_analysis.not.is.null")
     .order("entry_date", { ascending: false })
-    .limit(4);
+    .limit(6);
 
   if (result.error) {
     throw new Error(result.error.message);
@@ -275,7 +275,7 @@ export async function buildWorkoutAdviceContext(
     timedDurationSec: session.timedDurationSec,
   }));
   const recentWorkoutDays = [...new Set(recentSessions.map((session) => session.entryDate))]
-    .slice(0, 4)
+    .slice(0, 6)
     .map((entryDate) =>
       buildRecentWorkoutDaySummary(
         entryDate,

@@ -476,6 +476,7 @@ export async function handleWorkoutMessage(
     intent: effectiveIntent,
     normalized: finalResolved,
   });
+  const persistenceRequested = decision.shouldSaveFacts || decision.shouldStartSession;
   const duplicateInfo = await checkDuplicate({
     userId: input.userId,
     clientMessageId: input.clientMessageId,
@@ -484,12 +485,9 @@ export async function handleWorkoutMessage(
     ),
   });
 
-  if (
-    (!decision.shouldSaveFacts && !decision.shouldStartSession) ||
-    !finalValidation.canSave
-  ) {
+  if (!persistenceRequested || !finalValidation.canSave) {
     const finalDecision =
-      decision.mode === "clarify" || finalValidation.requiresClarification
+      decision.mode === "clarify" || (persistenceRequested && finalValidation.requiresClarification)
         ? {
             ...decision,
             mode: "clarify" as const,
@@ -508,7 +506,7 @@ export async function handleWorkoutMessage(
       language: replyLanguage,
     });
     const status =
-      finalDecision.mode === "clarify" || finalValidation.requiresClarification
+      finalDecision.mode === "clarify" || (persistenceRequested && finalValidation.requiresClarification)
         ? "clarification_required"
         : "processed";
     const resultJson = buildStoredResultJson({

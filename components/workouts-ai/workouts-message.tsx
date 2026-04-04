@@ -53,7 +53,7 @@ function getSuggestionTypeLabel(type: string) {
     case "cardio":
       return "Кардио";
     case "mobility":
-      return "Мобилити";
+      return "Подвижность";
     case "core":
       return "Кор";
     case "recovery":
@@ -77,7 +77,7 @@ function SuggestionList({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-            Suggested Exercises
+            Подходящие упражнения
           </p>
           <p className="mt-1 text-sm text-[var(--foreground)]">
             Несколько вариантов без автоматического запуска тренировки.
@@ -141,7 +141,7 @@ function WorkoutProposalCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-            Workout Proposal
+            Предлагаемая тренировка
           </p>
           <h3 className="mt-1 font-display text-2xl tracking-[-0.04em] text-[var(--foreground)]">
             {proposal.title}
@@ -158,7 +158,7 @@ function WorkoutProposalCard({
             </span>
           ) : null}
           <span className="rounded-full border border-[var(--border)] bg-white/88 px-3 py-1 text-xs font-medium text-[var(--muted)]">
-            AI generated
+            Собрано ассистентом
           </span>
         </div>
       </div>
@@ -249,7 +249,7 @@ function ClarificationCard({ text }: { text: string }) {
   return (
     <section className="w-full max-w-[85%] rounded-[24px] border border-[rgba(201,142,66,0.28)] bg-[linear-gradient(135deg,rgba(255,248,235,0.98),rgba(255,255,255,0.94))] p-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[rgba(150,101,31,0.9)]">
-        Clarification
+        Уточнение
       </p>
       <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">{text}</p>
     </section>
@@ -334,7 +334,7 @@ export function WorkoutsMessage({ message, onAction }: WorkoutsMessageProps) {
           )}
         </div>
 
-        {!isUser && message.clarification && !message.pending ? (
+        {!isUser && message.responseMode === "clarify" && message.clarification && !message.pending ? (
           <ClarificationCard text={message.clarification} />
         ) : null}
 
