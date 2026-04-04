@@ -127,13 +127,15 @@ async function loadActivityMap(activityIds: string[]) {
 
 async function loadSidebarData(userId: string, selectedDate: string) {
   const supabase = await createClient();
-  const windowStart = shiftIsoDate(selectedDate, -29);
+  const today = getTodayIsoDate();
+  const anchorDate = selectedDate > today ? selectedDate : today;
+  const windowStart = shiftIsoDate(anchorDate, -29);
   const sessionsResult = await supabase
     .from("workout_sessions")
     .select("id, entry_date, status, started_at, completed_at")
     .eq("user_id", userId)
     .gte("entry_date", windowStart)
-    .lte("entry_date", selectedDate)
+    .lte("entry_date", anchorDate)
     .order("entry_date", { ascending: false })
     .order("started_at", { ascending: false });
 
@@ -219,7 +221,7 @@ async function loadSidebarData(userId: string, selectedDate: string) {
   const activeSession =
     sessionsForSelectedDate.find((session) => session.status === "active") ?? null;
   const days = Array.from({ length: 30 }, (_, index) => {
-    const date = shiftIsoDate(selectedDate, -index);
+    const date = shiftIsoDate(anchorDate, -index);
     const daySessions = sessionsByDate.get(date) ?? [];
     const eventCount = daySessions.reduce((total, session) => total + session.eventCount, 0);
     const lastActivityLabel =
