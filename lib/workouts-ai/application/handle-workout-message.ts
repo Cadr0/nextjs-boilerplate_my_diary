@@ -247,6 +247,7 @@ export async function handleWorkoutMessage(
         resolvedWithActivities.clarificationQuestion ??
         (validation.requiresClarification ? "Нужна небольшая уточняющая деталь, чтобы сохранить это без ошибки." : null),
       duplicate: false,
+      rawMessage: input.message,
     });
 
     const resultJson = (await persistClarificationResult({
@@ -304,6 +305,7 @@ export async function handleWorkoutMessage(
     analysis,
     clarificationQuestion: null,
     duplicate,
+    rawMessage: input.message,
   });
   const resultJson = {
     ...applyResult.resultJson,

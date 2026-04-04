@@ -176,7 +176,38 @@ export function buildAssistantReply(args: {
   analysis: SessionAnalysis;
   clarificationQuestion: string | null;
   duplicate: boolean;
+  rawMessage?: string | null;
 }) {
+  const rawMessage = args.rawMessage?.trim() ?? "";
+  const normalizedMessage = rawMessage.toLowerCase();
+
+  const buildTemplateSuggestion = () => {
+    if (
+      /дома|home/.test(normalizedMessage) &&
+      /какие|что еще|что ещё|что лучше|лучше всего|посоветуй|рекомендуй/.test(
+        normalizedMessage,
+      )
+    ) {
+      return [
+        "Если ты сейчас дома, попробуй мини-комплекс на 3 круга:",
+        "1. Отжимания 10-15",
+        "2. Приседания 15-20",
+        "3. Планка 30-45 сек",
+        "Если хочешь, я сразу разложу это на подходы и буду вести тебя по одному упражнению.",
+      ].join("\n");
+    }
+
+    if (/какие|что еще|что ещё|посоветуй|рекомендуй|лучше всего/.test(normalizedMessage)) {
+      return [
+        "Могу предложить следующий блок тренировки.",
+        "Например: базовое силовое упражнение, затем кардио или упражнение на время.",
+        "Если напишешь, где ты сейчас и что уже сделал, я подберу точнее.",
+      ].join("\n");
+    }
+
+    return null;
+  };
+
   if (args.clarificationQuestion) {
     return args.clarificationQuestion;
   }
@@ -203,6 +234,24 @@ export function buildAssistantReply(args: {
       .join("\n");
   }
 
+  if (
+    (args.intent === "template_request" || args.intent === "analysis_request") &&
+    args.normalizedFacts.length === 0
+  ) {
+    return (
+      buildTemplateSuggestion() ??
+      (args.intent === "analysis_request"
+        ? [
+            "Могу помочь с разбором тренировки или прогресса.",
+            "Напиши, что именно хочешь понять: что делать дальше, как оценить текущую нагрузку или как построить следующий блок.",
+          ].join("\n")
+        : [
+            "Могу предложить тренировку под твою ситуацию.",
+            "Напиши, где ты сейчас, сколько времени есть и чего хочешь: силовую, кардио или короткую домашнюю тренировку.",
+          ].join("\n"))
+    );
+  }
+
   const loggedFacts = args.normalizedFacts
     .filter((fact) => fact.factType !== "lifecycle")
     .map((fact) => {
@@ -224,6 +273,13 @@ export function buildAssistantReply(args: {
         "Событие"
       );
     });
+
+  if (loggedFacts.length === 0) {
+    return (
+      buildTemplateSuggestion() ??
+      "Пока не увидел подтверждённого факта тренировки. Могу либо подсказать, что делать дальше, либо записать конкретное упражнение, если напишешь его свободной фразой."
+    );
+  }
 
   return [
     loggedFacts.length > 0 ? `Записал: ${loggedFacts.join("; ")}` : null,

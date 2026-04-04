@@ -157,6 +157,31 @@ function parseDuration(text: string) {
 function parseFallback(message: string): WorkoutAiParsedResult {
   const normalized = message.trim().toLowerCase();
 
+  if (
+    /(какие|что еще|что ещё|что лучше|лучше всего|посоветуй|рекомендуй)/i.test(normalized) &&
+    /(упражнен|тренировк|сделать|делать)/i.test(normalized)
+  ) {
+    return {
+      intent: "template_request",
+      confidence: 0.86,
+      requires_confirmation: false,
+      facts: [],
+      actions: [{ type: "suggest_template" }],
+      clarification_question: null,
+    };
+  }
+
+  if (/(как идет|как ид[её]т|какой прогресс|что по прогрессу|проанализируй)/i.test(normalized)) {
+    return {
+      intent: "analysis_request",
+      confidence: 0.84,
+      requires_confirmation: false,
+      facts: [],
+      actions: [{ type: "open_analysis" }],
+      clarification_question: null,
+    };
+  }
+
   if (/закончил тренировк|тренировка закончена|finished workout/i.test(normalized)) {
     return {
       intent: "complete_session",
