@@ -1,4 +1,9 @@
 import type { WorkoutNormalizedFact, WorkoutPipelineResult } from "@/lib/workouts-ai/domain/types";
+import type {
+  WorkoutProposal,
+  WorkoutResponseMode,
+  WorkoutSuggestionItem,
+} from "@/lib/workouts-ai/orchestration/workouts-response-types";
 
 import type {
   WorkoutsChatItem,
@@ -40,6 +45,20 @@ function readString(value: unknown) {
 
 function uppercaseFirst(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function coerceResponseMode(value: unknown): WorkoutResponseMode | null {
+  switch (value) {
+    case "conversational_advice":
+    case "suggested_exercises":
+    case "proposed_workout":
+    case "start_workout_session":
+    case "log_workout_fact":
+    case "clarify":
+      return value;
+    default:
+      return null;
+  }
 }
 
 function pluralizeRu(value: number, one: string, few: string, many: string) {
@@ -556,28 +575,49 @@ export function buildEventCardFromNormalizedFact(
 }
 
 export function buildAssistantActions(args: {
-  intent: string;
+  mode: WorkoutResponseMode;
   facts: WorkoutsEventCardModel[];
   hasActiveSession: boolean;
+  hasWorkoutProposal: boolean;
+  followUpOptions: string[];
   requiresClarification: boolean;
 }): WorkoutsQuickAction[] {
   if (args.requiresClarification) {
     return [] satisfies WorkoutsQuickAction[];
   }
 
-  if (args.intent === "complete_session") {
+  const followUpActions = args.followUpOptions.slice(0, 2).map((prompt, index) => ({
+    id: `follow-up-${index}`,
+    label: prompt,
+    prompt,
+    kind: "send" as const,
+  }));
+
+  if (args.mode === "proposed_workout" && args.hasWorkoutProposal && !args.hasActiveSession) {
     return [
-      { id: "analysis", label: "Открыть прогресс", kind: "analysis" as const },
       {
-        id: "restart",
-        label: "Новая тренировка",
-        prompt: "хочу потренироваться",
+        id: "start-workout",
+        label: "Запустить",
+        prompt: "запусти тренировку",
+        kind: "send" as const,
+      },
+      ...followUpActions,
+    ];
+  }
+
+  if (args.mode === "start_workout_session" && args.hasActiveSession) {
+    return [
+      ...followUpActions,
+      {
+        id: "finish",
+        label: "Закончить",
+        prompt: "закончил тренировку",
         kind: "send" as const,
       },
     ];
   }
 
-  if (args.facts.length > 0) {
+  if (args.mode === "log_workout_fact" && args.facts.length > 0) {
     return [
       {
         id: "more",
@@ -602,6 +642,10 @@ export function buildAssistantActions(args: {
           ]
         : []),
     ];
+  }
+
+  if (followUpActions.length > 0) {
+    return followUpActions;
   }
 
   return buildDefaultQuickActions(args.hasActiveSession);
@@ -677,19 +721,71 @@ export function buildAssistantMessageFromPipelineResult(args: {
     role: "assistant",
     text: args.result.reply,
     createdAt: args.createdAt,
+    responseMode: args.result.mode,
     streaming: true,
     tone: "default",
     eventCards,
+    suggestions: args.result.suggestions,
+    workoutProposal: args.result.workoutProposal,
+    clarification: args.result.clarification,
     actions: buildAssistantActions({
-      intent: args.result.intent,
+      mode: args.result.mode,
       facts: eventCards,
       hasActiveSession:
         args.result.intent !== "complete_session" &&
         args.result.status !== "duplicate" &&
         Boolean(args.result.sessionId),
+      hasWorkoutProposal: Boolean(args.result.workoutProposal),
+      followUpOptions: args.result.orchestration.followUpOptions,
       requiresClarification: args.result.requiresClarification,
     }),
   } satisfies WorkoutsChatItem;
+}
+
+export function extractStoredResponseMode(resultJson: unknown) {
+  const resultRecord = isRecord(resultJson) ? resultJson : null;
+  return coerceResponseMode(resultRecord?.mode);
+}
+
+export function extractStoredSuggestions(resultJson: unknown) {
+  const resultRecord = isRecord(resultJson) ? resultJson : null;
+  return Array.isArray(resultRecord?.suggestions)
+    ? (resultRecord.suggestions as WorkoutSuggestionItem[])
+    : Array.isArray(resultRecord?.suggested_exercises)
+      ? (resultRecord.suggested_exercises as WorkoutSuggestionItem[])
+    : [];
+}
+
+export function extractStoredWorkoutProposal(resultJson: unknown) {
+  const resultRecord = isRecord(resultJson) ? resultJson : null;
+  return isRecord(resultRecord?.workoutProposal)
+    ? (resultRecord.workoutProposal as WorkoutProposal)
+    : isRecord(resultRecord?.workout_proposal)
+      ? (resultRecord.workout_proposal as WorkoutProposal)
+    : null;
+}
+
+export function extractStoredClarification(resultJson: unknown) {
+  const resultRecord = isRecord(resultJson) ? resultJson : null;
+  return readString(resultRecord?.clarification) ?? readString(resultRecord?.clarification_question);
+}
+
+export function extractStoredFollowUpOptions(resultJson: unknown) {
+  const resultRecord = isRecord(resultJson) ? resultJson : null;
+  const orchestration = isRecord(resultRecord?.orchestration)
+    ? resultRecord.orchestration
+    : null;
+  const options = Array.isArray(orchestration?.followUpOptions)
+    ? orchestration.followUpOptions.flatMap((value) =>
+        typeof value === "string" && value.trim().length > 0 ? [value.trim()] : [],
+      )
+    : Array.isArray(resultRecord?.follow_up_options)
+      ? resultRecord.follow_up_options.flatMap((value) =>
+          typeof value === "string" && value.trim().length > 0 ? [value.trim()] : [],
+        )
+      : [];
+
+  return options.slice(0, 3);
 }
 
 export function buildOptimisticSidebar(args: {

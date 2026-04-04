@@ -1,3 +1,10 @@
+import type {
+  WorkoutProposal,
+  WorkoutResponseDecision,
+  WorkoutResponseMode,
+  WorkoutSuggestionItem,
+} from "@/lib/workouts-ai/orchestration/workouts-response-types";
+
 export type IsoTimestamp = string;
 export type IsoDate = string;
 
@@ -319,11 +326,14 @@ export type WorkoutPipelineResult = {
   messageId: string;
   clientMessageId: string;
   sessionId: string | null;
+  mode: WorkoutResponseMode;
+  assistantText: string;
   status: WorkoutMessageStatus;
   intent: WorkoutParserIntent;
   confidence: number;
   requiresClarification: boolean;
   clarificationQuestion: string | null;
+  clarification: string | null;
   reply: string;
   parse: WorkoutAiParsedResult;
   normalized: WorkoutNormalizedParseResult;
@@ -339,6 +349,10 @@ export type WorkoutPipelineResult = {
     nextStep: string | null;
   };
   savedEvents: WorkoutSavedEventSummary[];
+  suggestions: WorkoutSuggestionItem[];
+  workoutProposal: WorkoutProposal | null;
+  sessionStarted: boolean;
+  orchestration: WorkoutResponseDecision;
   resultJson: Record<string, unknown>;
 };
 

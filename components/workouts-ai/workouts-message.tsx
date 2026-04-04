@@ -27,6 +27,235 @@ function splitForStreaming(text: string) {
   return text.split(/(\s+)/).filter((part) => part.length > 0);
 }
 
+function getResponseModeLabel(mode: WorkoutsChatItem["responseMode"]) {
+  switch (mode) {
+    case "conversational_advice":
+      return "Совет";
+    case "suggested_exercises":
+      return "Упражнения";
+    case "proposed_workout":
+      return "Предлагаемая тренировка";
+    case "start_workout_session":
+      return "Старт сессии";
+    case "log_workout_fact":
+      return "Лог тренировки";
+    case "clarify":
+      return "Нужно уточнение";
+    default:
+      return null;
+  }
+}
+
+function getSuggestionTypeLabel(type: string) {
+  switch (type) {
+    case "strength":
+      return "Сила";
+    case "cardio":
+      return "Кардио";
+    case "mobility":
+      return "Мобилити";
+    case "core":
+      return "Кор";
+    case "recovery":
+      return "Восстановление";
+    default:
+      return "Смешанный";
+  }
+}
+
+function SuggestionList({
+  suggestions,
+}: {
+  suggestions: NonNullable<WorkoutsChatItem["suggestions"]>;
+}) {
+  if (!suggestions.length) {
+    return null;
+  }
+
+  return (
+    <section className="grid w-full max-w-[85%] gap-2 rounded-[26px] border border-[rgba(47,111,97,0.16)] bg-[linear-gradient(135deg,rgba(245,250,247,0.96),rgba(255,255,255,0.94))] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+            Suggested Exercises
+          </p>
+          <p className="mt-1 text-sm text-[var(--foreground)]">
+            Несколько вариантов без автоматического запуска тренировки.
+          </p>
+        </div>
+        <div className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-[var(--accent)]">
+          {suggestions.length} шт.
+        </div>
+      </div>
+
+      <div className="grid gap-2">
+        {suggestions.map((suggestion) => (
+          <article
+            key={suggestion.id}
+            className="rounded-[22px] border border-[rgba(24,33,29,0.08)] bg-white/88 p-3"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                {suggestion.title}
+              </h3>
+              <span className="rounded-full bg-[rgba(47,111,97,0.1)] px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+                {getSuggestionTypeLabel(suggestion.type)}
+              </span>
+              {suggestion.canAddToWorkout ? (
+                <span className="rounded-full bg-[rgba(24,33,29,0.06)] px-2 py-1 text-[11px] font-medium text-[var(--muted)]">
+                  Можно добавить в план
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-2 text-sm leading-6 text-[var(--foreground)]/88">
+              {suggestion.shortReason}
+            </p>
+            {suggestion.recommendedVolume || suggestion.contextCue ? (
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+                {suggestion.recommendedVolume ? (
+                  <span className="rounded-full border border-[var(--border)] bg-[rgba(247,241,231,0.72)] px-2.5 py-1">
+                    {suggestion.recommendedVolume}
+                  </span>
+                ) : null}
+                {suggestion.contextCue ? (
+                  <span className="rounded-full border border-[var(--border)] bg-white/90 px-2.5 py-1">
+                    {suggestion.contextCue}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function WorkoutProposalCard({
+  proposal,
+}: {
+  proposal: NonNullable<WorkoutsChatItem["workoutProposal"]>;
+}) {
+  return (
+    <section className="grid w-full max-w-[85%] gap-3 rounded-[28px] border border-[rgba(47,111,97,0.18)] bg-[linear-gradient(145deg,rgba(248,244,236,0.96),rgba(255,255,255,0.96))] p-4 shadow-[0_18px_44px_rgba(24,33,29,0.08)]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+            Workout Proposal
+          </p>
+          <h3 className="mt-1 font-display text-2xl tracking-[-0.04em] text-[var(--foreground)]">
+            {proposal.title}
+          </h3>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--foreground)]/88">
+            {proposal.goal}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {proposal.estimatedDurationMin ? (
+            <span className="rounded-full bg-[rgba(47,111,97,0.1)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
+              ~ {proposal.estimatedDurationMin} мин
+            </span>
+          ) : null}
+          <span className="rounded-full border border-[var(--border)] bg-white/88 px-3 py-1 text-xs font-medium text-[var(--muted)]">
+            AI generated
+          </span>
+        </div>
+      </div>
+
+      {proposal.notes.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {proposal.notes.map((note, index) => (
+            <span
+              key={`${proposal.title}-note-${index}`}
+              className="rounded-full border border-[var(--border)] bg-white/90 px-3 py-1 text-xs text-[var(--muted)]"
+            >
+              {note}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="grid gap-3">
+        {proposal.blocks.map((block) => (
+          <article
+            key={block.id}
+            className="rounded-[24px] border border-[rgba(24,33,29,0.08)] bg-white/88 p-4"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+                  Блок
+                </p>
+                <h4 className="mt-1 text-base font-semibold text-[var(--foreground)]">
+                  {block.title}
+                </h4>
+              </div>
+              {block.estimatedDurationMin ? (
+                <span className="rounded-full bg-[rgba(24,33,29,0.06)] px-3 py-1 text-xs font-medium text-[var(--muted)]">
+                  {block.estimatedDurationMin} мин
+                </span>
+              ) : null}
+            </div>
+
+            <p className="mt-2 text-sm leading-6 text-[var(--foreground)]/88">
+              {block.goal}
+            </p>
+
+            {block.note ? (
+              <p className="mt-2 text-xs leading-5 text-[var(--muted)]">{block.note}</p>
+            ) : null}
+
+            <div className="mt-3 grid gap-2">
+              {block.exercises.map((exercise) => (
+                <div
+                  key={exercise.id}
+                  className="rounded-[18px] border border-[rgba(24,33,29,0.06)] bg-[rgba(247,241,231,0.5)] p-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-[var(--foreground)]">
+                      {exercise.title}
+                    </p>
+                    <span className="rounded-full bg-white/90 px-2 py-1 text-[11px] font-medium text-[var(--muted)]">
+                      {getSuggestionTypeLabel(exercise.type)}
+                    </span>
+                    {exercise.prescription ? (
+                      <span className="rounded-full bg-[rgba(47,111,97,0.1)] px-2 py-1 text-[11px] font-semibold text-[var(--accent)]">
+                        {exercise.prescription}
+                      </span>
+                    ) : null}
+                  </div>
+                  {exercise.reason ? (
+                    <p className="mt-2 text-sm leading-6 text-[var(--foreground)]/85">
+                      {exercise.reason}
+                    </p>
+                  ) : null}
+                  {exercise.note ? (
+                    <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                      {exercise.note}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ClarificationCard({ text }: { text: string }) {
+  return (
+    <section className="w-full max-w-[85%] rounded-[24px] border border-[rgba(201,142,66,0.28)] bg-[linear-gradient(135deg,rgba(255,248,235,0.98),rgba(255,255,255,0.94))] p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[rgba(150,101,31,0.9)]">
+        Clarification
+      </p>
+      <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">{text}</p>
+    </section>
+  );
+}
+
 export function WorkoutsMessage({ message, onAction }: WorkoutsMessageProps) {
   const parts = useMemo(() => splitForStreaming(message.text), [message.text]);
   const [visibleCount, setVisibleCount] = useState(
@@ -59,6 +288,7 @@ export function WorkoutsMessage({ message, onAction }: WorkoutsMessageProps) {
     : message.streaming
       ? parts.slice(0, Math.max(visibleCount, 0)).join("")
       : message.text;
+  const responseModeLabel = !isUser ? getResponseModeLabel(message.responseMode) : null;
 
   return (
     <article
@@ -82,6 +312,11 @@ export function WorkoutsMessage({ message, onAction }: WorkoutsMessageProps) {
           <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] opacity-80">
             <span>{isUser ? "Ты" : "AI coach"}</span>
             <span>{formatTime(message.createdAt)}</span>
+            {responseModeLabel ? (
+              <span className="rounded-full bg-current/10 px-2 py-1 text-[10px] tracking-[0.12em] opacity-100">
+                {responseModeLabel}
+              </span>
+            ) : null}
           </div>
 
           {message.pending ? (
@@ -98,6 +333,18 @@ export function WorkoutsMessage({ message, onAction }: WorkoutsMessageProps) {
             <p className="whitespace-pre-wrap text-[15px] leading-6">{visibleText}</p>
           )}
         </div>
+
+        {!isUser && message.clarification && !message.pending ? (
+          <ClarificationCard text={message.clarification} />
+        ) : null}
+
+        {!isUser && message.suggestions && message.suggestions.length > 0 && !message.pending ? (
+          <SuggestionList suggestions={message.suggestions} />
+        ) : null}
+
+        {!isUser && message.workoutProposal && !message.pending ? (
+          <WorkoutProposalCard proposal={message.workoutProposal} />
+        ) : null}
 
         {!isUser && message.eventCards && message.eventCards.length > 0 ? (
           <div className="grid w-full max-w-[85%] gap-2">

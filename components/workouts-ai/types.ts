@@ -1,3 +1,9 @@
+import type {
+  WorkoutProposal,
+  WorkoutResponseMode,
+  WorkoutSuggestionItem,
+} from "@/lib/workouts-ai/orchestration/workouts-response-types";
+
 export type WorkoutsQuickAction = {
   id: string;
   label: string;
@@ -28,10 +34,14 @@ export type WorkoutsChatItem = {
   role: "user" | "assistant";
   text: string;
   createdAt: string;
+  responseMode?: WorkoutResponseMode;
   pending?: boolean;
   streaming?: boolean;
   tone?: "default" | "error";
   eventCards?: WorkoutsEventCardModel[];
+  suggestions?: WorkoutSuggestionItem[];
+  workoutProposal?: WorkoutProposal | null;
+  clarification?: string | null;
   actions?: WorkoutsQuickAction[];
 };
 

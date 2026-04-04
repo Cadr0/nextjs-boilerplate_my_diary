@@ -3,6 +3,11 @@ import {
   buildAssistantActions,
   buildDaySummaryText,
   buildEventCardFromStoredFact,
+  extractStoredClarification,
+  extractStoredFollowUpOptions,
+  extractStoredResponseMode,
+  extractStoredSuggestions,
+  extractStoredWorkoutProposal,
   collectStoredFactActivityIds,
   extractStoredFacts,
   getTodayIsoDate,
@@ -447,22 +452,29 @@ async function loadChatHistory(args: {
       )
       .filter((card) => card !== null);
     const resultRecord = isRecord(message.result_json) ? message.result_json : null;
-    const intent =
-      typeof resultRecord?.intent === "string" ? resultRecord.intent : "unknown";
     const requiresClarification =
       message.status === "clarification_required" ||
       Boolean(resultRecord?.clarification_question);
+    const responseMode =
+      extractStoredResponseMode(message.result_json) ??
+      (requiresClarification ? "clarify" : "conversational_advice");
 
     items.push({
       id: `${message.id}:assistant`,
       role: "assistant",
       text: message.reply_text,
       createdAt: message.updated_at,
+      responseMode,
       eventCards,
+      suggestions: extractStoredSuggestions(message.result_json),
+      workoutProposal: extractStoredWorkoutProposal(message.result_json),
+      clarification: extractStoredClarification(message.result_json),
       actions: buildAssistantActions({
-        intent,
+        mode: responseMode,
         facts: eventCards,
         hasActiveSession: args.hasActiveSession || Boolean(message.session_id),
+        hasWorkoutProposal: Boolean(extractStoredWorkoutProposal(message.result_json)),
+        followUpOptions: extractStoredFollowUpOptions(message.result_json),
         requiresClarification,
       }),
     });

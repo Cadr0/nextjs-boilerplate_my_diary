@@ -20,6 +20,22 @@ type PersistClarificationInput = {
   sessionId?: string | null;
 };
 
+type PersistWorkoutMessageResultInput = {
+  messageId: string;
+  userId: string;
+  rawText: string;
+  parsed: WorkoutAiParsedResult;
+  normalized: WorkoutNormalizedParseResult;
+  status: "clarification_required" | "processed" | "duplicate" | "error";
+  reply: string;
+  sessionId?: string | null;
+  intent?: string;
+  confidence?: number;
+  requiresConfirmation?: boolean;
+  clarificationQuestion?: string | null;
+  resultJson?: Record<string, unknown>;
+};
+
 type ApplyWorkoutEventsInput = {
   messageId: string;
   intent: string;
@@ -123,6 +139,18 @@ export async function checkDuplicate(args: {
 export async function persistClarificationResult(
   input: PersistClarificationInput,
 ) {
+  return persistWorkoutMessageResult({
+    ...input,
+    intent: input.parsed.intent,
+    confidence: input.parsed.confidence,
+    requiresConfirmation: input.normalized.requiresConfirmation,
+    clarificationQuestion: input.parsed.clarification_question,
+  });
+}
+
+export async function persistWorkoutMessageResult(
+  input: PersistWorkoutMessageResultInput,
+) {
   const supabase = await createClient();
   const parsePayload = {
     intent: input.parsed.intent,
@@ -154,20 +182,24 @@ export async function persistClarificationResult(
 
   const resultJson = {
     message_id: input.messageId,
-    intent: input.parsed.intent,
-    confidence: input.parsed.confidence,
-    clarification_question: input.parsed.clarification_question,
+    intent: input.intent ?? input.parsed.intent,
+    confidence: input.confidence ?? input.parsed.confidence,
+    clarification_question:
+      input.clarificationQuestion ?? input.parsed.clarification_question,
     facts: input.normalized.facts,
+    ...(input.resultJson ?? {}),
   };
 
   const messageResult = await supabase
     .from("workout_messages")
     .update({
-      intent: input.parsed.intent,
+      intent: input.intent ?? input.parsed.intent,
       status: input.status,
-      confidence: input.parsed.confidence,
-      requires_confirmation: input.normalized.requiresConfirmation,
-      clarification_question: input.parsed.clarification_question,
+      confidence: input.confidence ?? input.parsed.confidence,
+      requires_confirmation:
+        input.requiresConfirmation ?? input.normalized.requiresConfirmation,
+      clarification_question:
+        input.clarificationQuestion ?? input.parsed.clarification_question,
       reply_text: input.reply,
       session_id: input.sessionId ?? null,
       result_json: resultJson,
