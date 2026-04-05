@@ -712,9 +712,11 @@ export function buildAssistantMessageFromPipelineResult(args: {
   result: WorkoutPipelineResult;
   createdAt: string;
 }) {
-  const eventCards = args.result.normalized.facts
-    .map((fact, index) => buildEventCardFromNormalizedFact(fact, index))
-    .filter((card): card is WorkoutsEventCardModel => card !== null);
+  const eventCards = args.result.duplicate
+    ? []
+    : args.result.normalized.facts
+        .map((fact, index) => buildEventCardFromNormalizedFact(fact, index))
+        .filter((card): card is WorkoutsEventCardModel => card !== null);
 
   return {
     id: `${args.result.messageId}:assistant`,
@@ -728,17 +730,19 @@ export function buildAssistantMessageFromPipelineResult(args: {
     suggestions: args.result.suggestions,
     workoutProposal: args.result.workoutProposal,
     clarification: args.result.clarification,
-    actions: buildAssistantActions({
-      mode: args.result.mode,
-      facts: eventCards,
-      hasActiveSession:
-        args.result.intent !== "complete_session" &&
-        args.result.status !== "duplicate" &&
-        Boolean(args.result.sessionId),
-      hasWorkoutProposal: Boolean(args.result.workoutProposal),
-      followUpOptions: args.result.orchestration.followUpOptions,
-      requiresClarification: args.result.mode === "clarify",
-    }),
+    actions: args.result.duplicate
+      ? []
+      : buildAssistantActions({
+          mode: args.result.mode,
+          facts: eventCards,
+          hasActiveSession:
+            args.result.intent !== "complete_session" &&
+            args.result.status !== "duplicate" &&
+            Boolean(args.result.sessionId),
+          hasWorkoutProposal: Boolean(args.result.workoutProposal),
+          followUpOptions: args.result.orchestration.followUpOptions,
+          requiresClarification: args.result.mode === "clarify",
+        }),
   } satisfies WorkoutsChatItem;
 }
 

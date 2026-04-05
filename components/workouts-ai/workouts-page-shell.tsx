@@ -97,6 +97,7 @@ export function WorkoutsPageShell({
   const [analysisRefreshKey, setAnalysisRefreshKey] = useState(0);
   const [, startRefreshTransition] = useTransition();
   const hydratedDateRef = useRef(initialSidebar.selectedDate);
+  const submitLockRef = useRef(false);
 
   useEffect(() => {
     if (hydratedDateRef.current !== initialSidebar.selectedDate) {
@@ -174,9 +175,11 @@ export function WorkoutsPageShell({
   async function submitMessage(rawText?: string) {
     const nextMessage = (rawText ?? draft).trim();
 
-    if (!nextMessage || isSubmitting) {
+    if (!nextMessage || isSubmitting || submitLockRef.current) {
       return;
     }
+
+    submitLockRef.current = true;
 
     const now = new Date().toISOString();
     const clientMessageId = createClientMessageId();
@@ -266,6 +269,7 @@ export function WorkoutsPageShell({
       );
     } finally {
       setIsSubmitting(false);
+      submitLockRef.current = false;
     }
   }
 
