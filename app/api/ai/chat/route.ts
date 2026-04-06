@@ -1,17 +1,34 @@
 import { NextResponse } from "next/server";
 
 import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
-import { resolveAiProvider } from "@/lib/ai/models";
+import { resolveAiProvider, supportsChatImageUpload } from "@/lib/ai/models";
 import { getAuthState } from "@/lib/auth";
 import { getDiaryChatMemoryContext } from "@/lib/diary";
 import { getOpenRouterConfigError, streamChatWithOpenRouter } from "@/lib/openrouter";
 import { getRouterAiConfigError, streamChatWithRouterAi } from "@/lib/routerai";
 import type { MetricDefinition, TaskItem, WorkspaceDraft } from "@/lib/workspace";
 
+const MAX_CHAT_IMAGE_BYTES = 10 * 1024 * 1024;
+
+type ChatAttachmentPayload = {
+  kind?: string;
+  mimeType?: string;
+  fileName?: string;
+  dataUrl?: string;
+};
+
+type ChatAttachment = {
+  kind: "image";
+  mimeType: string;
+  fileName?: string;
+  dataUrl: string;
+};
+
 type RequestPayload = {
   messages?: Array<{
     role?: "user" | "assistant";
     content?: string;
+    attachments?: ChatAttachmentPayload[];
   }>;
   context?: {
     date?: string;
@@ -23,6 +40,53 @@ type RequestPayload = {
     timezone?: string;
   };
 };
+
+function estimateDataUrlBytes(dataUrl: string) {
+  const base64 = dataUrl.split(",", 2)[1] ?? "";
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+}
+
+function normalizeAttachments(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as ChatAttachment[];
+  }
+
+  return value
+    .slice(0, 1)
+    .flatMap((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return [];
+      }
+
+      const candidate = entry as ChatAttachmentPayload;
+      const mimeType = candidate.mimeType?.trim().toLowerCase() ?? "";
+      const dataUrl = candidate.dataUrl?.trim() ?? "";
+      const fileName = candidate.fileName?.trim() || undefined;
+
+      if (
+        candidate.kind !== "image" ||
+        !mimeType.startsWith("image/") ||
+        !/^data:image\/[a-z0-9.+-]+;base64,/i.test(dataUrl)
+      ) {
+        return [];
+      }
+
+      if (estimateDataUrlBytes(dataUrl) > MAX_CHAT_IMAGE_BYTES) {
+        throw new Error("Image is too large. Max size is 10 MB.");
+      }
+
+      return [
+        {
+          kind: "image" as const,
+          mimeType,
+          fileName,
+          dataUrl,
+        },
+      ];
+    });
+}
 
 export async function POST(request: Request) {
   const { user } = await getAuthState();
@@ -36,12 +100,26 @@ export async function POST(request: Request) {
     const payload = (await request.json()) as RequestPayload;
     const messages =
       payload.messages
-        ?.filter(
-          (message): message is { role: "user" | "assistant"; content: string } =>
-            (message.role === "user" || message.role === "assistant") &&
-            typeof message.content === "string" &&
-            message.content.trim().length > 0,
-        )
+        ?.flatMap((message) => {
+          if (!message || (message.role !== "user" && message.role !== "assistant")) {
+            return [];
+          }
+
+          const content = typeof message.content === "string" ? message.content.trim() : "";
+          const attachments = normalizeAttachments(message.attachments);
+
+          if (!content && attachments.length === 0) {
+            return [];
+          }
+
+          return [
+            {
+              role: message.role,
+              content,
+              attachments,
+            },
+          ];
+        })
         .slice(-12) ?? [];
 
     const date = payload.context?.date;
@@ -52,6 +130,7 @@ export async function POST(request: Request) {
     const requestTimestamp = payload.context?.requestTimestamp ?? new Date().toISOString();
     const timezone = payload.context?.timezone ?? "UTC";
     const provider = resolveAiProvider(model);
+    const hasImageAttachment = messages.some((message) => message.attachments.length > 0);
 
     const providerConfigError =
       provider === "openrouter" ? getOpenRouterConfigError() : getRouterAiConfigError();
@@ -62,6 +141,16 @@ export async function POST(request: Request) {
 
     if (!date || !draft) {
       return NextResponse.json({ error: "Diary context is required." }, { status: 400 });
+    }
+
+    if (hasImageAttachment && !supportsChatImageUpload(model)) {
+      return NextResponse.json(
+        {
+          error:
+            "Image upload in chat is currently available only for RouterAI Gemma 4 31B IT.",
+        },
+        { status: 400 },
+      );
     }
 
     const latestUserMessage = [...messages]
@@ -84,16 +173,22 @@ export async function POST(request: Request) {
 
     const stream =
       provider === "openrouter"
-        ? await streamChatWithOpenRouter(messages, {
-            date,
-            draft,
-            metricDefinitions,
-            tasks,
-            model,
-            requestTimestamp,
-            timezone,
-            memoryContext,
-          })
+        ? await streamChatWithOpenRouter(
+            messages.map((message) => ({
+              role: message.role,
+              content: message.content,
+            })),
+            {
+              date,
+              draft,
+              metricDefinitions,
+              tasks,
+              model,
+              requestTimestamp,
+              timezone,
+              memoryContext,
+            },
+          )
         : await streamChatWithRouterAi(messages, {
             date,
             draft,

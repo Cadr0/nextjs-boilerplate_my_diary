@@ -2,6 +2,21 @@
 
 import { useEffect, useRef } from "react";
 
+export type PhysarumSettings = {
+  agentCount: number;
+  speed: number;
+  sensorDistance: number;
+  sensorAngle: number;
+  turnAngle: number;
+  decay: number;
+  diffuse: number;
+  foodStrength: number;
+  lineBoost: number;
+  noise: number;
+  opacity: number;
+  ambientDots: number;
+};
+
 type Agent = {
   x: number;
   y: number;
@@ -21,6 +36,10 @@ type Obstacle = {
   y2: number;
 };
 
+type LandingPhysarumBackgroundProps = {
+  settings: PhysarumSettings;
+};
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
@@ -34,7 +53,7 @@ function rand(min: number, max: number) {
   return min + Math.random() * (max - min);
 }
 
-export function LandingPhysarumBackground() {
+export function LandingPhysarumBackground({ settings }: LandingPhysarumBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -56,15 +75,16 @@ export function LandingPhysarumBackground() {
     if (!context) {
       return;
     }
-    const ctx: CanvasRenderingContext2D = context;
 
+    const ctx = context;
     const simCanvas = document.createElement("canvas");
     const simContext = simCanvas.getContext("2d");
 
     if (!simContext) {
       return;
     }
-    const simCtx: CanvasRenderingContext2D = simContext;
+
+    const simCtx = simContext;
 
     let width = 0;
     let height = 0;
@@ -85,22 +105,6 @@ export function LandingPhysarumBackground() {
       active: false,
     };
 
-    const config = {
-      agentCount: 2800,
-      speed: 1.06,
-      sensorDistance: 10,
-      sensorAngle: Math.PI / 5.2,
-      turnAngle: Math.PI / 7.4,
-      noise: 0.06,
-      attract: 0.02,
-      attractRadius: 240,
-      decay: 0.973,
-      diffuse: 0.15,
-      foodStrength: 1.9,
-      obstacleAvoidance: 1.2,
-      lineBoost: 0.16,
-    };
-
     function worldToSimX(value: number) {
       return clamp(Math.floor(value / simScale), 0, simWidth - 1);
     }
@@ -109,21 +113,33 @@ export function LandingPhysarumBackground() {
       return clamp(Math.floor(value / simScale), 0, simHeight - 1);
     }
 
-    function getAnchorPoints(): Point[] {
+    function getPoints(): Point[] {
       const centerX = width * 0.5;
-      const centerY = height * 0.56;
-      const orbitX = width * 0.24;
-      const orbitY = height * 0.18;
+      const centerY = height * 0.55;
+      const ringX = width * 0.34;
+      const ringY = height * 0.28;
+      const count = Math.max(2, settings.ambientDots);
+      const points: Point[] = [];
 
-      return [
-        { x: centerX, y: centerY - orbitY * 1.08, strength: 1.28 },
-        { x: centerX, y: centerY + orbitY * 1.02, strength: 1.08 },
-        { x: centerX - orbitX, y: centerY - orbitY * 0.55, strength: 0.94 },
-        { x: centerX + orbitX, y: centerY - orbitY * 0.4, strength: 0.98 },
-        { x: centerX - orbitX * 0.88, y: centerY + orbitY * 0.52, strength: 0.88 },
-        { x: centerX + orbitX * 0.86, y: centerY + orbitY * 0.5, strength: 0.92 },
-        ...(mouse.active ? [{ x: mouse.x, y: mouse.y, strength: 0.72 }] : []),
-      ];
+      for (let index = 0; index < count; index += 1) {
+        const angle = (Math.PI * 2 * index) / count - Math.PI / 2;
+        const wobbleX = Math.sin(tick * 0.004 + index * 1.7) * 18;
+        const wobbleY = Math.cos(tick * 0.003 + index * 1.3) * 16;
+
+        points.push({
+          x: centerX + Math.cos(angle) * ringX + wobbleX,
+          y: centerY + Math.sin(angle) * ringY + wobbleY,
+          strength: 0.8 + ((index % 3) + 1) * 0.13,
+        });
+      }
+
+      points.push({ x: centerX, y: centerY, strength: 1.48 });
+
+      if (mouse.active) {
+        points.push({ x: mouse.x, y: mouse.y, strength: 0.9 });
+      }
+
+      return points;
     }
 
     function getObstacles(): Obstacle[] {
@@ -149,21 +165,21 @@ export function LandingPhysarumBackground() {
     }
 
     function seedAgents() {
-      const points = getAnchorPoints();
+      const points = getPoints();
       const centerX = simWidth * 0.5;
-      const centerY = simHeight * 0.56;
-      agents = new Array(config.agentCount);
+      const centerY = simHeight * 0.55;
+      agents = new Array(settings.agentCount);
 
-      for (let index = 0; index < config.agentCount; index += 1) {
+      for (let index = 0; index < settings.agentCount; index += 1) {
         const point = points[(Math.random() * points.length) | 0];
         const px = worldToSimX(point.x);
         const py = worldToSimY(point.y);
-        const radius = Math.random() < 0.78 ? rand(4, 24) : rand(12, Math.min(simWidth, simHeight) * 0.14);
+        const radius = Math.random() < 0.8 ? rand(4, 24) : rand(18, Math.min(simWidth, simHeight) * 0.18);
         const angle = Math.random() * Math.PI * 2;
 
         agents[index] = {
-          x: Math.random() < 0.82 ? px + Math.cos(angle) * radius : centerX + Math.cos(angle) * radius,
-          y: Math.random() < 0.82 ? py + Math.sin(angle) * radius : centerY + Math.sin(angle) * radius,
+          x: Math.random() < 0.85 ? px + Math.cos(angle) * radius : centerX + Math.cos(angle) * radius,
+          y: Math.random() < 0.85 ? py + Math.sin(angle) * radius : centerY + Math.sin(angle) * radius,
           angle,
         };
       }
@@ -184,12 +200,9 @@ export function LandingPhysarumBackground() {
       canvasEl.style.width = `${width}px`;
       canvasEl.style.height = `${height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.imageSmoothingEnabled = true;
 
       simCanvas.width = simWidth;
       simCanvas.height = simHeight;
-      simCtx.imageSmoothingEnabled = true;
-
       imageData = new ImageData(simWidth, simHeight);
       trail = new Float32Array(simWidth * simHeight);
       blur = new Float32Array(simWidth * simHeight);
@@ -205,14 +218,12 @@ export function LandingPhysarumBackground() {
     }
 
     function addFood(points: Point[]) {
-      const phase = smoothstep(60, 760, tick);
-
       for (const point of points) {
         const pointX = worldToSimX(point.x);
         const pointY = worldToSimY(point.y);
-        const radius = (mouse.active && point === points[points.length - 1] ? 16 : 13) / simScale;
+        const radius = (mouse.active && point === points[points.length - 1] ? 18 : 15) / simScale;
         const radiusSquared = radius * radius;
-        const localStrength = config.foodStrength * point.strength * (1.26 - phase * 0.46);
+        const localStrength = settings.foodStrength * point.strength;
         const minX = Math.max(0, Math.floor(pointX - radius));
         const maxX = Math.min(simWidth - 1, Math.ceil(pointX + radius));
         const minY = Math.max(0, Math.floor(pointY - radius));
@@ -235,7 +246,7 @@ export function LandingPhysarumBackground() {
       }
     }
 
-    function pushFromObstacle(agent: Agent, obstacles: Obstacle[]) {
+    function repelFromObstacle(agent: Agent, obstacles: Obstacle[]) {
       const worldX = agent.x * simScale;
       const worldY = agent.y * simScale;
 
@@ -252,51 +263,40 @@ export function LandingPhysarumBackground() {
           const bottom = Math.abs(obstacle.y2 - worldY);
           const nearest = Math.min(left, right, top, bottom);
 
-          if (nearest === left) {
-            agent.x -= config.obstacleAvoidance;
-          } else if (nearest === right) {
-            agent.x += config.obstacleAvoidance;
-          } else if (nearest === top) {
-            agent.y -= config.obstacleAvoidance;
-          } else {
-            agent.y += config.obstacleAvoidance;
-          }
+          if (nearest === left) agent.x -= 1.3;
+          else if (nearest === right) agent.x += 1.3;
+          else if (nearest === top) agent.y -= 1.3;
+          else agent.y += 1.3;
 
-          agent.angle += (Math.random() - 0.5) * 0.7 + Math.PI * 0.16;
+          agent.angle += (Math.random() - 0.5) * 0.7 + Math.PI * 0.18;
           break;
         }
       }
     }
 
     function stepAgents(points: Point[], obstacles: Obstacle[]) {
-      const phase = smoothstep(120, 920, tick);
-      const speed = (config.speed / simScale) * (1.04 - phase * 0.18);
-      const sensorDistance = (config.sensorDistance / simScale) * (1 + phase * 0.12);
-      const sensorAngle = config.sensorAngle * (1.08 - phase * 0.12);
-      const turnAngle = config.turnAngle * (1.08 - phase * 0.08);
-      const noise = config.noise * (1.2 - phase * 0.7);
-      const attractRadiusSquared = Math.pow(config.attractRadius / simScale, 2);
+      const attractRadiusSquared = Math.pow(260 / simScale, 2);
 
       for (const agent of agents) {
-        const fx = agent.x + Math.cos(agent.angle) * sensorDistance;
-        const fy = agent.y + Math.sin(agent.angle) * sensorDistance;
-        const lx = agent.x + Math.cos(agent.angle - sensorAngle) * sensorDistance;
-        const ly = agent.y + Math.sin(agent.angle - sensorAngle) * sensorDistance;
-        const rx = agent.x + Math.cos(agent.angle + sensorAngle) * sensorDistance;
-        const ry = agent.y + Math.sin(agent.angle + sensorAngle) * sensorDistance;
+        const fx = agent.x + Math.cos(agent.angle) * (settings.sensorDistance / simScale);
+        const fy = agent.y + Math.sin(agent.angle) * (settings.sensorDistance / simScale);
+        const lx = agent.x + Math.cos(agent.angle - settings.sensorAngle) * (settings.sensorDistance / simScale);
+        const ly = agent.y + Math.sin(agent.angle - settings.sensorAngle) * (settings.sensorDistance / simScale);
+        const rx = agent.x + Math.cos(agent.angle + settings.sensorAngle) * (settings.sensorDistance / simScale);
+        const ry = agent.y + Math.sin(agent.angle + settings.sensorAngle) * (settings.sensorDistance / simScale);
 
         const forward = sampleField(fx, fy);
         const left = sampleField(lx, ly);
         const right = sampleField(rx, ry);
 
         if (forward < left && forward < right) {
-          agent.angle += (Math.random() < 0.5 ? -1 : 1) * turnAngle;
+          agent.angle += (Math.random() < 0.5 ? -1 : 1) * settings.turnAngle;
         } else if (left > right) {
-          agent.angle -= turnAngle;
+          agent.angle -= settings.turnAngle;
         } else if (right > left) {
-          agent.angle += turnAngle;
+          agent.angle += settings.turnAngle;
         } else {
-          agent.angle += (Math.random() - 0.5) * noise;
+          agent.angle += (Math.random() - 0.5) * settings.noise;
         }
 
         let nearestPoint: Point | null = null;
@@ -323,13 +323,13 @@ export function LandingPhysarumBackground() {
           while (diff > Math.PI) diff -= Math.PI * 2;
           while (diff < -Math.PI) diff += Math.PI * 2;
 
-          agent.angle += diff * config.attract * nearestPoint.strength;
+          agent.angle += diff * 0.018 * nearestPoint.strength;
         }
 
-        agent.x += Math.cos(agent.angle) * speed;
-        agent.y += Math.sin(agent.angle) * speed;
+        agent.x += Math.cos(agent.angle) * (settings.speed / simScale);
+        agent.y += Math.sin(agent.angle) * (settings.speed / simScale);
 
-        pushFromObstacle(agent, obstacles);
+        repelFromObstacle(agent, obstacles);
 
         if (agent.x < 1 || agent.x >= simWidth - 1 || agent.y < 1 || agent.y >= simHeight - 1) {
           agent.x = clamp(agent.x, 2, simWidth - 3);
@@ -341,11 +341,11 @@ export function LandingPhysarumBackground() {
         const iy = agent.y | 0;
         const index = iy * simWidth + ix;
 
-        trail[index] += 1.06;
-        if (ix > 0) trail[index - 1] += config.lineBoost;
-        if (ix < simWidth - 1) trail[index + 1] += config.lineBoost;
-        if (iy > 0) trail[index - simWidth] += config.lineBoost;
-        if (iy < simHeight - 1) trail[index + simWidth] += config.lineBoost;
+        trail[index] += 1.08;
+        if (ix > 0) trail[index - 1] += settings.lineBoost;
+        if (ix < simWidth - 1) trail[index + 1] += settings.lineBoost;
+        if (iy > 0) trail[index - simWidth] += settings.lineBoost;
+        if (iy < simHeight - 1) trail[index + simWidth] += settings.lineBoost;
       }
     }
 
@@ -370,7 +370,7 @@ export function LandingPhysarumBackground() {
 
           blur[index] = Math.max(
             0,
-            (trail[index] * (1 - config.diffuse) + average * config.diffuse) * config.decay,
+            (trail[index] * (1 - settings.diffuse) + average * settings.diffuse) * settings.decay,
           );
         }
       }
@@ -385,15 +385,15 @@ export function LandingPhysarumBackground() {
 
       for (let index = 0; index < trail.length; index += 1) {
         const value = trail[index];
-        const normalized = Math.min(1, value * 0.042 + 0.018);
-        const shaped = Math.pow(normalized, 1.26);
-        const glow = smoothstep(0.03, 0.92, shaped);
+        const normalized = Math.min(1, value * 0.045);
+        const shaped = Math.pow(normalized, 1.08);
+        const glow = smoothstep(0.01, 0.9, shaped);
         const pixel = index * 4;
 
-        data[pixel] = Math.min(255, 178 + glow * 18);
-        data[pixel + 1] = Math.min(255, 206 + glow * 34);
-        data[pixel + 2] = Math.min(255, 192 + glow * 48);
-        data[pixel + 3] = Math.min(255, 8 + glow * 118);
+        data[pixel] = Math.min(255, 26 + glow * 72);
+        data[pixel + 1] = Math.min(255, 86 + glow * 255);
+        data[pixel + 2] = Math.min(255, 44 + glow * 68);
+        data[pixel + 3] = Math.min(255, 2 + glow * 255 * settings.opacity);
       }
 
       simCtx.putImageData(imageData, 0, 0);
@@ -401,11 +401,11 @@ export function LandingPhysarumBackground() {
       ctx.drawImage(simCanvas, 0, 0, simWidth, simHeight, 0, 0, width, height);
 
       for (const point of points) {
-        const radius = point.strength > 1.2 ? 26 : 18;
+        const radius = point.strength > 1.2 ? 28 : 20;
         const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
-        gradient.addColorStop(0, "rgba(126, 184, 214, 0.22)");
-        gradient.addColorStop(0.45, "rgba(103, 185, 141, 0.12)");
-        gradient.addColorStop(1, "rgba(103, 185, 141, 0)");
+        gradient.addColorStop(0, "rgba(109, 255, 140, 0.3)");
+        gradient.addColorStop(0.4, "rgba(62, 255, 120, 0.11)");
+        gradient.addColorStop(1, "rgba(62, 255, 120, 0)");
         ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
@@ -414,7 +414,7 @@ export function LandingPhysarumBackground() {
     }
 
     function frame() {
-      const points = getAnchorPoints();
+      const points = getPoints();
       const obstacles = getObstacles();
 
       addFood(points);
@@ -451,13 +451,13 @@ export function LandingPhysarumBackground() {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseleave", handleMouseLeave);
     };
-  }, []);
+  }, [settings]);
 
   return (
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-0 h-screen w-screen opacity-[0.88]"
+      className="pointer-events-none fixed inset-0 z-0 h-screen w-screen"
     />
   );
 }

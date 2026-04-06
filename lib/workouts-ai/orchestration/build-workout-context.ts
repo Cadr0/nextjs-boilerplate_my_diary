@@ -32,19 +32,34 @@ type DiaryEntrySnippetRow = {
 };
 
 function mapMemoryItem(row: MemoryItemRow): MemoryItem {
+  const metadata = row.metadata_json ?? row.metadata ?? {};
+
   return {
     id: row.id,
     userId: row.user_id,
     sourceEntryId: row.source_entry_id,
+    sourceMessageId: row.source_message_id,
     sourceType: row.source_type,
     category: row.category,
+    memoryType: row.memory_type ?? "contextual_fact",
+    memoryClass: row.memory_class ?? "active_dynamic",
     title: row.title,
+    canonicalSubject: row.canonical_subject ?? row.title,
+    normalizedSubject: row.normalized_subject ?? row.title.toLowerCase(),
+    summary: row.summary ?? row.content,
     content: row.content,
+    stateReason: row.state_reason,
     confidence: row.confidence,
     importance: row.importance,
     mentionCount: row.mention_count,
     status: row.status,
-    metadata: row.metadata,
+    resolvedAt: row.resolved_at,
+    supersededBy: row.superseded_by,
+    relevanceScore: row.relevance_score,
+    lastConfirmedAt: row.last_confirmed_at,
+    lastReferencedAt: row.last_referenced_at,
+    metadata,
+    metadataJson: metadata,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -171,10 +186,19 @@ async function loadMemoryContextText(userId: string, currentDate: string, queryT
   const result = await supabase
     .from("memory_items")
     .select(
-      "id, user_id, source_entry_id, source_type, category, title, content, confidence, importance, mention_count, status, metadata, created_at, updated_at",
+      "id, user_id, source_entry_id, source_message_id, source_type, category, memory_type, memory_class, title, canonical_subject, normalized_subject, summary, content, state_reason, confidence, importance, mention_count, status, resolved_at, superseded_by, relevance_score, last_confirmed_at, last_referenced_at, metadata, metadata_json, created_at, updated_at",
     )
     .eq("user_id", userId)
-    .in("status", ["open", "resolved"])
+    .in("status", [
+      "active",
+      "monitoring",
+      "completed",
+      "abandoned",
+      "superseded",
+      "stale",
+      "open",
+      "resolved",
+    ])
     .order("updated_at", { ascending: false })
     .limit(24);
 

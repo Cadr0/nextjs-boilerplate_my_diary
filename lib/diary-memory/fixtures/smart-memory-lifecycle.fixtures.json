@@ -1,0 +1,70 @@
+{
+  "transitionScenarios": [
+    {
+      "name": "desire_to_completed_with_possession_successor",
+      "existing": { "type": "desire", "status": "active", "subject": "лонгборд" },
+      "message": "я купил лонгборд",
+      "expected": { "action": "mark_completed", "status": "completed", "successorType": "possession" }
+    },
+    {
+      "name": "issue_to_resolved",
+      "existing": { "type": "issue", "status": "active", "subject": "спина" },
+      "message": "спина уже прошла",
+      "expected": { "action": "mark_completed", "status": "completed" }
+    },
+    {
+      "name": "plan_to_abandoned",
+      "existing": { "type": "plan", "status": "active", "subject": "переезд" },
+      "message": "передумал переезжать",
+      "expected": { "action": "mark_abandoned", "status": "abandoned" }
+    },
+    {
+      "name": "goal_progress_enrich",
+      "existing": { "type": "goal", "status": "active", "subject": "начать бегать" },
+      "message": "уже третью неделю бегаю",
+      "expected": { "action": "enrich_existing", "status": "monitoring" }
+    }
+  ],
+  "signalDetectionScenarios": [
+    { "name": "detect_kupil", "message": "купил лонгборд", "expectedSignal": "purchase_completed" },
+    { "name": "detect_uzhe_sdelal", "message": "уже сделал это", "expectedSignal": "already_done" },
+    { "name": "detect_peredumal", "message": "передумал переезжать", "expectedSignal": "abandoned" },
+    { "name": "detect_bolshe_ne_hochu", "message": "больше не хочу покупать", "expectedSignal": "no_longer_wanted" },
+    { "name": "detect_zakonchil", "message": "закончил проект", "expectedSignal": "finished" },
+    { "name": "detect_proshlo", "message": "боль в спине прошла", "expectedSignal": "issue_gone" },
+    { "name": "detect_reshil_problemu", "message": "решил проблему со сном", "expectedSignal": "issue_resolved" }
+  ],
+  "signalSafetyScenarios": [
+    {
+      "name": "no_subject_should_not_close_unrelated",
+      "existing": { "type": "desire", "status": "active", "subject": "лонгборд" },
+      "message": "передумал",
+      "expected": { "action": "keep_as_is_or_enrich" }
+    }
+  ],
+  "matchingGuardrailScenarios": [
+    {
+      "name": "similar_but_different_objects",
+      "existingSubjects": ["борд для серфа", "лонгборд"],
+      "incomingSubject": "скейтборд",
+      "expected": { "shouldMerge": false }
+    }
+  ],
+  "contextRankingScenarios": [
+    {
+      "name": "diary_reply_priority",
+      "mode": "diary_reply",
+      "expectedOrderPrefix": ["active_dynamic", "durable"]
+    },
+    {
+      "name": "daily_analysis_priority",
+      "mode": "daily_analysis",
+      "expectedOrderPrefix": ["active_dynamic", "durable"]
+    },
+    {
+      "name": "period_analysis_priority",
+      "mode": "period_analysis",
+      "expectedOrderPrefix": ["durable", "resolved_historical"]
+    }
+  ]
+}

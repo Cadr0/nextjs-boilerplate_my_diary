@@ -1,4 +1,7 @@
-import type { MemoryItem } from "@/lib/ai/memory/types";
+import {
+  normalizeMemoryStatus,
+  type MemoryItem,
+} from "@/lib/ai/memory/types";
 
 export const derivedMemoryStates = ["active", "stalled", "fading", "resolved"] as const;
 
@@ -29,8 +32,10 @@ function formatDateOnly(value: Date) {
 }
 
 function readMetadataDate(item: MemoryItem, keys: string[], fallback: string) {
+  const metadata = item.metadataJson ?? item.metadata;
+
   for (const key of keys) {
-    const value = parseDateValue(item.metadata[key]);
+    const value = parseDateValue(metadata[key]);
 
     if (value) {
       return value;
@@ -74,14 +79,22 @@ export function deriveMemoryState(
 
   let state: DerivedMemoryState;
 
-  if (item.status !== "open") {
+  const canonicalStatus = normalizeMemoryStatus(item.status);
+
+  if (
+    canonicalStatus === "completed" ||
+    canonicalStatus === "abandoned" ||
+    canonicalStatus === "superseded" ||
+    canonicalStatus === "stale"
+  ) {
     state = "resolved";
   } else if (
-    daysSinceSeen <= 7 ||
-    (daysSinceSeen <= 14 &&
-      (item.mentionCount >= 2 ||
-        daysTracked <= 21 ||
-        (mentionCadenceDays !== null && mentionCadenceDays <= 21)))
+    (canonicalStatus === "active" || canonicalStatus === "monitoring") &&
+    (daysSinceSeen <= 7 ||
+      (daysSinceSeen <= 14 &&
+        (item.mentionCount >= 2 ||
+          daysTracked <= 21 ||
+          (mentionCadenceDays !== null && mentionCadenceDays <= 21))))
   ) {
     state = "active";
   } else if (

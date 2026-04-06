@@ -4,7 +4,11 @@ import {
   deriveMemoryState,
   type DerivedMemoryState,
 } from "@/lib/ai/memory/deriveMemoryState";
-import type { MemoryItem, MemoryItemCategory } from "@/lib/ai/memory/types";
+import {
+  normalizeMemoryStatus,
+  type MemoryItem,
+  type MemoryItemCategory,
+} from "@/lib/ai/memory/types";
 
 export type FollowUpCandidate = {
   memoryId: string;
@@ -53,12 +57,22 @@ const stopWords = new Set([
 ]);
 
 const categoryQuestionBuilders: Record<MemoryItemCategory, (title: string) => string> = {
-  desire: (title) => `Это желание ещё живое: «${title}», или оно уже изменилось?`,
-  plan: (title) => `Какой следующий конкретный шаг по теме «${title}» сейчас самый уместный?`,
-  idea: (title) => `Хочется ли развить идею «${title}» дальше или её лучше отпустить?`,
-  purchase: (title) => `Покупка «${title}» ещё актуальна, и по какому критерию ты будешь решать?`,
-  concern: (title) => `Что в теме «${title}» беспокоит сильнее всего именно сейчас?`,
-  conflict: (title) => `Что сейчас происходит в теме «${title}», и нужен ли следующий разговор или граница?`,
+  desire: (title) => `Тема "${title}" всё ещё актуальна или уже изменилась?`,
+  plan: (title) => `Какой следующий конкретный шаг по теме "${title}" сейчас уместен?`,
+  idea: (title) => `Хочешь развивать идею "${title}" дальше?`,
+  purchase: (title) => `Покупка "${title}" остаётся актуальной или уже закрыта?`,
+  concern: (title) => `Что сейчас самое важное в теме "${title}"?`,
+  conflict: (title) => `Есть ли обновление по теме "${title}"?`,
+  goal: (title) => `Какой прогресс по цели "${title}" за последнее время?`,
+  project: (title) => `Что сейчас продвигает проект "${title}" вперёд?`,
+  possession: (title) => `Как тема "${title}" влияет на текущие решения?`,
+  preference: (title) => `Предпочтение "${title}" всё ещё актуально?`,
+  issue: (title) => `Проблема "${title}" всё ещё активна или уже решена?`,
+  resolved_issue: (title) => `Решение по теме "${title}" устойчиво?`,
+  relationship_fact: (title) => `Есть ли важное обновление по теме "${title}"?`,
+  contextual_fact: (title) => `Факт "${title}" всё ещё влияет на текущий контекст?`,
+  routine: (title) => `Рутина "${title}" сохраняется?`,
+  milestone: (title) => `Что изменилось после этапа "${title}"?`,
 };
 
 const stateWeights: Record<DerivedMemoryState, number> = {
@@ -127,15 +141,21 @@ export function deriveFollowUpCandidates(args: {
 
   return args.items
     .flatMap<FollowUpCandidate>((item) => {
-      if (item.status !== "open") {
+      const status = normalizeMemoryStatus(item.status);
+
+      if (!(status === "active" || status === "monitoring")) {
+        return [];
+      }
+
+      if (item.memoryClass === "resolved_historical") {
         return [];
       }
 
       const derivedState = deriveMemoryState(item, {
         currentDate: args.currentDate,
       });
-      const importance = item.importance ?? 0.5;
-      const overlap = countOverlap(queryTokens, item.title, item.content);
+      const importance = item.importance ?? item.relevanceScore ?? 0.5;
+      const overlap = countOverlap(queryTokens, item.title, item.summary, item.content);
       const repeats = item.mentionCount >= 2;
       const longOpen = derivedState.daysTracked >= 28;
       const resurfacedAfterPause =
@@ -177,13 +197,14 @@ export function deriveFollowUpCandidates(args: {
         (repeats ? 1.4 : 0) +
         (longOpen ? 1.2 : 0) +
         (resurfacedAfterPause ? 1.8 : 0);
+      const title = trimTitle(item.title);
 
       return [
         {
           memoryId: item.id,
-          title: trimTitle(item.title),
+          title,
           category: item.category,
-          question: categoryQuestionBuilders[item.category](trimTitle(item.title)),
+          question: categoryQuestionBuilders[item.category](title),
           reason: buildCandidateReason(reasonFlags),
           state: derivedState.state,
           score,

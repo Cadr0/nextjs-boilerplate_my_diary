@@ -1,68 +1,102 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 
 import { BrandGlyph } from "@/components/brand-glyph";
 import { BrandWordmark } from "@/components/landing/brand-wordmark";
-import { LandingPhysarumBackground } from "@/components/landing/landing-physarum-background";
+import {
+  type PhysarumSettings,
+  LandingPhysarumBackground,
+} from "@/components/landing/landing-physarum-background";
 
 type LandingPageProps = {
   isAuthenticated: boolean;
   isConfigured: boolean;
 };
 
-type AccentCard = {
-  title: string;
-  value: string;
-  detail: string;
+type FloatingTag = {
+  label: string;
   className: string;
 };
 
-const ACCENT_CARDS: AccentCard[] = [
-  {
-    title: "Энергия",
-    value: "+2",
-    detail: "после прогулки и ровного дня",
-    className: "left-[4%] top-[16%] hidden min-[1040px]:flex",
-  },
-  {
-    title: "AI-анализ дня",
-    value: "Фокус вернулся",
-    detail: "система связала это со сном и ритмом",
-    className: "right-[5%] top-[18%] hidden min-[1040px]:flex",
-  },
-  {
-    title: "Сон",
-    value: "7ч 20м",
-    detail: "чуть стабильнее, чем неделей раньше",
-    className: "left-[8%] bottom-[11%] hidden min-[1040px]:flex",
-  },
-  {
-    title: "Период",
-    value: "Тренд вверх",
-    detail: "настроение стало ровнее по неделе",
-    className: "right-[7%] bottom-[10%] hidden min-[1040px]:flex",
-  },
+type SettingField = {
+  key: keyof PhysarumSettings;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+};
+
+const FLOATING_TAGS: FloatingTag[] = [
+  { label: "Сегодня", className: "left-[2.5%] top-[24%]" },
+  { label: "Короткий фокус дня", className: "left-[23%] bottom-[17%]" },
+  { label: "Сон 7 ч", className: "left-[11%] bottom-[9%]" },
+  { label: "Diary AI", className: "left-1/2 top-[27%] -translate-x-1/2" },
+  { label: "Разбор периода", className: "right-[12%] bottom-[18%]" },
+  { label: "Энергия 8/10", className: "right-[8%] bottom-[8%]" },
 ];
 
+const DEFAULT_SETTINGS: PhysarumSettings = {
+  agentCount: 2600,
+  speed: 1.1,
+  sensorDistance: 10,
+  sensorAngle: 0.58,
+  turnAngle: 0.44,
+  decay: 0.972,
+  diffuse: 0.14,
+  foodStrength: 1.7,
+  lineBoost: 0.17,
+  noise: 0.045,
+  opacity: 0.96,
+  ambientDots: 8,
+};
+
+const SETTING_FIELDS: SettingField[] = [
+  { key: "agentCount", label: "Agents", min: 800, max: 4200, step: 100 },
+  { key: "speed", label: "Speed", min: 0.4, max: 2, step: 0.02 },
+  { key: "sensorDistance", label: "Sensor", min: 4, max: 24, step: 0.5 },
+  { key: "sensorAngle", label: "Sense angle", min: 0.15, max: 1.2, step: 0.01 },
+  { key: "turnAngle", label: "Turn", min: 0.1, max: 1.2, step: 0.01 },
+  { key: "decay", label: "Decay", min: 0.9, max: 0.995, step: 0.001 },
+  { key: "diffuse", label: "Diffuse", min: 0.02, max: 0.28, step: 0.01 },
+  { key: "foodStrength", label: "Food", min: 0.5, max: 3.5, step: 0.05 },
+  { key: "lineBoost", label: "Line boost", min: 0, max: 0.5, step: 0.01 },
+  { key: "noise", label: "Noise", min: 0, max: 0.2, step: 0.005 },
+  { key: "opacity", label: "Opacity", min: 0.4, max: 1, step: 0.01 },
+  { key: "ambientDots", label: "Anchors", min: 2, max: 14, step: 1 },
+];
+
+function formatSetting(value: number) {
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+
+  return value.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+}
+
 export function LandingPage({ isAuthenticated, isConfigured }: LandingPageProps) {
-  const primaryHref = isAuthenticated ? "/diary" : "/register";
-  const primaryLabel = isAuthenticated ? "Открыть дневник" : "Создать аккаунт";
-  const secondaryHref = isAuthenticated ? "/analytics" : "/login";
-  const secondaryLabel = isAuthenticated ? "Аналитика" : "Войти";
+  const [settings, setSettings] = useState<PhysarumSettings>(DEFAULT_SETTINGS);
+
+  const primaryHref = isAuthenticated ? "/diary" : "/login";
+  const primaryLabel = isAuthenticated ? "Открыть систему" : "Войти в систему";
+  const secondaryHref = isAuthenticated ? "/analytics" : "/register";
+  const secondaryLabel = isAuthenticated ? "Аналитика" : "Создать аккаунт";
+
+  const stableSettings = useMemo(() => settings, [settings]);
 
   return (
-    <main className="relative h-screen overflow-hidden">
-      <LandingPhysarumBackground />
+    <main className="relative h-screen overflow-hidden bg-[#06110b] text-white">
+      <LandingPhysarumBackground settings={stableSettings} />
 
-      <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.78),rgba(255,255,255,0.26)_36%,rgba(255,255,255,0)_72%)]" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-44 bg-[linear-gradient(180deg,rgba(250,245,238,0.82),rgba(250,245,238,0))]" />
-      <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1] h-[34rem] w-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(103,185,141,0.1),rgba(103,185,141,0))]" />
+      <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_center,rgba(19,41,29,0)_0%,rgba(5,12,8,0.08)_56%,rgba(3,8,5,0.88)_100%)]" />
+      <div className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(6,17,11,0.22),rgba(6,17,11,0.52))]" />
+      <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1] h-[34rem] w-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(66,255,112,0.08),rgba(66,255,112,0))]" />
 
-      <section className="relative z-10 mx-auto flex h-screen w-full max-w-7xl flex-col px-4 pb-4 pt-4 sm:px-6 lg:px-8">
+      <section className="relative z-10 mx-auto flex h-screen w-full max-w-[1600px] flex-col px-4 pb-4 pt-4 sm:px-6 lg:px-8">
         <header
           data-physarum-block
-          className="glass-panel soft-ring rounded-[2rem] border border-white/75 px-4 py-4 sm:rounded-full sm:px-6 sm:py-3"
+          className="rounded-[1.8rem] border border-white/10 bg-white/[0.03] px-4 py-4 backdrop-blur-xl sm:rounded-full sm:px-6 sm:py-3"
         >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <Link href="/" className="flex items-center gap-3">
@@ -70,23 +104,22 @@ export function LandingPage({ isAuthenticated, isConfigured }: LandingPageProps)
               <BrandWordmark compact />
             </Link>
 
-            <nav className="hidden items-center gap-6 text-sm text-slate-600 lg:flex">
-              <span className="rounded-full border border-white/65 bg-white/50 px-4 py-2 text-[0.76rem] uppercase tracking-[0.26em] text-slate-500">
-                Diary AI
+            <div className="hidden items-center gap-3 lg:flex">
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[0.72rem] uppercase tracking-[0.28em] text-white/55">
+                Live landing
               </span>
-              <span className="text-slate-500">Дневник, метрики, AI-анализ и память</span>
-            </nav>
+            </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center">
+            <div className="flex items-center gap-3">
               <Link
                 href={secondaryHref}
-                className="min-w-[6.8rem] rounded-full border border-slate-200 bg-white px-4 py-2.5 text-center text-sm font-medium text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-[0_10px_22px_rgba(15,23,42,0.08)]"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white/82 transition-all duration-300 hover:border-white/20 hover:bg-white/[0.07]"
               >
                 {secondaryLabel}
               </Link>
               <Link
                 href={primaryHref}
-                className="min-w-[10.8rem] rounded-full bg-[linear-gradient(135deg,#1f9a96_0%,#2b73a8_100%)] px-5 py-2.5 text-center text-[0.96rem] font-semibold tracking-[-0.01em] !text-white shadow-[0_14px_30px_rgba(33,116,143,0.3)] ring-1 ring-white/30 transition-all duration-300 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_20px_38px_rgba(33,116,143,0.36)]"
+                className="rounded-full border border-[rgba(87,255,132,0.24)] bg-[rgba(87,255,132,0.14)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_40px_rgba(87,255,132,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(87,255,132,0.18)]"
               >
                 {primaryLabel}
               </Link>
@@ -94,95 +127,111 @@ export function LandingPage({ isAuthenticated, isConfigured }: LandingPageProps)
           </div>
         </header>
 
-        <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden py-4 sm:py-5">
-          {ACCENT_CARDS.map((card) => (
-            <article
-              key={card.title}
+        <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+          {FLOATING_TAGS.map((tag) => (
+            <div
+              key={tag.label}
               data-physarum-block
-              className={`group absolute z-10 w-[220px] flex-col rounded-[1.6rem] border border-white/70 bg-white/55 p-3 text-left shadow-[0_20px_55px_rgba(23,30,26,0.08)] backdrop-blur-xl transition-all duration-500 hover:-translate-y-1.5 hover:bg-white/74 hover:shadow-[0_26px_70px_rgba(23,30,26,0.14)] ${card.className}`}
+              className={`absolute z-10 hidden rounded-[1.15rem] border border-white/8 bg-white/[0.035] px-7 py-4 text-sm text-white/70 backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-white/16 hover:bg-white/[0.06] xl:block ${tag.className}`}
             >
-              <span className="text-[0.68rem] uppercase tracking-[0.22em] text-slate-500">{card.title}</span>
-              <strong className="mt-2 text-[1.1rem] font-semibold tracking-[-0.02em] text-slate-900">
-                {card.value}
-              </strong>
-              <p className="mt-1 max-h-0 overflow-hidden text-sm leading-5 text-slate-600 opacity-0 transition-all duration-500 group-hover:mt-3 group-hover:max-h-16 group-hover:opacity-100">
-                {card.detail}
-              </p>
-            </article>
+              {tag.label}
+            </div>
           ))}
 
-          <div className="pointer-events-none absolute inset-x-0 top-[16%] z-[2] mx-auto h-px max-w-[32rem] bg-[linear-gradient(90deg,rgba(103,185,141,0),rgba(103,185,141,0.42),rgba(103,185,141,0))]" />
+          <section className="relative z-20 flex w-full max-w-[860px] flex-col items-center px-6 text-center">
+            <div
+              data-physarum-block
+              className="rounded-full border border-[rgba(87,255,132,0.16)] bg-[rgba(11,27,18,0.6)] px-5 py-2 text-[0.8rem] tracking-[0.02em] text-white/78 backdrop-blur-md"
+            >
+              Diary AI
+            </div>
 
-          <section
-            data-physarum-block
-            className="surface-card relative z-20 flex w-full max-w-[44rem] flex-col items-center rounded-[2rem] border border-white/80 px-6 py-8 text-center shadow-[0_35px_90px_rgba(29,38,33,0.13)] sm:px-10 sm:py-10"
-          >
-            <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-[linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,0.96),rgba(255,255,255,0))]" />
-            <div className="pointer-events-none absolute inset-x-8 top-6 h-28 rounded-full bg-[radial-gradient(circle,rgba(126,184,214,0.22),rgba(126,184,214,0))]" />
-
-            <span className="rounded-full border border-[rgba(32,77,67,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-2 text-[0.72rem] uppercase tracking-[0.28em] text-slate-500">
-              Живая память дня
-            </span>
-
-            <h1 className="mt-5 max-w-[11ch] font-display text-4xl leading-none tracking-[-0.04em] text-slate-950 sm:text-6xl">
-              Видеть жизнь яснее.
+            <h1
+              data-physarum-block
+              className="mt-6 max-w-[10ch] font-sans text-[clamp(3.7rem,8vw,7.3rem)] font-black leading-[0.9] tracking-[-0.08em] text-[#f2ffee]"
+            >
+              Понимай свою жизнь. Не просто записывай.
             </h1>
 
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-              Diary AI собирает записи, метрики и AI-анализ в одну спокойную систему, где легче замечать
-              связи, динамику и важные изменения.
+            <p
+              data-physarum-block
+              className="mt-6 max-w-[780px] text-[clamp(1rem,1.6vw,1.65rem)] leading-[1.6] text-white/62"
+            >
+              Дневник, который превращает записи, метрики и AI-разбор в ясную картину дня и периода.
             </p>
 
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5 text-left">
-              <span className="rounded-full border border-[rgba(47,111,97,0.12)] bg-[rgba(103,185,141,0.12)] px-3 py-2 text-sm text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(103,185,141,0.18)]">
-                Метрики дня
-              </span>
-              <span className="rounded-full border border-[rgba(47,111,97,0.12)] bg-[rgba(126,184,214,0.12)] px-3 py-2 text-sm text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(126,184,214,0.18)]">
-                AI-анализ
-              </span>
-              <span className="rounded-full border border-[rgba(47,111,97,0.12)] bg-[rgba(211,173,98,0.13)] px-3 py-2 text-sm text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(211,173,98,0.19)]">
-                Период и память
-              </span>
-            </div>
-
-            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
+            <div data-physarum-block className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link
-                href={secondaryHref}
-                className="group inline-flex min-w-[14rem] items-center justify-center rounded-full bg-[linear-gradient(135deg,#2f6f61_0%,#2a8a86_100%)] px-6 py-3.5 text-base font-semibold tracking-[-0.02em] text-white shadow-[0_18px_40px_rgba(47,111,97,0.26)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_48px_rgba(47,111,97,0.32)]"
+                href={isConfigured ? primaryHref : "#"}
+                className="rounded-full border border-[rgba(87,255,132,0.22)] bg-[rgba(87,255,132,0.2)] px-8 py-4 text-lg font-semibold text-[#f4fff2] shadow-[0_0_44px_rgba(87,255,132,0.14)] transition-all duration-300 hover:-translate-y-1 hover:bg-[rgba(87,255,132,0.26)]"
               >
                 Войти в систему
-                <span className="ml-2 transition-transform duration-300 group-hover:translate-x-0.5">→</span>
               </Link>
-
               <Link
-                href={primaryHref}
-                className="inline-flex min-w-[12rem] items-center justify-center rounded-full border border-[rgba(24,33,29,0.08)] bg-white/72 px-6 py-3.5 text-base font-medium text-slate-700 transition-all duration-300 hover:-translate-y-1 hover:border-[rgba(47,111,97,0.18)] hover:bg-white"
+                href={secondaryHref}
+                className="rounded-full border border-white/10 bg-white/[0.04] px-8 py-4 text-lg text-white/82 transition-all duration-300 hover:-translate-y-1 hover:border-white/18 hover:bg-white/[0.07]"
               >
-                {primaryLabel}
+                {secondaryLabel}
               </Link>
-            </div>
-
-            <div className="mt-7 grid w-full max-w-[32rem] grid-cols-1 gap-2.5 text-left sm:grid-cols-3">
-              <div className="rounded-[1.25rem] border border-white/70 bg-white/55 px-4 py-3 transition-all duration-300 hover:-translate-y-1 hover:bg-white/74">
-                <div className="text-[0.68rem] uppercase tracking-[0.22em] text-slate-500">День</div>
-                <div className="mt-1 text-sm text-slate-700">Запись, настроение, энергия, сон</div>
-              </div>
-              <div className="rounded-[1.25rem] border border-white/70 bg-white/55 px-4 py-3 transition-all duration-300 hover:-translate-y-1 hover:bg-white/74">
-                <div className="text-[0.68rem] uppercase tracking-[0.22em] text-slate-500">AI</div>
-                <div className="mt-1 text-sm text-slate-700">Короткий разбор и follow-up по смыслу дня</div>
-              </div>
-              <div className="rounded-[1.25rem] border border-white/70 bg-white/55 px-4 py-3 transition-all duration-300 hover:-translate-y-1 hover:bg-white/74">
-                <div className="text-[0.68rem] uppercase tracking-[0.22em] text-slate-500">Период</div>
-                <div className="mt-1 text-sm text-slate-700">Тренды, память и вопросы к своим данным</div>
-              </div>
             </div>
 
             {!isConfigured ? (
-              <p className="mt-5 text-sm text-slate-500">
-                Среда ещё не настроена полностью. Вход станет доступен после конфигурации Supabase и AI-провайдера.
+              <p className="mt-5 text-sm text-white/44">
+                Среда ещё не настроена полностью. Точка входа активируется после конфигурации.
               </p>
             ) : null}
           </section>
+
+          <aside
+            data-physarum-block
+            className="absolute left-4 top-[6.4rem] z-20 hidden h-[calc(100vh-9rem)] w-[280px] rounded-[1.6rem] border border-white/10 bg-[rgba(6,17,11,0.68)] p-4 backdrop-blur-xl xl:flex xl:flex-col"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[0.72rem] uppercase tracking-[0.26em] text-white/42">Physarum</div>
+                <div className="mt-1 text-sm text-white/72">Параметры сцены</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSettings(DEFAULT_SETTINGS)}
+                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/72 transition hover:border-white/20 hover:bg-white/[0.07]"
+              >
+                Reset
+              </button>
+            </div>
+
+            <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
+              {SETTING_FIELDS.map((field) => {
+                const value = settings[field.key];
+
+                return (
+                  <label key={field.key} className="block">
+                    <div className="mb-1.5 flex items-center justify-between gap-3 text-xs text-white/70">
+                      <span>{field.label}</span>
+                      <span className="font-mono text-white/48">{formatSetting(value)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={field.min}
+                      max={field.max}
+                      step={field.step}
+                      value={value}
+                      onChange={(event) => {
+                        const nextValue = Number(event.target.value);
+                        setSettings((current) => ({
+                          ...current,
+                          [field.key]: field.key === "agentCount" || field.key === "ambientDots"
+                            ? Math.round(nextValue)
+                            : nextValue,
+                        }));
+                      }}
+                      className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[#57ff84]"
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          </aside>
         </div>
       </section>
     </main>

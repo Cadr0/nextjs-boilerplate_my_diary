@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import {
   parseDiaryExtractionResult,
@@ -48,6 +48,19 @@ type RouterAiVisionContentPart =
       [key: string]: unknown;
     };
 
+export type RouterAiChatAttachment = {
+  kind: "image";
+  mimeType: string;
+  fileName?: string;
+  dataUrl: string;
+};
+
+export type RouterAiConversationMessage = {
+  role: "user" | "assistant";
+  content: string;
+  attachments?: RouterAiChatAttachment[];
+};
+
 function extractVisionTextContent(content: string | RouterAiVisionContentPart[] | undefined) {
   if (typeof content === "string") {
     return content.trim();
@@ -94,7 +107,7 @@ export async function extractTextFromDiaryImage(file: File) {
           content: [
             {
               type: "text",
-              text: "Извлеки текст с фотографии дневника. Верни только распознанный текст, без комментариев и без форматирования.",
+              text: "РР·РІР»РµРєРё С‚РµРєСЃС‚ СЃ С„РѕС‚РѕРіСЂР°С„РёРё РґРЅРµРІРЅРёРєР°. Р’РµСЂРЅРё С‚РѕР»СЊРєРѕ СЂР°СЃРїРѕР·РЅР°РЅРЅС‹Р№ С‚РµРєСЃС‚, Р±РµР· РєРѕРјРјРµРЅС‚Р°СЂРёРµРІ Рё Р±РµР· С„РѕСЂРјР°С‚РёСЂРѕРІР°РЅРёСЏ.",
             },
             {
               type: "image_url",
@@ -166,37 +179,37 @@ export async function analyzeDiaryEntry(entry: AnalyzeDiaryEntryInput) {
       {
         role: "system",
         content:
-          "Ты аналитик дневника. Отвечай по-русски естественно и содержательно: можно абзацами и короткими списками, без жёстких рамок формата.",
+          "РўС‹ Р°РЅР°Р»РёС‚РёРє РґРЅРµРІРЅРёРєР°. РћС‚РІРµС‡Р°Р№ РїРѕ-СЂСѓСЃСЃРєРё РµСЃС‚РµСЃС‚РІРµРЅРЅРѕ Рё СЃРѕРґРµСЂР¶Р°С‚РµР»СЊРЅРѕ: РјРѕР¶РЅРѕ Р°Р±Р·Р°С†Р°РјРё Рё РєРѕСЂРѕС‚РєРёРјРё СЃРїРёСЃРєР°РјРё, Р±РµР· Р¶С‘СЃС‚РєРёС… СЂР°РјРѕРє С„РѕСЂРјР°С‚Р°.",
       },
       {
         role: "system",
         content:
-          "Ниже может быть скрытая долгосрочная память пользователя из прошлых записей. Используй её как мягкий контекст для повторяющихся тем и выводов о динамике, но не выдумывай факты и не показывай внутреннюю память сырым списком без запроса.",
+          "РќРёР¶Рµ РјРѕР¶РµС‚ Р±С‹С‚СЊ СЃРєСЂС‹С‚Р°СЏ РґРѕР»РіРѕСЃСЂРѕС‡РЅР°СЏ РїР°РјСЏС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РёР· РїСЂРѕС€Р»С‹С… Р·Р°РїРёСЃРµР№. РСЃРїРѕР»СЊР·СѓР№ РµС‘ РєР°Рє РјСЏРіРєРёР№ РєРѕРЅС‚РµРєСЃС‚ РґР»СЏ РїРѕРІС‚РѕСЂСЏСЋС‰РёС…СЃСЏ С‚РµРј Рё РІС‹РІРѕРґРѕРІ Рѕ РґРёРЅР°РјРёРєРµ, РЅРѕ РЅРµ РІС‹РґСѓРјС‹РІР°Р№ С„Р°РєС‚С‹ Рё РЅРµ РїРѕРєР°Р·С‹РІР°Р№ РІРЅСѓС‚СЂРµРЅРЅСЋСЋ РїР°РјСЏС‚СЊ СЃС‹СЂС‹Рј СЃРїРёСЃРєРѕРј Р±РµР· Р·Р°РїСЂРѕСЃР°.",
       },
       {
         role: "system",
-        content: `Скрытая долгосрочная память:\n${entry.memoryContext || "Нет устойчивых тем из прошлого."}`,
+        content: `РЎРєСЂС‹С‚Р°СЏ РґРѕР»РіРѕСЃСЂРѕС‡РЅР°СЏ РїР°РјСЏС‚СЊ:\n${entry.memoryContext || "РќРµС‚ СѓСЃС‚РѕР№С‡РёРІС‹С… С‚РµРј РёР· РїСЂРѕС€Р»РѕРіРѕ."}`,
       },
       {
         role: "user",
         content: [
-          `Дата: ${entry.entryDate}`,
+          `Р”Р°С‚Р°: ${entry.entryDate}`,
           "",
-          "Главное за день:",
-          entry.summary || "Нет данных.",
+          "Р“Р»Р°РІРЅРѕРµ Р·Р° РґРµРЅСЊ:",
+          entry.summary || "РќРµС‚ РґР°РЅРЅС‹С….",
           "",
-          "Как прошел день:",
-          entry.notes || "Нет данных.",
+          "РљР°Рє РїСЂРѕС€РµР» РґРµРЅСЊ:",
+          entry.notes || "РќРµС‚ РґР°РЅРЅС‹С….",
           "",
-          "Метрики из БД:",
+          "РњРµС‚СЂРёРєРё РёР· Р‘Р”:",
           entry.metrics.length > 0
             ? entry.metrics
                 .map(
                   (metric) =>
-                    `- ${metric.name}: ${String(metric.value)}${metric.unit ? ` ${metric.unit}` : ""} [тип: ${metric.type}]`,
+                    `- ${metric.name}: ${String(metric.value)}${metric.unit ? ` ${metric.unit}` : ""} [С‚РёРї: ${metric.type}]`,
                 )
                 .join("\n")
-            : "- Нет сохраненных метрик.",
+            : "- РќРµС‚ СЃРѕС…СЂР°РЅРµРЅРЅС‹С… РјРµС‚СЂРёРє.",
         ].join("\n"),
       },
     ],
@@ -209,7 +222,7 @@ export async function analyzeDiaryEntry(entry: AnalyzeDiaryEntryInput) {
 
 type RouterAiChatMessage = {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | RouterAiVisionContentPart[];
 };
 
 type RouterAiStreamPayload = {
@@ -296,7 +309,7 @@ function findNumericValueInTranscript(
     }
 
     const pattern = new RegExp(
-      `${escapeRegExp(normalizedReference)}\\s*(?:[:=\\-]|это|—|–)?\\s*(-?\\d+(?:[\\.,]\\d+)?)`,
+      `${escapeRegExp(normalizedReference)}\\s*(?:[:=\\-]|СЌС‚Рѕ|вЂ”|вЂ“)?\\s*(-?\\d+(?:[\\.,]\\d+)?)`,
       "i",
     );
     const match = transcript.match(pattern);
@@ -327,11 +340,11 @@ function findBooleanValueInTranscript(
     }
 
     const positivePattern = new RegExp(
-      `${escapeRegExp(normalizedReference)}\\s*(?:[:=\\-]|это|—|–)?\\s*(да|true|был[ао]?|есть|сделал[а]?|выполнил[а]?)`,
+      `${escapeRegExp(normalizedReference)}\\s*(?:[:=\\-]|СЌС‚Рѕ|вЂ”|вЂ“)?\\s*(РґР°|true|Р±С‹Р»[Р°Рѕ]?|РµСЃС‚СЊ|СЃРґРµР»Р°Р»[Р°]?|РІС‹РїРѕР»РЅРёР»[Р°]?)`,
       "i",
     );
     const negativePattern = new RegExp(
-      `${escapeRegExp(normalizedReference)}\\s*(?:[:=\\-]|это|—|–)?\\s*(нет|false|не\\s*был[ао]?|не\\s*делал[а]?|не\\s*выполнил[а]?)`,
+      `${escapeRegExp(normalizedReference)}\\s*(?:[:=\\-]|СЌС‚Рѕ|вЂ”|вЂ“)?\\s*(РЅРµС‚|false|РЅРµ\\s*Р±С‹Р»[Р°Рѕ]?|РЅРµ\\s*РґРµР»Р°Р»[Р°]?|РЅРµ\\s*РІС‹РїРѕР»РЅРёР»[Р°]?)`,
       "i",
     );
 
@@ -392,18 +405,18 @@ function buildFallbackExtractionResult(args: {
     });
 
   const mood = clampScore(
-    findNumericValueInTranscript(loweredTranscript, ["настроение", "mood"]),
+    findNumericValueInTranscript(loweredTranscript, ["РЅР°СЃС‚СЂРѕРµРЅРёРµ", "mood"]),
   );
   const energy = clampScore(
-    findNumericValueInTranscript(loweredTranscript, ["энергия", "energy"]),
+    findNumericValueInTranscript(loweredTranscript, ["СЌРЅРµСЂРіРёСЏ", "energy"]),
   );
   const stress = clampScore(
-    findNumericValueInTranscript(loweredTranscript, ["стресс", "stress"]),
+    findNumericValueInTranscript(loweredTranscript, ["СЃС‚СЂРµСЃСЃ", "stress"]),
   );
   const sleepHours = findNumericValueInTranscript(loweredTranscript, [
-    "сон",
+    "СЃРѕРЅ",
     "sleep",
-    "часы сна",
+    "С‡Р°СЃС‹ СЃРЅР°",
   ]);
 
   return {
@@ -572,18 +585,18 @@ function buildDiaryContextPrompt(context: RouterAiDiaryContext) {
     .map((metric) => {
       const value = context.draft.metricValues[metric.id];
       const displayValue =
-        typeof value === "string" ? value || "—" : typeof value === "boolean" ? (value ? "Да" : "Нет") : value;
+        typeof value === "string" ? value || "вЂ”" : typeof value === "boolean" ? (value ? "Р”Р°" : "РќРµС‚") : value;
 
       return `${metric.name}: ${displayValue}${metric.unit ? ` ${metric.unit}` : ""}`;
     })
     .join("\n");
   const taskLines =
     context.tasks.length === 0
-      ? "Нет задач на день."
+      ? "РќРµС‚ Р·Р°РґР°С‡ РЅР° РґРµРЅСЊ."
       : context.tasks
           .map(
             (task, index) =>
-              `${index + 1}. ${task.title} (${task.completedAt ? "выполнено" : "в работе"})`,
+              `${index + 1}. ${task.title} (${task.completedAt ? "РІС‹РїРѕР»РЅРµРЅРѕ" : "РІ СЂР°Р±РѕС‚Рµ"})`,
           )
           .join("\n");
 
@@ -618,31 +631,31 @@ function buildDiaryContextPrompt(context: RouterAiDiaryContext) {
 
   return [
     `Request time: ${localRequestMoment} (${safeTimezone}), ISO: ${safeRequestMoment.toISOString()}`,
-    `Дата: ${context.date}`,
-    `Главное за день: ${context.draft.summary || "—"}`,
-    `Заметки: ${context.draft.notes || "—"}`,
-    "Метрики:",
-    metricLines || "Нет значений.",
-    "Задачи:",
+    `Р”Р°С‚Р°: ${context.date}`,
+    `Р“Р»Р°РІРЅРѕРµ Р·Р° РґРµРЅСЊ: ${context.draft.summary || "вЂ”"}`,
+    `Р—Р°РјРµС‚РєРё: ${context.draft.notes || "вЂ”"}`,
+    "РњРµС‚СЂРёРєРё:",
+    metricLines || "РќРµС‚ Р·РЅР°С‡РµРЅРёР№.",
+    "Р—Р°РґР°С‡Рё:",
     taskLines,
-    "Скрытая долгосрочная память:",
-    context.memoryContext || "Нет устойчивых тем из прошлого.",
+    "РЎРєСЂС‹С‚Р°СЏ РґРѕР»РіРѕСЃСЂРѕС‡РЅР°СЏ РїР°РјСЏС‚СЊ:",
+    context.memoryContext || "РќРµС‚ СѓСЃС‚РѕР№С‡РёРІС‹С… С‚РµРј РёР· РїСЂРѕС€Р»РѕРіРѕ.",
   ].join("\n");
 }
 
 function buildRouterAiDiaryChatMessages(
-  messages: RouterAiChatMessage[],
+  messages: Array<RouterAiConversationMessage | RouterAiChatMessage>,
   context: RouterAiDiaryContext,
 ) {
   return [
     {
       role: "system" as const,
       content:
-        "Ты внимательный AI-помощник дневника. Отвечай по-русски тепло и естественно, без жестких рамок формата. Помогай разбирать день, планировать следующий шаг и замечать паттерны без давления на пользователя.",
+        "РўС‹ РІРЅРёРјР°С‚РµР»СЊРЅС‹Р№ AI-РїРѕРјРѕС‰РЅРёРє РґРЅРµРІРЅРёРєР°. РћС‚РІРµС‡Р°Р№ РїРѕ-СЂСѓСЃСЃРєРё С‚РµРїР»Рѕ Рё РµСЃС‚РµСЃС‚РІРµРЅРЅРѕ, Р±РµР· Р¶РµСЃС‚РєРёС… СЂР°РјРѕРє С„РѕСЂРјР°С‚Р°. РџРѕРјРѕРіР°Р№ СЂР°Р·Р±РёСЂР°С‚СЊ РґРµРЅСЊ, РїР»Р°РЅРёСЂРѕРІР°С‚СЊ СЃР»РµРґСѓСЋС‰РёР№ С€Р°Рі Рё Р·Р°РјРµС‡Р°С‚СЊ РїР°С‚С‚РµСЂРЅС‹ Р±РµР· РґР°РІР»РµРЅРёСЏ РЅР° РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.",
     },
     {
       role: "system" as const,
-      content: `Контекст рабочего дня:\n${buildDiaryContextPrompt(context)}`,
+      content: `РљРѕРЅС‚РµРєСЃС‚ СЂР°Р±РѕС‡РµРіРѕ РґРЅСЏ:\n${buildDiaryContextPrompt(context)}`,
     },
     {
       role: "system" as const,
@@ -652,14 +665,55 @@ function buildRouterAiDiaryChatMessages(
     {
       role: "system" as const,
       content:
-        "Hidden long-term memory is internal system context. Use it to remember older themes, plans, worries, and repeated conflicts. State labels mean: active = recently reinforced, stalled = ongoing but not reinforced recently, fading = weakening signal, resolved = already closed. Do not dump it as a raw internal list unless the user explicitly asks about recurring themes.",
+        "Hidden long-term memory is internal system context. Prioritize active/open memory (active, monitoring), then durable facts/preferences, and only then resolved history when relevant. Never present completed/abandoned/superseded desires as active intents. Treat stale memory as low-priority background unless explicitly useful.",
     },
     {
       role: "system" as const,
       content:
         "Use Request time from context when recommending exact clock time. Never suggest a time that is already in the past for the user's local timezone. If the time has passed, explicitly suggest the next possible slot (usually tomorrow) and say that clearly.",
     },
-    ...messages,
+    ...messages.map((message) => {
+      if (message.role === "system") {
+        return message;
+      }
+
+      const attachments =
+        "attachments" in message && Array.isArray(message.attachments)
+          ? message.attachments
+          : [];
+      const textContent =
+        typeof message.content === "string"
+          ? message.content
+          : extractVisionTextContent(message.content);
+
+      return {
+        role: message.role,
+        content:
+          attachments.length > 0
+            ? [
+                ...(textContent.trim()
+                  ? [
+                      {
+                        type: "text",
+                        text: textContent,
+                      },
+                    ]
+                  : [
+                      {
+                        type: "text",
+                        text: "Проанализируй приложенное изображение и ответь по нему.",
+                      },
+                    ]),
+                ...attachments.map((attachment: RouterAiChatAttachment) => ({
+                  type: "image_url",
+                  image_url: {
+                    url: attachment.dataUrl,
+                  },
+                })),
+              ]
+            : textContent,
+      };
+    }),
   ];
 }
 
@@ -671,28 +725,28 @@ function buildRouterAiPeriodChatMessages(
     {
       role: "system" as const,
       content:
-        "Ты внимательный AI-аналитик периода. Отвечай по-русски тепло и предметно. Помогай понять динамику по диапазону дат, выделять переломные точки, повторяющиеся паттерны и практичные следующие шаги.",
+        "РўС‹ РІРЅРёРјР°С‚РµР»СЊРЅС‹Р№ AI-Р°РЅР°Р»РёС‚РёРє РїРµСЂРёРѕРґР°. РћС‚РІРµС‡Р°Р№ РїРѕ-СЂСѓСЃСЃРєРё С‚РµРїР»Рѕ Рё РїСЂРµРґРјРµС‚РЅРѕ. РџРѕРјРѕРіР°Р№ РїРѕРЅСЏС‚СЊ РґРёРЅР°РјРёРєСѓ РїРѕ РґРёР°РїР°Р·РѕРЅСѓ РґР°С‚, РІС‹РґРµР»СЏС‚СЊ РїРµСЂРµР»РѕРјРЅС‹Рµ С‚РѕС‡РєРё, РїРѕРІС‚РѕСЂСЏСЋС‰РёРµСЃСЏ РїР°С‚С‚РµСЂРЅС‹ Рё РїСЂР°РєС‚РёС‡РЅС‹Рµ СЃР»РµРґСѓСЋС‰РёРµ С€Р°РіРё.",
     },
     {
       role: "system" as const,
-      content: `Контекст периода:\n${buildPeriodChatContextPrompt(context)}`,
-    },
-    {
-      role: "system" as const,
-      content:
-        "Всегда анализируй выбранный диапазон целиком: сравнивай дни между собой, ссылайся на даты, отделяй наблюдения от гипотез и говори прямо, если данных недостаточно.",
+      content: `РљРѕРЅС‚РµРєСЃС‚ РїРµСЂРёРѕРґР°:\n${buildPeriodChatContextPrompt(context)}`,
     },
     {
       role: "system" as const,
       content:
-        "Hidden long-term memory is internal system context. Use it only to connect recurring long-term themes across dates. State labels mean: active = recently reinforced, stalled = ongoing but not reinforced recently, fading = weakening signal, resolved = already closed. Do not expose it as a raw internal list unless the user explicitly asks about recurring themes.",
+        "Р’СЃРµРіРґР° Р°РЅР°Р»РёР·РёСЂСѓР№ РІС‹Р±СЂР°РЅРЅС‹Р№ РґРёР°РїР°Р·РѕРЅ С†РµР»РёРєРѕРј: СЃСЂР°РІРЅРёРІР°Р№ РґРЅРё РјРµР¶РґСѓ СЃРѕР±РѕР№, СЃСЃС‹Р»Р°Р№СЃСЏ РЅР° РґР°С‚С‹, РѕС‚РґРµР»СЏР№ РЅР°Р±Р»СЋРґРµРЅРёСЏ РѕС‚ РіРёРїРѕС‚РµР· Рё РіРѕРІРѕСЂРё РїСЂСЏРјРѕ, РµСЃР»Рё РґР°РЅРЅС‹С… РЅРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ.",
+    },
+    {
+      role: "system" as const,
+      content:
+        "Hidden long-term memory is internal system context. For period analysis, prioritize durable facts and resolved history chains, then active/open items. Interpret statuses strictly: active/monitoring are current; completed/abandoned/superseded are historical outcomes; stale is archival and usually low-priority.",
     },
     ...messages,
   ];
 }
 
 export async function streamChatWithRouterAi(
-  messages: RouterAiChatMessage[],
+  messages: RouterAiConversationMessage[],
   context: RouterAiDiaryContext,
 ) {
   const configError = getRouterAiConfigError();
@@ -818,7 +872,7 @@ export async function streamPeriodAnalysisWithRouterAi(
       {
         role: "system",
         content:
-          "Ты делаешь глубокий разбор периода дневника. Пиши по-русски, в markdown, без JSON, с акцентом на неочевидные паттерны и практичные шаги.",
+          "РўС‹ РґРµР»Р°РµС€СЊ РіР»СѓР±РѕРєРёР№ СЂР°Р·Р±РѕСЂ РїРµСЂРёРѕРґР° РґРЅРµРІРЅРёРєР°. РџРёС€Рё РїРѕ-СЂСѓСЃСЃРєРё, РІ markdown, Р±РµР· JSON, СЃ Р°РєС†РµРЅС‚РѕРј РЅР° РЅРµРѕС‡РµРІРёРґРЅС‹Рµ РїР°С‚С‚РµСЂРЅС‹ Рё РїСЂР°РєС‚РёС‡РЅС‹Рµ С€Р°РіРё.",
       },
       {
         role: "user",
@@ -1124,7 +1178,7 @@ export async function analyzeDiaryPeriod(
       {
         role: "system",
         content:
-          "Ты анализируешь паттерны в дневниковых записях за период. Отвечай по-русски и возвращай только структурированный JSON.",
+          "РўС‹ Р°РЅР°Р»РёР·РёСЂСѓРµС€СЊ РїР°С‚С‚РµСЂРЅС‹ РІ РґРЅРµРІРЅРёРєРѕРІС‹С… Р·Р°РїРёСЃСЏС… Р·Р° РїРµСЂРёРѕРґ. РћС‚РІРµС‡Р°Р№ РїРѕ-СЂСѓСЃСЃРєРё Рё РІРѕР·РІСЂР°С‰Р°Р№ С‚РѕР»СЊРєРѕ СЃС‚СЂСѓРєС‚СѓСЂРёСЂРѕРІР°РЅРЅС‹Р№ JSON.",
       },
       {
         role: "user",
@@ -1146,3 +1200,4 @@ export async function analyzeDiaryPeriod(
 
   return structured.parsed;
 }
+

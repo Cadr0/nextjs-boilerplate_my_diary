@@ -1,9 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 
 import { useWorkspace } from "@/components/workspace-provider";
+import { supportsChatImageUpload } from "@/lib/ai/models";
 import { aiModelOptions } from "@/lib/workspace";
+
+const MAX_CHAT_IMAGE_BYTES = 10 * 1024 * 1024;
+
+type ChatImageAttachment = {
+  dataUrl: string;
+  mimeType: string;
+  fileName: string;
+};
 
 type ChatMessage = {
   id: string;
@@ -26,6 +36,27 @@ function createChatMessage(role: ChatMessage["role"], content: string): ChatMess
     createdAt: timestamp,
     updatedAt: timestamp,
   };
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("Не удалось прочитать изображение."));
+    };
+
+    reader.onerror = () => {
+      reject(new Error("Не удалось прочитать изображение."));
+    };
+
+    reader.readAsDataURL(file);
+  });
 }
 
 export function DiaryAssistantPanel() {
@@ -54,13 +85,20 @@ export function DiaryAssistantPanel() {
     tone: "success" | "error";
     message: string;
   } | null>(null);
+  const [pendingImage, setPendingImage] = useState<ChatImageAttachment | null>(null);
+  const [messageImages, setMessageImages] = useState<Record<string, ChatImageAttachment>>({});
   const modelMenuRef = useRef<HTMLDivElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const chatAbortRef = useRef<AbortController | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
 
   const chatMessages = useMemo(
     () => diaryChats[selectedDate] ?? [],
     [diaryChats, selectedDate],
+  );
+  const canAttachImages = useMemo(
+    () => supportsChatImageUpload(profile.aiModel),
+    [profile.aiModel],
   );
 
   useEffect(() => {
@@ -123,6 +161,10 @@ export function DiaryAssistantPanel() {
     setSleepReminderStatus(null);
   }, [selectedDate, selectedEntry?.ai_analysis]);
 
+  useEffect(() => {
+    setPendingImage(null);
+  }, [selectedDate]);
+
   const quickPrompts = useMemo(
     () => ["Разбери мой день", "Что сильнее всего повлияло?", "Есть ли риск перегруза?"],
     [],
@@ -137,20 +179,37 @@ export function DiaryAssistantPanel() {
 
   const sendChatMessage = async (content: string) => {
     const trimmed = content.trim();
+    const imageAttachment = pendingImage;
 
-    if (!trimmed || chatState === "sending") {
+    if (chatState === "sending") {
+      return;
+    }
+
+    if (!trimmed && !imageAttachment) {
+      return;
+    }
+
+    if (imageAttachment && !canAttachImages) {
+      setChatError("Для отправки фото переключите модель на Gemma 4 31B IT.");
       return;
     }
 
     const targetDate = selectedDate;
-    const userMessage = createChatMessage("user", trimmed);
+    const userMessage = createChatMessage("user", trimmed || "Фото приложено.");
     const assistantMessage = createChatMessage("assistant", "");
     const nextMessages = [...chatMessages, userMessage, assistantMessage];
 
     setChatInput("");
+    setPendingImage(null);
     setChatState("sending");
     setChatError(null);
     setStreamingAssistantId(assistantMessage.id);
+    if (imageAttachment) {
+      setMessageImages((current) => ({
+        ...current,
+        [userMessage.id]: imageAttachment,
+      }));
+    }
     updateChatForDate(targetDate, () => nextMessages);
 
     try {
@@ -167,6 +226,17 @@ export function DiaryAssistantPanel() {
           messages: [...chatMessages, userMessage].map((message) => ({
             role: message.role,
             content: message.content,
+            attachments:
+              message.id === userMessage.id && imageAttachment
+                ? [
+                    {
+                      kind: "image",
+                      mimeType: imageAttachment.mimeType,
+                      fileName: imageAttachment.fileName,
+                      dataUrl: imageAttachment.dataUrl,
+                    },
+                  ]
+                : [],
           })),
           context: {
             date: targetDate,
@@ -248,6 +318,47 @@ export function DiaryAssistantPanel() {
       setChatError(
         sendError instanceof Error ? sendError.message : "Не удалось отправить сообщение.",
       );
+    }
+  };
+
+  const handleImageSelection = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    if (!canAttachImages) {
+      setChatError("Для отправки фото переключите модель на Gemma 4 31B IT.");
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setChatError("Можно прикрепить только изображение.");
+      return;
+    }
+
+    if (file.size <= 0) {
+      setChatError("Файл изображения пустой.");
+      return;
+    }
+
+    if (file.size > MAX_CHAT_IMAGE_BYTES) {
+      setChatError("Изображение слишком большое. Максимум 10 МБ.");
+      return;
+    }
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setPendingImage({
+        dataUrl,
+        mimeType: file.type,
+        fileName: file.name || "photo",
+      });
+      setChatError(null);
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "Не удалось загрузить изображение.");
     }
   };
 
@@ -440,6 +551,18 @@ export function DiaryAssistantPanel() {
               >
                 {message.role === "user" ? (
                   <div className="max-w-[94%] rounded-[22px] bg-[var(--accent)] px-3 py-2.5 text-sm leading-6 text-white shadow-[0_16px_30px_rgba(47,111,97,0.2)] sm:max-w-[92%] sm:rounded-[24px] sm:px-4 sm:py-3 sm:leading-7">
+                    {messageImages[message.id] ? (
+                      <div className="mb-2 overflow-hidden rounded-[18px] border border-white/18 bg-white/10">
+                        <Image
+                          src={messageImages[message.id].dataUrl}
+                          alt={messageImages[message.id].fileName || "Вложенное фото"}
+                          width={720}
+                          height={720}
+                          unoptimized
+                          className="max-h-72 w-full object-cover"
+                        />
+                      </div>
+                    ) : null}
                     <p className="whitespace-pre-wrap">{message.content}</p>
                   </div>
                 ) : (
@@ -471,13 +594,67 @@ export function DiaryAssistantPanel() {
             void sendChatMessage(chatInput);
           }}
         >
-          <div className="flex flex-wrap items-center gap-2 rounded-[26px] border border-[var(--border)] bg-[rgba(255,255,255,0.98)] p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] backdrop-blur sm:gap-3 sm:rounded-[30px] sm:px-4 sm:py-3">
+          <div className="rounded-[26px] border border-[var(--border)] bg-[rgba(255,255,255,0.98)] p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] backdrop-blur sm:rounded-[30px] sm:px-4 sm:py-3">
+            {pendingImage ? (
+              <div className="mb-3 flex items-start gap-3 rounded-[22px] border border-[rgba(47,111,97,0.14)] bg-[rgba(247,249,246,0.86)] p-3">
+                <div className="overflow-hidden rounded-[18px] border border-[var(--border)] bg-white">
+                  <Image
+                    src={pendingImage.dataUrl}
+                    alt={pendingImage.fileName}
+                    width={80}
+                    height={80}
+                    unoptimized
+                    className="h-20 w-20 object-cover"
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-[var(--foreground)]">
+                    {pendingImage.fileName}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    Фото будет отправлено вместе с сообщением.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPendingImage(null)}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--muted)] transition hover:border-[rgba(136,47,63,0.28)] hover:text-[rgb(136,47,63)]"
+                  aria-label="Убрать фото"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageSelection}
+              />
             <input
               value={chatInput}
               onChange={(event) => setChatInput(event.target.value)}
               placeholder="Спросите Diary AI"
               className="min-w-[220px] flex-1 rounded-full border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.96)] px-4 py-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:text-base"
             />
+
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={!canAttachImages || chatState === "sending"}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[rgba(247,249,246,0.96)] text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition hover:border-[rgba(47,111,97,0.24)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
+              aria-label="Добавить фото"
+              title={
+                canAttachImages
+                  ? "Добавить фото"
+                  : "Фото в чате доступно для модели Gemma 4 31B IT"
+              }
+            >
+              <ImageIcon />
+            </button>
 
             <div ref={modelMenuRef} className="shrink-0">
               <ModelPicker
@@ -492,12 +669,19 @@ export function DiaryAssistantPanel() {
             </div>
             <button
               type="submit"
-              disabled={chatState === "sending"}
+              disabled={chatState === "sending" || (!chatInput.trim() && !pendingImage)}
               className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_16px_28px_rgba(47,111,97,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
               aria-label="Отправить"
             >
               <SendIcon />
             </button>
+            </div>
+
+            <p className="mt-2 px-1 text-xs text-[var(--muted)]">
+              {canAttachImages
+                ? "Для Gemma 4 31B IT можно отправить одно фото вместе с сообщением."
+                : "Чтобы отправить фото в чат, выберите модель Gemma 4 31B IT."}
+            </p>
           </div>
         </form>
       </div>
@@ -862,6 +1046,26 @@ export function ModelPicker({
         <ChevronUpDownIcon open={isOpen} />
       </button>
     </div>
+  );
+}
+
+function ImageIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <rect x="4" y="5" width="16" height="14" rx="3" />
+      <circle cx="9" cy="10" r="1.25" />
+      <path d="m20 16-4.5-4.5L8 19" />
+      <path d="m13.5 14.5 1.5-1.5 5 5" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+      <path d="m6 6 12 12" />
+      <path d="M18 6 6 18" />
+    </svg>
   );
 }
 

@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import { createHash } from "node:crypto";
 
@@ -8,7 +8,6 @@ import {
   buildMemoryTextFingerprint,
   extractMemoryItems,
 } from "@/lib/ai/memory/extractMemoryItems";
-import { selectMemoryContextForAi } from "@/lib/ai/memory/retrieveMemoryContext";
 import {
   buildFollowUpContextText,
   deriveFollowUpCandidates,
@@ -20,9 +19,18 @@ import type {
 } from "@/lib/ai/contracts";
 import type {
   MemoryItem,
+  MemoryItemCandidate,
   MemoryItemMetadata,
   MemoryItemRow,
+  MemoryItemStatus,
 } from "@/lib/ai/memory/types";
+import { normalizeMemoryStatus } from "@/lib/ai/memory/types";
+import { buildMemoryContext } from "@/lib/diary-memory/build-memory-context";
+import { classifyMemoryCandidate } from "@/lib/diary-memory/classify-memory-candidate";
+import { detectResolutionSignals } from "@/lib/diary-memory/detect-resolution-signals";
+import { matchExistingMemory } from "@/lib/diary-memory/match-existing-memory";
+import { resolveMemoryTransition } from "@/lib/diary-memory/resolve-memory-transition";
+import { markMemoryItemsAsStale, upsertMemoryItem } from "@/lib/diary-memory/upsert-memory-item";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseConfigError } from "@/lib/supabase/env";
@@ -117,7 +125,7 @@ const legacySummaryEnd = "<<<END_DIARY_AI_SUMMARY>>>";
 const entryMetricSelect =
   "entry_id, metric_definition_id, value_number, value_boolean, value_text, metric_name_snapshot, metric_type_snapshot, metric_unit_snapshot, sort_order_snapshot";
 const memoryItemSelect =
-  "id, user_id, source_entry_id, source_type, category, title, content, confidence, importance, mention_count, status, metadata, created_at, updated_at";
+  "id, user_id, source_entry_id, source_message_id, source_type, category, memory_type, memory_class, title, canonical_subject, normalized_subject, summary, content, state_reason, confidence, importance, mention_count, status, resolved_at, superseded_by, relevance_score, last_confirmed_at, last_referenced_at, metadata, metadata_json, created_at, updated_at";
 
 function buildEntrySelect(options: EntrySelectOptions) {
   const columns = ["id", "created_at"];
@@ -249,18 +257,18 @@ function buildMemorySourceHash(summary: string | null | undefined, notes: string
 }
 
 function readMemoryMetadataString(
-  metadata: MemoryItemMetadata,
+  metadata: MemoryItemMetadata | null | undefined,
   key: string,
 ) {
-  const value = metadata[key];
+  const value = metadata?.[key];
   return typeof value === "string" ? value : null;
 }
 
 function readMemoryMetadataStringArray(
-  metadata: MemoryItemMetadata,
+  metadata: MemoryItemMetadata | null | undefined,
   key: string,
 ) {
-  const value = metadata[key];
+  const value = metadata?.[key];
 
   if (!Array.isArray(value)) {
     return [] as string[];
@@ -269,16 +277,16 @@ function readMemoryMetadataStringArray(
   return value.filter((item): item is string => typeof item === "string");
 }
 
+function resolveMemoryMetadata(row: Pick<MemoryItemRow, "metadata" | "metadata_json">) {
+  return row.metadata_json ?? row.metadata ?? {};
+}
+
 function normalizeMemoryComparisonText(value: string) {
   return value
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function buildLimitedUniqueStrings(values: string[], limit = 12) {
-  return [...new Set(values.filter((value) => value.trim().length > 0))].slice(-limit);
 }
 
 function hasProcessedSourceHash(metadata: MemoryItemMetadata, sourceHash: string) {
@@ -293,86 +301,107 @@ function hasProcessedSourceHash(metadata: MemoryItemMetadata, sourceHash: string
   return readMemoryMetadataStringArray(metadata, "source_hashes").includes(sourceHash);
 }
 
-function findMatchingOpenMemoryRow(
-  rows: MemoryItemRow[],
-  candidate: Pick<MemoryItem, "category" | "title" | "content">,
-) {
-  const normalizedTitle = normalizeMemoryComparisonText(candidate.title);
-  const normalizedContent = normalizeMemoryComparisonText(candidate.content);
-
-  return (
-    rows.find(
-      (row) =>
-        row.status === "open" &&
-        row.category === candidate.category &&
-        normalizeMemoryComparisonText(row.title) === normalizedTitle,
-    ) ??
-    rows.find(
-      (row) =>
-        row.status === "open" &&
-        row.category === candidate.category &&
-        normalizeMemoryComparisonText(row.content) === normalizedContent,
-    ) ??
-    null
-  );
-}
-
-function buildUpdatedMemoryMetadata(args: {
-  existingMetadata: MemoryItemMetadata;
-  candidateMetadata: MemoryItemMetadata;
-  sourceHash: string;
+function buildSignalBackfillCandidates(args: {
   entryId: string;
-  entryDate: string;
-  timestamp: string;
+  existingItems: MemoryItem[];
+  signals: ReturnType<typeof detectResolutionSignals>;
 }) {
-  const existingSourceHashes = readMemoryMetadataStringArray(
-    args.existingMetadata,
-    "source_hashes",
-  );
-  const existingSourceEntryIds = readMemoryMetadataStringArray(
-    args.existingMetadata,
-    "source_entry_ids",
-  );
-  const firstEntryDate =
-    readMemoryMetadataString(args.existingMetadata, "first_entry_date") ??
-    readMemoryMetadataString(args.existingMetadata, "entry_date") ??
-    args.entryDate;
+  const candidates: ReturnType<typeof classifyMemoryCandidate>[] = [];
+  const seenMemoryIds = new Set<string>();
 
-  return {
-    ...args.existingMetadata,
-    ...args.candidateMetadata,
-    source_hash: args.sourceHash,
-    source_hashes: buildLimitedUniqueStrings(
-      [...existingSourceHashes, args.sourceHash],
-      12,
-    ),
-    source_entry_ids: buildLimitedUniqueStrings(
-      [...existingSourceEntryIds, args.entryId],
-      12,
-    ),
-    first_entry_date: firstEntryDate,
-    latest_entry_id: args.entryId,
-    latest_entry_date: args.entryDate,
-    last_seen_at: args.timestamp,
-    extracted_at: args.timestamp,
-    extraction_version: "memory-v2",
-  } satisfies MemoryItemMetadata;
+  for (const signal of args.signals) {
+    if (!signal.normalizedSubjectHint) {
+      continue;
+    }
+
+    const matchedExisting = args.existingItems.find((item) => {
+      const normalizedStatus = normalizeMemoryStatus(item.status);
+
+      if (normalizedStatus !== "active" && normalizedStatus !== "monitoring") {
+        return false;
+      }
+
+      const subjectText = normalizeMemoryComparisonText(
+        item.normalizedSubject || item.canonicalSubject || item.title,
+      );
+
+      return (
+        subjectText.includes(signal.normalizedSubjectHint ?? "") ||
+        (signal.normalizedSubjectHint ?? "").includes(subjectText)
+      );
+    });
+
+    if (!matchedExisting || seenMemoryIds.has(matchedExisting.id)) {
+      continue;
+    }
+
+    seenMemoryIds.add(matchedExisting.id);
+
+    const candidate: MemoryItemCandidate = {
+      sourceType: "diary_entry",
+      category: matchedExisting.category,
+      memoryType: matchedExisting.memoryType,
+      canonicalSubject: matchedExisting.canonicalSubject,
+      normalizedSubject: matchedExisting.normalizedSubject,
+      summary: matchedExisting.summary,
+      stateReason: signal.reason,
+      title: matchedExisting.title,
+      content: matchedExisting.content,
+      confidence: Math.max(matchedExisting.confidence ?? 0.55, signal.confidence),
+      importance: matchedExisting.relevanceScore ?? matchedExisting.importance ?? 0.55,
+      metadata: {
+        generated_from_signal: true,
+        signal_type: signal.signal,
+        signal_subject_hint: signal.subjectHint,
+        existing_memory_id: matchedExisting.id,
+      },
+    };
+
+    candidates.push(
+      classifyMemoryCandidate({
+        candidate,
+        sourceEntryId: args.entryId,
+      }),
+    );
+  }
+
+  return candidates;
 }
 
 function mapMemoryItem(row: MemoryItemRow): MemoryItem {
+  const metadata = resolveMemoryMetadata(row);
+  const inferredMemoryType = row.memory_type ?? (row.category as MemoryItem["memoryType"]);
+  const inferredSummary = row.summary ?? row.content;
+  const inferredCanonicalSubject = row.canonical_subject ?? row.title;
+  const inferredNormalizedSubject =
+    row.normalized_subject ?? normalizeMemoryComparisonText(inferredCanonicalSubject);
+
   return {
     id: row.id,
     userId: row.user_id,
     sourceEntryId: row.source_entry_id,
+    sourceMessageId: row.source_message_id,
     sourceType: row.source_type,
     category: row.category,
+    memoryType: inferredMemoryType,
+    memoryClass: row.memory_class ?? "active_dynamic",
     title: row.title,
+    canonicalSubject: inferredCanonicalSubject,
+    normalizedSubject: inferredNormalizedSubject,
+    summary: inferredSummary,
     content: row.content,
+    stateReason: row.state_reason,
     confidence: row.confidence,
     importance: row.importance,
     mentionCount: row.mention_count,
     status: row.status,
-    metadata: row.metadata,
+    resolvedAt: row.resolved_at,
+    supersededBy: row.superseded_by,
+    relevanceScore: row.relevance_score,
+    lastConfirmedAt: row.last_confirmed_at,
+    lastReferencedAt: row.last_referenced_at,
+    metadata,
+    metadataJson: row.metadata_json ?? metadata,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -396,17 +425,17 @@ function sortMemoryItems(items: MemoryItem[]) {
   });
 }
 
-function buildDiaryAiMemoryContextText(
-  items: MemoryItem[],
-  currentDate?: string,
-  queryText?: string,
-) {
-  return selectMemoryContextForAi({
-    items,
-    currentDate,
-    queryText: queryText ?? "",
-    limit: 5,
-  }).contextText;
+function buildDiaryAiMemoryContext(args: {
+  items: MemoryItem[];
+  queryText?: string;
+  mode: "diary_reply" | "daily_analysis" | "period_analysis";
+}) {
+  return buildMemoryContext({
+    items: args.items,
+    mode: args.mode,
+    queryText: args.queryText,
+    limit: args.mode === "period_analysis" ? 8 : 6,
+  });
 }
 
 function resolveMemoryItemsForEntry(
@@ -422,7 +451,10 @@ function resolveMemoryItemsForEntry(
 
   const matchingItems = memoryRows
     .map(mapMemoryItem)
-    .filter((item) => readMemoryMetadataString(item.metadata, "source_hash") === sourceHash);
+    .filter((item) => {
+      const metadata = item.metadataJson ?? item.metadata;
+      return readMemoryMetadataString(metadata, "source_hash") === sourceHash;
+    });
 
   return sortMemoryItems(matchingItems);
 }
@@ -667,35 +699,6 @@ async function listRecentMemoryItemsSafe(
   return (result.data ?? []) as unknown as MemoryItemRow[];
 }
 
-async function listOpenMemoryItemsByCategoriesSafe(
-  supabase: SupabaseClient,
-  userId: string,
-  categories: MemoryItem["category"][],
-) {
-  if (categories.length === 0) {
-    return [] as MemoryItemRow[];
-  }
-
-  const result = await supabase
-    .from("memory_items")
-    .select(memoryItemSelect)
-    .eq("user_id", userId)
-    .eq("status", "open")
-    .in("category", categories)
-    .order("updated_at", { ascending: false });
-
-  if (result.error) {
-    console.error("[memory] Failed to load open memory items by category", {
-      userId,
-      categories,
-      error: result.error.message,
-    });
-    return [] as MemoryItemRow[];
-  }
-
-  return (result.data ?? []) as unknown as MemoryItemRow[];
-}
-
 async function listMemoryItemsForAiContextSafe(
   supabase: SupabaseClient,
   userId: string,
@@ -705,7 +708,17 @@ async function listMemoryItemsForAiContextSafe(
     .from("memory_items")
     .select(memoryItemSelect)
     .eq("user_id", userId)
-    .in("status", ["open", "resolved"])
+    .in("status", [
+      "active",
+      "monitoring",
+      "completed",
+      "abandoned",
+      "superseded",
+      "stale",
+      "open",
+      "resolved",
+      "archived",
+    ] satisfies MemoryItemStatus[])
     .order("updated_at", { ascending: false })
     .limit(limit);
 
@@ -728,18 +741,31 @@ async function listAiMemoryItemsSafe(
   return memoryRows.map(mapMemoryItem);
 }
 
-function buildDiaryAiMemoryContextSafeText(
-  memoryItems: MemoryItem[],
-  args: {
-    currentDate?: string;
-    queryText?: string;
-  },
-) {
-  return buildDiaryAiMemoryContextText(
-    memoryItems,
-    args.currentDate,
-    args.queryText,
-  );
+async function touchMemoryReferencesSafe(args: {
+  supabase: SupabaseClient;
+  userId: string;
+  memoryIds: string[];
+}) {
+  if (args.memoryIds.length === 0) {
+    return;
+  }
+
+  const nowIso = new Date().toISOString();
+  const result = await args.supabase
+    .from("memory_items")
+    .update({
+      last_referenced_at: nowIso,
+    })
+    .eq("user_id", args.userId)
+    .in("id", args.memoryIds);
+
+  if (result.error) {
+    console.error("[memory] Failed to update last_referenced_at", {
+      userId: args.userId,
+      memoryIds: args.memoryIds,
+      error: result.error.message,
+    });
+  }
 }
 
 async function getDiaryAiSupportSafe(
@@ -748,12 +774,28 @@ async function getDiaryAiSupportSafe(
   args: {
     currentDate?: string;
     queryText?: string;
+    mode?: "diary_reply" | "daily_analysis";
   },
 ) {
   const memoryItems = await listAiMemoryItemsSafe(supabase, userId);
-  const memoryContext = buildDiaryAiMemoryContextSafeText(memoryItems, args);
-  const followUpCandidates = deriveFollowUpCandidates({
+  await markMemoryItemsAsStale({
+    supabase,
+    userId,
     items: memoryItems,
+    nowIso: new Date().toISOString(),
+  });
+  const memorySelection = buildDiaryAiMemoryContext({
+    items: memoryItems,
+    queryText: args.queryText,
+    mode: args.mode ?? "diary_reply",
+  });
+  await touchMemoryReferencesSafe({
+    supabase,
+    userId,
+    memoryIds: memorySelection.selectedIds,
+  });
+  const followUpCandidates = deriveFollowUpCandidates({
+    items: memorySelection.selectedItems,
     currentDate: args.currentDate,
     queryText: args.queryText,
     limit: 3,
@@ -761,7 +803,7 @@ async function getDiaryAiSupportSafe(
 
   return {
     memoryItems,
-    memoryContext,
+    memoryContext: memorySelection.contextText,
     followUpCandidates,
     followUpContext: buildFollowUpContextText(followUpCandidates),
   };
@@ -773,9 +815,37 @@ async function getDiaryAiMemoryContextSafe(
   args: {
     currentDate?: string;
     queryText?: string;
+    mode?: "diary_reply" | "daily_analysis" | "period_analysis";
   },
 ) {
-  return (await getDiaryAiSupportSafe(supabase, userId, args)).memoryContext;
+  if (args.mode === "period_analysis") {
+    const memoryItems = await listAiMemoryItemsSafe(supabase, userId);
+    await markMemoryItemsAsStale({
+      supabase,
+      userId,
+      items: memoryItems,
+      nowIso: new Date().toISOString(),
+    });
+    const memorySelection = buildDiaryAiMemoryContext({
+      items: memoryItems,
+      queryText: args.queryText,
+      mode: "period_analysis",
+    });
+    await touchMemoryReferencesSafe({
+      supabase,
+      userId,
+      memoryIds: memorySelection.selectedIds,
+    });
+    return memorySelection.contextText;
+  }
+
+  return (
+    await getDiaryAiSupportSafe(supabase, userId, {
+      currentDate: args.currentDate,
+      queryText: args.queryText,
+      mode: args.mode === "daily_analysis" ? "daily_analysis" : "diary_reply",
+    })
+  ).memoryContext;
 }
 
 async function getPeriodAiSupportSafe(
@@ -791,9 +861,21 @@ async function getPeriodAiSupportSafe(
   },
 ) {
   const memoryItems = await listAiMemoryItemsSafe(supabase, userId);
-  const memoryContext = buildDiaryAiMemoryContextSafeText(memoryItems, {
-    currentDate: args.to,
+  await markMemoryItemsAsStale({
+    supabase,
+    userId,
+    items: memoryItems,
+    nowIso: new Date().toISOString(),
+  });
+  const memorySelection = buildDiaryAiMemoryContext({
+    items: memoryItems,
     queryText: [`Период с ${args.from} по ${args.to}`, args.queryText ?? ""].join("\n"),
+    mode: "period_analysis",
+  });
+  await touchMemoryReferencesSafe({
+    supabase,
+    userId,
+    memoryIds: memorySelection.selectedIds,
   });
   const periodSignals = buildPeriodSignals({
     from: args.from,
@@ -804,7 +886,7 @@ async function getPeriodAiSupportSafe(
   });
   const followUpCandidates = args.includeFollowUps
     ? deriveFollowUpCandidates({
-        items: memoryItems,
+        items: memorySelection.selectedItems,
         currentDate: args.to,
         queryText: args.queryText,
         limit: 3,
@@ -812,7 +894,7 @@ async function getPeriodAiSupportSafe(
     : [];
 
   return {
-    memoryContext,
+    memoryContext: memorySelection.contextText,
     periodSignals: periodSignals.contextText,
     followUpCandidates,
     followUpContext: buildFollowUpContextText(followUpCandidates),
@@ -942,23 +1024,23 @@ function mapDiaryError(error: PostgrestError) {
   const message = error.message.toLowerCase();
 
   if (message.includes("relation") && message.includes("metric_definitions")) {
-    return "Примените новую SQL-схему Phase 2: таблицы metric_definitions, daily_entries и daily_entry_metric_values ещё не созданы.";
+    return "РџСЂРёРјРµРЅРёС‚Рµ РЅРѕРІСѓСЋ SQL-СЃС…РµРјСѓ Phase 2: С‚Р°Р±Р»РёС†С‹ metric_definitions, daily_entries Рё daily_entry_metric_values РµС‰С‘ РЅРµ СЃРѕР·РґР°РЅС‹.";
   }
 
   if (message.includes("relation") && message.includes("daily_entry_metric_values")) {
-    return "В базе ещё нет таблицы значений метрик по дням. Примените SQL из supabase/sql для новой структуры дневника.";
+    return "Р’ Р±Р°Р·Рµ РµС‰С‘ РЅРµС‚ С‚Р°Р±Р»РёС†С‹ Р·РЅР°С‡РµРЅРёР№ РјРµС‚СЂРёРє РїРѕ РґРЅСЏРј. РџСЂРёРјРµРЅРёС‚Рµ SQL РёР· supabase/sql РґР»СЏ РЅРѕРІРѕР№ СЃС‚СЂСѓРєС‚СѓСЂС‹ РґРЅРµРІРЅРёРєР°.";
   }
 
   if (message.includes("row-level security") || message.includes("permission denied")) {
-    return "Нужны RLS-политики для новых таблиц дневника, чтобы пользователь видел только свои данные.";
+    return "РќСѓР¶РЅС‹ RLS-РїРѕР»РёС‚РёРєРё РґР»СЏ РЅРѕРІС‹С… С‚Р°Р±Р»РёС† РґРЅРµРІРЅРёРєР°, С‡С‚РѕР±С‹ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РІРёРґРµР» С‚РѕР»СЊРєРѕ СЃРІРѕРё РґР°РЅРЅС‹Рµ.";
   }
 
   if (hasMissingUpsertConstraint(error)) {
-    return "В daily_entries нет unique-ограничения по (user_id, entry_date), поэтому дневник не может надёжно сохранять день через upsert.";
+    return "Р’ daily_entries РЅРµС‚ unique-РѕРіСЂР°РЅРёС‡РµРЅРёСЏ РїРѕ (user_id, entry_date), РїРѕСЌС‚РѕРјСѓ РґРЅРµРІРЅРёРє РЅРµ РјРѕР¶РµС‚ РЅР°РґС‘Р¶РЅРѕ СЃРѕС…СЂР°РЅСЏС‚СЊ РґРµРЅСЊ С‡РµСЂРµР· upsert.";
   }
 
   if (isMissingColumn(error, "metric_definitions", "carry_forward")) {
-    return "В базе нет поля metric_definitions.carry_forward. Примените SQL-миграцию phase4 для переноса метрик на следующий день.";
+    return "Р’ Р±Р°Р·Рµ РЅРµС‚ РїРѕР»СЏ metric_definitions.carry_forward. РџСЂРёРјРµРЅРёС‚Рµ SQL-РјРёРіСЂР°С†РёСЋ phase4 РґР»СЏ РїРµСЂРµРЅРѕСЃР° РјРµС‚СЂРёРє РЅР° СЃР»РµРґСѓСЋС‰РёР№ РґРµРЅСЊ.";
   }
 
   return error.message;
@@ -1282,7 +1364,7 @@ export async function getWorkspaceBootstrap(limit = 90) {
       entries: [] as DiaryEntry[],
       metricDefinitions: [] as MetricDefinition[],
       error:
-        error instanceof Error ? error.message : "Не получилось загрузить рабочее пространство.",
+        error instanceof Error ? error.message : "РќРµ РїРѕР»СѓС‡РёР»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЂР°Р±РѕС‡РµРµ РїСЂРѕСЃС‚СЂР°РЅСЃС‚РІРѕ.",
     };
   }
 }
@@ -1484,6 +1566,7 @@ export async function getDiaryEntryAnalysisContext(id: string) {
           `${metric.name}: ${String(metric.value)}${metric.unit ? ` ${metric.unit}` : ""}`,
       ),
     ].join("\n"),
+    mode: "daily_analysis",
   });
 
   return {
@@ -1521,6 +1604,7 @@ export async function getPeriodAiMemoryContext(args: {
   return getDiaryAiMemoryContextSafe(supabase, user.id, {
     currentDate: args.to,
     queryText: [`Период с ${args.from} по ${args.to}`, args.queryText ?? ""].join("\n"),
+    mode: "period_analysis",
   });
 }
 
@@ -1589,6 +1673,8 @@ export async function syncDiaryEntryMemoryItems(id: string) {
   const sourceHash = buildMemorySourceHash(entryContent.summary, entryContent.notes);
   const currentEntry = mapEntry(bundle.entryRow, bundle.valueRows, bundle.memoryRows);
   const recentMemoryRows = await listRecentMemoryItemsSafe(supabase, user.id, 48);
+  const recentMemoryItems = sortMemoryItems(recentMemoryRows.map(mapMemoryItem));
+  const entryText = [entryContent.summary, entryContent.notes].filter(Boolean).join("\n");
 
   if (!sourceHash) {
     return currentEntry;
@@ -1596,141 +1682,84 @@ export async function syncDiaryEntryMemoryItems(id: string) {
 
   if (
     currentEntry.memory_items.length > 0 ||
-    recentMemoryRows.some((row) => hasProcessedSourceHash(row.metadata, sourceHash))
+    recentMemoryRows.some((row) => hasProcessedSourceHash(resolveMemoryMetadata(row), sourceHash))
   ) {
     return currentEntry;
   }
 
   try {
-    const candidates = await extractMemoryItems({
+    const extractedCandidates = await extractMemoryItems({
       entryId: id,
       entryDate: bundle.entryRow.entry_date,
       summary: entryContent.summary,
       notes: entryContent.notes,
-      existingItems: sortMemoryItems(recentMemoryRows.map(mapMemoryItem))
+      existingItems: recentMemoryItems
         .slice(0, 12)
         .map((item) => ({
-        id: item.id,
-        category: item.category,
-        title: item.title,
-        content: item.content,
-        status: item.status,
-      })),
+          id: item.id,
+          category: item.category,
+          title: item.title,
+          content: item.content,
+          status: item.status,
+        })),
     });
+    const signals = detectResolutionSignals(entryText);
+    const smartCandidates = extractedCandidates.map((candidate) =>
+      classifyMemoryCandidate({
+        candidate,
+        sourceEntryId: id,
+      }),
+    );
+    const signalBackfillCandidates = buildSignalBackfillCandidates({
+      entryId: id,
+      existingItems: recentMemoryItems,
+      signals,
+    });
+    const dedupedCandidates = [...smartCandidates, ...signalBackfillCandidates].filter(
+      (candidate, index, all) =>
+        all.findIndex(
+          (other) =>
+            other.memoryType === candidate.memoryType &&
+            other.normalizedSubject === candidate.normalizedSubject,
+        ) === index,
+    );
 
-    if (candidates.length > 0) {
-      const candidateCategories = [...new Set(candidates.map((candidate) => candidate.category))];
-      const matchingRows = await listOpenMemoryItemsByCategoriesSafe(
-        supabase,
-        user.id,
-        candidateCategories,
-      );
+    if (dedupedCandidates.length > 0) {
       const touchedMemoryIds = new Set<string>();
-      const insertRows: Array<{
-        user_id: string;
-        source_entry_id: string;
-        source_type: MemoryItem["sourceType"];
-        category: MemoryItem["category"];
-        title: string;
-        content: string;
-        confidence: number;
-        importance: number;
-        mention_count: number;
-        status: "open";
-        metadata: MemoryItemMetadata;
-      }> = [];
+      const nowIso = new Date().toISOString();
 
-      for (const candidate of candidates) {
-        const matchingRow = findMatchingOpenMemoryRow(matchingRows, candidate);
-        const timestamp = new Date().toISOString();
+      for (const candidate of dedupedCandidates) {
+        const match = matchExistingMemory({
+          candidate,
+          existingItems: recentMemoryItems,
+          signals,
+        });
 
-        if (matchingRow) {
-          if (touchedMemoryIds.has(matchingRow.id)) {
-            continue;
-          }
-
-          touchedMemoryIds.add(matchingRow.id);
-
-          const nextMetadata = buildUpdatedMemoryMetadata({
-            existingMetadata: matchingRow.metadata,
-            candidateMetadata: candidate.metadata,
-            sourceHash,
-            entryId: id,
-            entryDate: bundle.entryRow.entry_date,
-            timestamp,
-          });
-          const nextConfidence = Math.max(
-            matchingRow.confidence ?? 0.5,
-            candidate.confidence ?? 0.5,
-          );
-          const nextImportance = Math.max(
-            matchingRow.importance ?? 0.5,
-            candidate.importance ?? 0.5,
-          );
-          const updateResult = await supabase
-            .from("memory_items")
-            .update({
-              confidence: nextConfidence,
-              importance: nextImportance,
-              mention_count: Math.max(matchingRow.mention_count, 1) + 1,
-              metadata: nextMetadata,
-            })
-            .eq("id", matchingRow.id)
-            .eq("user_id", user.id);
-
-          if (updateResult.error) {
-            console.error("[memory] Failed to update existing memory item", {
-              entryId: id,
-              userId: user.id,
-              memoryItemId: matchingRow.id,
-              error: updateResult.error.message,
-            });
-            continue;
-          }
-
-          matchingRow.confidence = nextConfidence;
-          matchingRow.importance = nextImportance;
-          matchingRow.mention_count = Math.max(matchingRow.mention_count, 1) + 1;
-          matchingRow.metadata = nextMetadata;
+        if (match.existing && touchedMemoryIds.has(match.existing.id)) {
           continue;
         }
 
-        insertRows.push({
-          user_id: user.id,
-          source_entry_id: id,
-          source_type: candidate.sourceType,
-          category: candidate.category,
-          title: candidate.title,
-          content: candidate.content,
-          confidence: candidate.confidence ?? 0.5,
-          importance: candidate.importance ?? 0.5,
-          mention_count: 1,
-          status: "open",
-          metadata: {
-            ...candidate.metadata,
-            source_hash: sourceHash,
-            source_hashes: [sourceHash],
-            entry_date: bundle.entryRow.entry_date,
-            first_entry_date: bundle.entryRow.entry_date,
-            latest_entry_id: id,
-            latest_entry_date: bundle.entryRow.entry_date,
-            source_entry_ids: [id],
-            last_seen_at: timestamp,
-            extracted_at: timestamp,
-            extraction_version: "memory-v2",
-          },
+        const transition = resolveMemoryTransition({
+          existing: match.existing,
+          candidate,
+          signals,
+          matchScore: match.score,
         });
-      }
+        const savedMemoryId = await upsertMemoryItem({
+          supabase,
+          userId: user.id,
+          existing: match.existing,
+          candidate,
+          transition,
+          sourceHash,
+          sourceEntryId: id,
+          sourceMessageId: null,
+          entryDate: bundle.entryRow.entry_date,
+          nowIso,
+        });
 
-      if (insertRows.length > 0) {
-        const insertResult = await supabase.from("memory_items").insert(insertRows);
-
-        if (insertResult.error) {
-          console.error("[memory] Failed to insert extracted memory items", {
-            entryId: id,
-            userId: user.id,
-            error: insertResult.error.message,
-          });
+        if (savedMemoryId && match.existing) {
+          touchedMemoryIds.add(match.existing.id);
         }
       }
     }
@@ -1761,3 +1790,5 @@ export async function listMetricDefinitions() {
     error: result.error,
   };
 }
+
+
