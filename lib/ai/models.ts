@@ -6,8 +6,6 @@ export const OPENROUTER_FREE_MODEL_IDS = [
   "stepfun/step-3.5-flash:free",
 ] as const;
 
-export const ROUTERAI_FREE_MODEL_IDS = ["google/lyria-3-pro-preview"] as const;
-
 export const ROUTERAI_PAID_MODEL_IDS = [
   "deepseek/deepseek-v3.2",
   "google/gemma-4-31b-it",
@@ -44,11 +42,6 @@ export const aiModelOptions = [
     label: "Step 3.5 Flash",
     description: "OpenRouter | Free | Fast responses and draft analysis.",
   },
-  {
-    id: ROUTERAI_FREE_MODEL_IDS[0],
-    label: "Lyria 3 Pro Preview",
-    description: "RouterAI | Free | Experimental preview model in the free pool.",
-  },
 ] as const;
 
 export function isOpenRouterFreeModel(model: string | undefined | null) {
@@ -57,14 +50,6 @@ export function isOpenRouterFreeModel(model: string | undefined | null) {
   }
 
   return (OPENROUTER_FREE_MODEL_IDS as readonly string[]).includes(model);
-}
-
-export function isRouterAiFreeModel(model: string | undefined | null) {
-  if (!model) {
-    return false;
-  }
-
-  return (ROUTERAI_FREE_MODEL_IDS as readonly string[]).includes(model);
 }
 
 export function isRouterAiPaidModel(model: string | undefined | null) {

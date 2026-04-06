@@ -611,9 +611,6 @@ export function DiaryAssistantPanel() {
                   <p className="truncate text-sm font-medium text-[var(--foreground)]">
                     {pendingImage.fileName}
                   </p>
-                  <p className="mt-1 text-xs text-[var(--muted)]">
-                    Фото будет отправлено вместе с сообщением.
-                  </p>
                 </div>
                 <button
                   type="button"
@@ -677,11 +674,6 @@ export function DiaryAssistantPanel() {
             </button>
             </div>
 
-            <p className="mt-2 px-1 text-xs text-[var(--muted)]">
-              {canAttachImages
-                ? "Для Gemma 4 31B IT можно отправить одно фото вместе с сообщением."
-                : "Чтобы отправить фото в чат, выберите модель Gemma 4 31B IT."}
-            </p>
           </div>
         </form>
       </div>
