@@ -16,6 +16,22 @@ type PromptMemoryItem = {
   status?: string;
 };
 
+function detectDiaryLanguage(summary: string, notes: string) {
+  const source = `${summary}\n${notes}`;
+  const cyrillicCount = (source.match(/[А-Яа-яЁё]/g) ?? []).length;
+  const latinCount = (source.match(/[A-Za-z]/g) ?? []).length;
+
+  if (cyrillicCount > latinCount) {
+    return "ru";
+  }
+
+  if (latinCount > cyrillicCount) {
+    return "en";
+  }
+
+  return "source";
+}
+
 export function buildMemoryExtractionPrompt(args: {
   entryDate: string;
   summary: string;
@@ -32,6 +48,13 @@ export function buildMemoryExtractionPrompt(args: {
         item.status !== "archived",
     )
     .slice(0, 12);
+  const detectedLanguage = detectDiaryLanguage(args.summary, args.notes);
+  const languageInstruction =
+    detectedLanguage === "ru"
+      ? 'Use Russian for "title" and "content". Do not translate Russian text into English.'
+      : detectedLanguage === "en"
+        ? 'Use English for "title" and "content". Do not translate English text into another language.'
+        : 'Use the same language as the diary entry for "title" and "content". Do not translate the user text.';
 
   return [
     "You extract long-term memory items from a user's diary entry.",
@@ -46,6 +69,10 @@ export function buildMemoryExtractionPrompt(args: {
     "- Return a JSON array only, not an object.",
     `- Maximum array length is ${maxItems}.`,
     "- If there are no clearly durable themes, return [].",
+    `- ${languageInstruction}`,
+    '- Keep "title" and "content" in the user\'s original language.',
+    "- Never rewrite Russian memories into English.",
+    "- Preserve names, products, places, and wording as written when possible.",
     "- Use only these categories exactly:",
     `  ${allowedCategories.join(", ")}`,
     '- "title" must be a short label, 2-6 words.',

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { AnalyticsAssistantPanel } from "@/components/analytics-assistant-panel";
 import { WorkspaceSectionShell } from "@/components/workspace-shell";
@@ -22,7 +21,6 @@ import {
   shiftIsoDate,
 } from "@/lib/workspace";
 
-type AnalyticsView = "trends" | "list";
 
 function average(values: number[]) {
   if (values.length === 0) {
@@ -70,7 +68,6 @@ export function AnalyticsSection() {
     workouts,
   } = useWorkspace();
   const [daysBack, setDaysBack] = useState(13);
-  const [view, setView] = useState<AnalyticsView>("trends");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [analysisState, setAnalysisState] = useState<"idle" | "loading" | "error">("idle");
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -381,39 +378,6 @@ export function AnalyticsSection() {
       </WorkspaceSidebarSection>
 
       <div className="mt-4 rounded-[24px] border border-[rgba(47,111,97,0.12)] bg-[linear-gradient(145deg,rgba(47,111,97,0.1),rgba(255,255,255,0.9))] p-4">
-        <p className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--accent)]">
-          Режим просмотра
-        </p>
-        <div className="mt-3 grid gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setView("trends");
-              setIsMobileSidebarOpen(false);
-            }}
-            className={`rounded-[18px] px-4 py-3 text-left text-sm font-medium transition ${
-              view === "trends"
-                ? "bg-[var(--accent)] text-white"
-                : "border border-[var(--border)] bg-white/90 text-[var(--foreground)]"
-            }`}
-          >
-            Тренды и графики
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setView("list");
-              setIsMobileSidebarOpen(false);
-            }}
-            className={`rounded-[18px] px-4 py-3 text-left text-sm font-medium transition ${
-              view === "list"
-                ? "bg-[var(--accent)] text-white"
-                : "border border-[var(--border)] bg-white/90 text-[var(--foreground)]"
-            }`}
-          >
-            Список записей
-          </button>
-        </div>
 
         <div className="mt-4 text-sm leading-6 text-[var(--foreground)]">
           AI-разбор запускается только по кнопке. Просмотр диапазона сам по себе не тратит AI-запрос.
@@ -442,13 +406,7 @@ export function AnalyticsSection() {
             <p className="truncate text-center text-sm font-semibold text-[var(--foreground)]">
               Аналитика периода
             </p>
-            <Link
-              href="/diary"
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)]"
-              aria-label="Открыть дневник"
-            >
-              <DiaryPanelIcon />
-            </Link>
+            <div className="h-11 w-11" aria-hidden="true" />
           </div>
         }
       >
@@ -460,36 +418,6 @@ export function AnalyticsSection() {
           description="Выбери диапазон дат, проверь сохраненные записи и запускай AI-анализ только по явной кнопке."
         />
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/diary"
-            className="hidden min-h-11 items-center rounded-full border border-[var(--border)] bg-white/92 px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] xl:inline-flex"
-          >
-            Вернуться в дневник
-          </Link>
-          <button
-            type="button"
-            onClick={() => setView("trends")}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-              view === "trends"
-                ? "bg-[var(--accent)] text-white"
-                : "border border-[var(--border)] bg-white/92 text-[var(--foreground)]"
-            }`}
-          >
-            Тренды
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("list")}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-              view === "list"
-                ? "bg-[var(--accent)] text-white"
-                : "border border-[var(--border)] bg-white/92 text-[var(--foreground)]"
-            }`}
-          >
-            Список записей
-          </button>
-        </div>
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
@@ -573,7 +501,7 @@ export function AnalyticsSection() {
           <div className="mt-5">
             {deferredEntries.length === 0 ? (
               <EmptyState copy="В выбранном диапазоне пока нет сохраненных записей." />
-            ) : view === "trends" ? (
+            ) : (
               analyticsMetricDefinitions.length === 0 ? (
                 <EmptyState copy="Нет метрик для графиков. Для текста доступен только AI-разбор периода." />
               ) : (
@@ -642,35 +570,6 @@ export function AnalyticsSection() {
                   })}
                 </div>
               )
-            ) : (
-              <div className="grid gap-3">
-                {deferredEntries
-                  .slice()
-                  .reverse()
-                  .map((entry) => (
-                    <article
-                      key={entry.id}
-                      className="rounded-[22px] border border-[var(--border)] bg-white/85 p-3.5"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm text-[var(--muted)]">
-                            {formatHistoryDate(entry.entry_date)}
-                          </p>
-                          <h3 className="mt-1 text-lg font-semibold text-[var(--foreground)]">
-                            {entry.summary || "Запись без заголовка"}
-                          </h3>
-                        </div>
-                        <span className="rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs text-[var(--muted)]">
-                          {Object.keys(entry.metric_values).length} метрик
-                        </span>
-                      </div>
-                      <p className="mt-3 text-sm leading-6 text-[var(--foreground)]">
-                        {entry.notes || "Подробные заметки не добавлены."}
-                      </p>
-                    </article>
-                  ))}
-              </div>
             )}
           </div>
           </SectionCard>
@@ -720,16 +619,6 @@ function CloseIcon() {
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M6 6 18 18" strokeLinecap="round" />
       <path d="M18 6 6 18" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function DiaryPanelIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
-      <rect x="4" y="5" width="16" height="14" rx="2.2" />
-      <path d="M8 9h8" />
-      <path d="M8 13h8" />
     </svg>
   );
 }

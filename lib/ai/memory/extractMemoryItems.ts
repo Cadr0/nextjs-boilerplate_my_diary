@@ -49,6 +49,22 @@ function normalizeText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function detectMemoryOutputLanguage(summary: string, notes: string) {
+  const source = `${summary}\n${notes}`;
+  const cyrillicCount = (source.match(/[А-Яа-яЁё]/g) ?? []).length;
+  const latinCount = (source.match(/[A-Za-z]/g) ?? []).length;
+
+  if (cyrillicCount > latinCount) {
+    return "ru";
+  }
+
+  if (latinCount > cyrillicCount) {
+    return "en";
+  }
+
+  return "source";
+}
+
 function extractJsonArray(content: string) {
   const trimmed = content.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
@@ -195,12 +211,18 @@ async function requestMemoryJsonArray(
 async function requestStructuredMemoryItems(
   provider: MemoryExtractionProvider,
   prompt: string,
+  language: "ru" | "en" | "source",
 ) {
+  const systemInstruction =
+    language === "ru"
+      ? "You extract long-term personal memory items from diary text. Return JSON only. Write title and content in Russian and never translate Russian source text into English."
+      : language === "en"
+        ? "You extract long-term personal memory items from diary text. Return JSON only. Write title and content in English and keep the user's original wording where possible."
+        : "You extract long-term personal memory items from diary text. Return JSON only. Keep title and content in the same language as the user's diary entry and do not translate user text.";
   const responseText = await requestMemoryJsonArray(provider, [
     {
       role: "system",
-      content:
-        "You extract long-term personal memory items from diary text. Return JSON only.",
+      content: systemInstruction,
     },
     {
       role: "user",
@@ -282,8 +304,9 @@ export async function extractMemoryItems(
       status: item.status,
     })),
   });
+  const language = detectMemoryOutputLanguage(summary, notes);
 
-  return requestStructuredMemoryItems(provider, prompt);
+  return requestStructuredMemoryItems(provider, prompt, language);
 }
 
 export function buildMemoryTextFingerprint(summary: string, notes: string) {
