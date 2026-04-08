@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Lora, Manrope } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { PwaRegister } from "@/components/pwa-register";
 import "./globals.css";
@@ -99,6 +100,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <PwaRegister />
         {children}
+        <SpeedInsights />
       </body>
     </html>
   );
