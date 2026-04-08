@@ -168,10 +168,15 @@ function buildStrengthProgress(args: {
 
 export async function analyzeStrengthBatch(input: {
   userId: string;
+  sessionIds?: string[];
   sessionLimit?: number;
 }): Promise<WorkoutStrengthProgress[]> {
+  if (input.sessionIds?.length === 0) {
+    return [];
+  }
+
   const supabase = await createClient();
-  const result = await supabase
+  let query = supabase
     .from("workout_strength_sets")
     .select(
       "activity_id, weight_kg, reps, session_id, workout_sessions!inner(entry_date, status, user_id), workout_activity_catalog!inner(slug, display_name), workout_events!inner(superseded_by_event_id)",
@@ -181,6 +186,12 @@ export async function analyzeStrengthBatch(input: {
     .not("activity_id", "is", null)
     .is("workout_events.superseded_by_event_id", null)
     .order("created_at", { ascending: true });
+
+  if (input.sessionIds?.length) {
+    query = query.in("session_id", input.sessionIds);
+  }
+
+  const result = await query;
 
   if (result.error) {
     throw new Error(result.error.message);

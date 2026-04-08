@@ -9,6 +9,7 @@ import { getWorkspaceSnapshot } from "@/lib/workspace-sync-server";
 import { emptyWorkspaceSyncState } from "@/lib/workspace-sync";
 
 export const dynamic = "force-dynamic";
+const INITIAL_WORKSPACE_BOOTSTRAP_LIMIT = 45;
 
 export default async function WorkspaceLayout({
   children,
@@ -47,7 +48,9 @@ export default async function WorkspaceLayout({
   }
 
   const { entries, metricDefinitions, profile, workspaceSync, error } =
-    await trace.measure("workspace_snapshot", () => getWorkspaceSnapshot(90));
+    await trace.measure("workspace_snapshot", () =>
+      getWorkspaceSnapshot(INITIAL_WORKSPACE_BOOTSTRAP_LIMIT),
+    );
   trace.log({
     authenticated: true,
     entries: entries.length,
@@ -66,6 +69,7 @@ export default async function WorkspaceLayout({
       isConfigured
       accountEmail={user.email ?? null}
       accountInfo={accountInfo}
+      initialBootstrapLimit={INITIAL_WORKSPACE_BOOTSTRAP_LIMIT}
       initialProfile={profile}
       initialWorkspaceSyncState={workspaceSync}
     >

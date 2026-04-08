@@ -183,10 +183,15 @@ function buildCardioProgress(args: {
 
 export async function analyzeCardioBatch(input: {
   userId: string;
+  sessionIds?: string[];
   sessionLimit?: number;
 }): Promise<WorkoutCardioProgress[]> {
+  if (input.sessionIds?.length === 0) {
+    return [];
+  }
+
   const supabase = await createClient();
-  const result = await supabase
+  let query = supabase
     .from("workout_cardio_entries")
     .select(
       "activity_id, duration_sec, distance_m, pace_sec_per_km, session_id, workout_sessions!inner(entry_date, status, user_id), workout_activity_catalog!inner(slug, display_name), workout_events!inner(superseded_by_event_id)",
@@ -196,6 +201,12 @@ export async function analyzeCardioBatch(input: {
     .not("activity_id", "is", null)
     .is("workout_events.superseded_by_event_id", null)
     .order("created_at", { ascending: true });
+
+  if (input.sessionIds?.length) {
+    query = query.in("session_id", input.sessionIds);
+  }
+
+  const result = await query;
 
   if (result.error) {
     throw new Error(result.error.message);

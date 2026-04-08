@@ -273,6 +273,7 @@ type WorkspaceProviderProps = {
   isConfigured: boolean;
   accountEmail?: string | null;
   accountInfo?: AuthAccountInfo | null;
+  initialBootstrapLimit?: number;
   initialProfile?: Partial<WorkspaceProfile>;
   initialWorkspaceSyncState: WorkspaceSyncState;
 };
@@ -687,6 +688,7 @@ export function WorkspaceProvider({
   isConfigured,
   accountEmail = null,
   accountInfo = null,
+  initialBootstrapLimit = 90,
   initialProfile,
   initialWorkspaceSyncState,
 }: WorkspaceProviderProps) {
@@ -723,6 +725,7 @@ export function WorkspaceProvider({
   const refreshTimeoutRef = useRef<number | null>(null);
   const pendingServerRefreshRef = useRef(false);
   const bootstrapAbortRef = useRef<AbortController | null>(null);
+  const didQueueInitialBootstrapRefreshRef = useRef(false);
   const storageKey = accountInfo?.userId
     ? `${WORKSPACE_STORAGE_KEY}:${accountInfo.userId}`
     : WORKSPACE_STORAGE_KEY;
@@ -1298,6 +1301,20 @@ export function WorkspaceProvider({
 
     queueWorkspaceRefresh(0);
   }, [canPersistToServer, hasUnsavedChanges, isEntrySaveInFlight]);
+
+  useEffect(() => {
+    if (
+      !canPersistToServer ||
+      pathname === "/workouts" ||
+      initialBootstrapLimit >= 90 ||
+      didQueueInitialBootstrapRefreshRef.current
+    ) {
+      return;
+    }
+
+    didQueueInitialBootstrapRefreshRef.current = true;
+    queueWorkspaceRefresh(0);
+  }, [canPersistToServer, initialBootstrapLimit, pathname]);
 
   useEffect(() => {
     if (!canPersistToServer) {

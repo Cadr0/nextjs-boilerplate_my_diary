@@ -61,7 +61,7 @@ export function WorkoutsAnalysis({
       );
 
       try {
-        const response = await fetch("/api/workouts/progress", {
+        const response = await fetch("/api/workouts/progress?insights=heuristic", {
           method: "GET",
           signal: controller.signal,
           cache: "no-store",

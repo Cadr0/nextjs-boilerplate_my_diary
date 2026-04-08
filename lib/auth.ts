@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
+import { cache } from "react";
 
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseConfigError } from "@/lib/supabase/env";
@@ -12,7 +13,7 @@ export type AuthAccountInfo = {
   emailConfirmed: boolean;
 };
 
-export async function getAuthState() {
+export const getAuthState = cache(async function getAuthState() {
   const configError = getSupabaseConfigError();
 
   if (configError) {
@@ -30,7 +31,7 @@ export async function getAuthState() {
     user: data.user,
     configError: null,
   };
-}
+});
 
 export async function requireUser() {
   const { user, configError } = await getAuthState();

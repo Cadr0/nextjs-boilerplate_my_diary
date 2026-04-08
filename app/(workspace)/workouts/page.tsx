@@ -69,6 +69,11 @@ type WorkoutBlockRow = {
   title: string;
 };
 
+type SidebarLoadResult = {
+  sidebarData: WorkoutsSidebarData;
+  sessionDetails: WorkoutsSessionDetailItem[];
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -128,6 +133,65 @@ async function loadActivityMap(activityIds: string[]) {
 
   return new Map(
     (result.data ?? []).map((item) => [item.id, item.display_name] as const),
+  );
+}
+
+function buildSessionDetails(args: {
+  sessions: WorkoutsSessionListItem[];
+  events: WorkoutEventRow[];
+  activityMap: Map<string, string>;
+}) {
+  if (args.sessions.length === 0) {
+    return [] satisfies WorkoutsSessionDetailItem[];
+  }
+
+  const sessionIds = new Set(args.sessions.map((session) => session.id));
+  const orderedEvents = [...args.events].sort((left, right) =>
+    left.occurred_at.localeCompare(right.occurred_at),
+  );
+  const eventsBySession = new Map<string, WorkoutsSessionDetailItem["events"]>();
+
+  for (const event of orderedEvents) {
+    if (!sessionIds.has(event.session_id)) {
+      continue;
+    }
+
+    const payload = isRecord(event.payload_json) ? event.payload_json : {};
+    const card = buildEventCardFromStoredFact({
+      id: event.id,
+      activityMap: args.activityMap,
+      fact: {
+        factType: inferFactTypeFromPayload(event.event_type, payload),
+        eventType: event.event_type,
+        activityId: event.activity_id,
+        setIndex: typeof payload.setIndex === "number" ? payload.setIndex : null,
+        payload,
+        metrics:
+          payload.rawMetrics && isRecord(payload.rawMetrics)
+            ? payload.rawMetrics
+            : null,
+      },
+    });
+
+    if (!card) {
+      continue;
+    }
+
+    const current = eventsBySession.get(event.session_id) ?? [];
+    current.push({
+      id: event.id,
+      occurredAt: event.occurred_at,
+      eventType: event.event_type,
+      card,
+    });
+    eventsBySession.set(event.session_id, current);
+  }
+
+  return sortSessionDetailsByStartedAt(
+    args.sessions.map((session) => ({
+      ...session,
+      events: eventsBySession.get(session.id) ?? [],
+    })),
   );
 }
 
@@ -233,6 +297,11 @@ async function loadSidebarData(userId: string, selectedDate: string) {
   const sessionsForSelectedDate = sessionsByDate.get(selectedDate) ?? [];
   const activeSession =
     sessionsForSelectedDate.find((session) => session.status === "active") ?? null;
+  const sessionDetails = buildSessionDetails({
+    sessions: sessionsForSelectedDate,
+    events,
+    activityMap,
+  });
   const days = Array.from({ length: 30 }, (_, index) => {
     const date = shiftIsoDate(anchorDate, -index);
     const daySessions = sessionsByDate.get(date) ?? [];
@@ -260,107 +329,33 @@ async function loadSidebarData(userId: string, selectedDate: string) {
     sessions: sessions.length,
     events: events.length,
     activityIds: activityIds.length,
+    selectedSessionDetails: sessionDetails.length,
   });
 
   return {
-    selectedDate,
-    activeSession,
-    days,
-    sessionsForSelectedDate,
-    daySummary: {
-      date: selectedDate,
-      sessionCount: sessionsForSelectedDate.length,
-      eventCount: sessionsForSelectedDate.reduce(
-        (total, session) => total + session.eventCount,
-        0,
-      ),
-      activityLabels: [
-        ...new Set(
-          sessionsForSelectedDate.flatMap((session) =>
-            session.lastActivityLabel ? [session.lastActivityLabel] : [],
-          ),
+    sidebarData: {
+      selectedDate,
+      activeSession,
+      days,
+      sessionsForSelectedDate,
+      daySummary: {
+        date: selectedDate,
+        sessionCount: sessionsForSelectedDate.length,
+        eventCount: sessionsForSelectedDate.reduce(
+          (total, session) => total + session.eventCount,
+          0,
         ),
-      ],
-    },
-  } satisfies WorkoutsSidebarData;
-}
-
-async function loadSelectedDaySessionDetails(args: {
-  userId: string;
-  sessions: WorkoutsSessionListItem[];
-}) {
-  const trace = createServerPerfTrace("workouts.page.session_details");
-  if (args.sessions.length === 0) {
-    trace.log({ sessions: 0 });
-    return [] satisfies WorkoutsSessionDetailItem[];
-  }
-
-  const supabase = await createClient();
-  const sessionIds = args.sessions.map((session) => session.id);
-  const eventsResult = await trace.measure("events", () =>
-    supabase
-      .from("workout_events")
-      .select("id, session_id, activity_id, event_type, occurred_at, payload_json")
-      .eq("user_id", args.userId)
-      .in("session_id", sessionIds)
-      .is("superseded_by_event_id", null)
-      .order("occurred_at", { ascending: true }),
-  );
-
-  if (eventsResult.error) {
-    throw new Error(eventsResult.error.message);
-  }
-
-  const events = (eventsResult.data ?? []) as WorkoutEventRow[];
-  const activityIds = [
-    ...new Set(events.flatMap((event) => (event.activity_id ? [event.activity_id] : []))),
-  ];
-  const activityMap = await trace.measure("activity_map", () => loadActivityMap(activityIds));
-  const eventsBySession = new Map<
-    string,
-    WorkoutsSessionDetailItem["events"]
-  >();
-
-  for (const event of events) {
-    const payload = isRecord(event.payload_json) ? event.payload_json : {};
-    const card = buildEventCardFromStoredFact({
-      id: event.id,
-      activityMap,
-      fact: {
-        factType: inferFactTypeFromPayload(event.event_type, payload),
-        eventType: event.event_type,
-        activityId: event.activity_id,
-        setIndex: typeof payload.setIndex === "number" ? payload.setIndex : null,
-        payload,
-        metrics:
-          payload.rawMetrics && isRecord(payload.rawMetrics)
-            ? payload.rawMetrics
-            : null,
+        activityLabels: [
+          ...new Set(
+            sessionsForSelectedDate.flatMap((session) =>
+              session.lastActivityLabel ? [session.lastActivityLabel] : [],
+            ),
+          ),
+        ],
       },
-    });
-
-    if (!card) {
-      continue;
-    }
-
-    const current = eventsBySession.get(event.session_id) ?? [];
-    current.push({
-      id: event.id,
-      occurredAt: event.occurred_at,
-      eventType: event.event_type,
-      card,
-    });
-    eventsBySession.set(event.session_id, current);
-  }
-
-  const details = sortSessionDetailsByStartedAt(
-    args.sessions.map((session) => ({
-      ...session,
-      events: eventsBySession.get(session.id) ?? [],
-    })),
-  );
-  trace.log({ sessions: args.sessions.length, events: events.length });
-  return details;
+    } satisfies WorkoutsSidebarData,
+    sessionDetails,
+  } satisfies SidebarLoadResult;
 }
 
 async function loadChatHistory(args: {
@@ -520,25 +515,17 @@ export default async function WorkoutsPage(props: WorkoutsPageProps) {
   const user = await trace.measure("require_user", () => requireUser());
   const resolvedSearchParams = props.searchParams ? await props.searchParams : {};
   const selectedDate = readSelectedDate(resolvedSearchParams.date);
-  const sidebarData = await trace.measure("sidebar", () =>
+  const { sidebarData, sessionDetails } = await trace.measure("sidebar", () =>
     loadSidebarData(user.id, selectedDate),
   );
-  const [chatHistory, sessionDetails] = await Promise.all([
-    trace.measure("chat_history", () =>
-      loadChatHistory({
-        userId: user.id,
-        selectedDate,
-        sessionIds: sidebarData.sessionsForSelectedDate.map((session) => session.id),
-        hasActiveSession: Boolean(sidebarData.activeSession),
-      }),
-    ),
-    trace.measure("session_details", () =>
-      loadSelectedDaySessionDetails({
-        userId: user.id,
-        sessions: sidebarData.sessionsForSelectedDate,
-      }),
-    ),
-  ]);
+  const chatHistory = await trace.measure("chat_history", () =>
+    loadChatHistory({
+      userId: user.id,
+      selectedDate,
+      sessionIds: sidebarData.sessionsForSelectedDate.map((session) => session.id),
+      hasActiveSession: Boolean(sidebarData.activeSession),
+    }),
+  );
   trace.log({
     selectedDate,
     sessionsForSelectedDate: sidebarData.sessionsForSelectedDate.length,
