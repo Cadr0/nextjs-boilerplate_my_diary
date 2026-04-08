@@ -43,14 +43,6 @@ const successMessages: Record<string, string> = {
   account_deleted: "Аккаунт удален.",
 };
 
-function getSafeNext(next: string | null) {
-  if (!next || !next.startsWith("/") || next.startsWith("//")) {
-    return "/diary";
-  }
-
-  return next;
-}
-
 function getAuthRedirectBaseUrl() {
   const configured =
     process.env.NEXT_PUBLIC_APP_URL?.trim() ??
@@ -133,7 +125,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
-  const next = getSafeNext(searchParams.get("next"));
+  const next = "/diary";
   const queryError = searchParams.get("error");
   const queryMessage = searchParams.get("message");
   const isLogin = mode === "login";
@@ -178,7 +170,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
     try {
       const supabase = createClient();
       const redirectBase = getAuthRedirectBaseUrl();
-      const redirectTo = `${redirectBase}/auth/callback?next=${encodeURIComponent(next)}`;
+      const redirectTo = `${redirectBase}/auth/callback?next=${encodeURIComponent("/diary")}`;
 
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -215,7 +207,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
       const supabase = createClient();
       const redirectBase = getAuthRedirectBaseUrl();
       const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${redirectBase}/reset-password?next=${encodeURIComponent(next)}`,
+        redirectTo: `${redirectBase}/reset-password?next=${encodeURIComponent("/diary")}`,
       });
 
       if (authError) {
@@ -271,7 +263,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
         email,
         password: formState.password,
         options: {
-          emailRedirectTo: `${redirectBase}/auth/callback?next=${encodeURIComponent(next)}`,
+          emailRedirectTo: `${redirectBase}/auth/callback?next=${encodeURIComponent("/diary")}`,
           data: fullName
             ? {
                 full_name: fullName,
@@ -397,6 +389,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
                   <input
                     required
                     type="text"
+                    autoComplete="name"
                     value={formState.fullName}
                     onChange={(event) =>
                       setFormState((current) => ({ ...current, fullName: event.target.value }))
@@ -412,6 +405,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
                 <input
                   required
                   type="email"
+                  autoComplete="email"
                   value={formState.email}
                   onChange={(event) =>
                     setFormState((current) => ({ ...current, email: event.target.value }))
@@ -427,6 +421,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
                   required
                   minLength={6}
                   type="password"
+                  autoComplete={isLogin ? "current-password" : "new-password"}
                   value={formState.password}
                   onChange={(event) =>
                     setFormState((current) => ({ ...current, password: event.target.value }))
@@ -443,6 +438,7 @@ export function LoginPage({ isConfigured, mode }: LoginPageProps) {
                     required
                     minLength={6}
                     type="password"
+                    autoComplete="new-password"
                     value={formState.confirmPassword}
                     onChange={(event) =>
                       setFormState((current) => ({

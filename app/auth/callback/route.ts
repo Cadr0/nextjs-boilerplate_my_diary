@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { getSafeNextPath } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseConfigError } from "@/lib/supabase/env";
 
@@ -20,7 +19,7 @@ export async function GET(request: Request) {
   const token = requestUrl.searchParams.get("token");
   const email = requestUrl.searchParams.get("email");
   const type = requestUrl.searchParams.get("type");
-  const next = getSafeNextPath(requestUrl.searchParams.get("next"));
+  const next = "/diary";
   const configError = getSupabaseConfigError();
 
   if (configError) {
