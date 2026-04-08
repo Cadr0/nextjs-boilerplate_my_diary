@@ -125,7 +125,7 @@ async function requestRouterAi(messages: ChatMessage[], model?: string) {
   return payload.choices?.[0]?.message?.content?.trim() ?? "";
 }
 
-function buildHeuristicInsights(input: BuildInsightsInput) {
+export function buildHeuristicInsights(input: BuildInsightsInput) {
   const insights: string[] = [];
   const strongestUp = input.strength.find((item) => item.trend === "up");
   const strongestDown = input.strength.find((item) => item.trend === "down");

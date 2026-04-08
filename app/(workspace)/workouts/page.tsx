@@ -21,6 +21,7 @@ import type {
   WorkoutsSidebarData,
 } from "@/components/workouts-ai/types";
 import { requireUser } from "@/lib/auth";
+import { createServerPerfTrace } from "@/lib/server-perf";
 import { createClient } from "@/lib/supabase/server";
 
 type WorkoutsPageProps = {
@@ -131,18 +132,21 @@ async function loadActivityMap(activityIds: string[]) {
 }
 
 async function loadSidebarData(userId: string, selectedDate: string) {
+  const trace = createServerPerfTrace("workouts.page.sidebar");
   const supabase = await createClient();
   const today = getTodayIsoDate();
   const anchorDate = selectedDate > today ? selectedDate : today;
   const windowStart = shiftIsoDate(anchorDate, -29);
-  const sessionsResult = await supabase
-    .from("workout_sessions")
-    .select("id, entry_date, status, started_at, completed_at")
-    .eq("user_id", userId)
-    .gte("entry_date", windowStart)
-    .lte("entry_date", anchorDate)
-    .order("entry_date", { ascending: false })
-    .order("started_at", { ascending: false });
+  const sessionsResult = await trace.measure("sessions", () =>
+    supabase
+      .from("workout_sessions")
+      .select("id, entry_date, status, started_at, completed_at")
+      .eq("user_id", userId)
+      .gte("entry_date", windowStart)
+      .lte("entry_date", anchorDate)
+      .order("entry_date", { ascending: false })
+      .order("started_at", { ascending: false }),
+  );
 
   if (sessionsResult.error) {
     throw new Error(sessionsResult.error.message);
@@ -153,20 +157,24 @@ async function loadSidebarData(userId: string, selectedDate: string) {
 
   const [eventsResult, blocksResult] = await Promise.all([
     sessionIds.length > 0
-      ? supabase
-          .from("workout_events")
-          .select("id, session_id, activity_id, event_type, occurred_at, payload_json")
-          .eq("user_id", userId)
-          .in("session_id", sessionIds)
-          .is("superseded_by_event_id", null)
-          .order("occurred_at", { ascending: false })
+      ? trace.measure("events", () =>
+          supabase
+            .from("workout_events")
+            .select("id, session_id, activity_id, event_type, occurred_at, payload_json")
+            .eq("user_id", userId)
+            .in("session_id", sessionIds)
+            .is("superseded_by_event_id", null)
+            .order("occurred_at", { ascending: false }),
+        )
       : Promise.resolve({ data: [], error: null }),
     sessionIds.length > 0
-      ? supabase
-          .from("workout_session_blocks")
-          .select("id, session_id, title")
-          .in("session_id", sessionIds)
-          .eq("status", "active")
+      ? trace.measure("blocks", () =>
+          supabase
+            .from("workout_session_blocks")
+            .select("id, session_id, title")
+            .in("session_id", sessionIds)
+            .eq("status", "active"),
+        )
       : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -183,7 +191,7 @@ async function loadSidebarData(userId: string, selectedDate: string) {
   const activityIds = [
     ...new Set(events.flatMap((event) => (event.activity_id ? [event.activity_id] : []))),
   ];
-  const activityMap = await loadActivityMap(activityIds);
+  const activityMap = await trace.measure("activity_map", () => loadActivityMap(activityIds));
   const countBySession = new Map<string, number>();
   const lastActivityBySession = new Map<string, string | null>();
   const currentBlockBySession = new Map<string, string | null>();
@@ -247,6 +255,12 @@ async function loadSidebarData(userId: string, selectedDate: string) {
       hasActiveSession,
     };
   });
+  trace.log({
+    selectedDate,
+    sessions: sessions.length,
+    events: events.length,
+    activityIds: activityIds.length,
+  });
 
   return {
     selectedDate,
@@ -275,19 +289,23 @@ async function loadSelectedDaySessionDetails(args: {
   userId: string;
   sessions: WorkoutsSessionListItem[];
 }) {
+  const trace = createServerPerfTrace("workouts.page.session_details");
   if (args.sessions.length === 0) {
+    trace.log({ sessions: 0 });
     return [] satisfies WorkoutsSessionDetailItem[];
   }
 
   const supabase = await createClient();
   const sessionIds = args.sessions.map((session) => session.id);
-  const eventsResult = await supabase
-    .from("workout_events")
-    .select("id, session_id, activity_id, event_type, occurred_at, payload_json")
-    .eq("user_id", args.userId)
-    .in("session_id", sessionIds)
-    .is("superseded_by_event_id", null)
-    .order("occurred_at", { ascending: true });
+  const eventsResult = await trace.measure("events", () =>
+    supabase
+      .from("workout_events")
+      .select("id, session_id, activity_id, event_type, occurred_at, payload_json")
+      .eq("user_id", args.userId)
+      .in("session_id", sessionIds)
+      .is("superseded_by_event_id", null)
+      .order("occurred_at", { ascending: true }),
+  );
 
   if (eventsResult.error) {
     throw new Error(eventsResult.error.message);
@@ -297,7 +315,7 @@ async function loadSelectedDaySessionDetails(args: {
   const activityIds = [
     ...new Set(events.flatMap((event) => (event.activity_id ? [event.activity_id] : []))),
   ];
-  const activityMap = await loadActivityMap(activityIds);
+  const activityMap = await trace.measure("activity_map", () => loadActivityMap(activityIds));
   const eventsBySession = new Map<
     string,
     WorkoutsSessionDetailItem["events"]
@@ -335,12 +353,14 @@ async function loadSelectedDaySessionDetails(args: {
     eventsBySession.set(event.session_id, current);
   }
 
-  return sortSessionDetailsByStartedAt(
+  const details = sortSessionDetailsByStartedAt(
     args.sessions.map((session) => ({
       ...session,
       events: eventsBySession.get(session.id) ?? [],
     })),
   );
+  trace.log({ sessions: args.sessions.length, events: events.length });
+  return details;
 }
 
 async function loadChatHistory(args: {
@@ -349,27 +369,32 @@ async function loadChatHistory(args: {
   sessionIds: string[];
   hasActiveSession: boolean;
 }) {
+  const trace = createServerPerfTrace("workouts.page.chat_history");
   const supabase = await createClient();
   const bounds = getDayBounds(args.selectedDate);
   const [sessionMessagesResult, floatingMessagesResult] = await Promise.all([
     args.sessionIds.length > 0
-      ? supabase
-          .from("workout_messages")
-          .select("id, raw_text, reply_text, status, created_at, updated_at, session_id, result_json")
-          .eq("user_id", args.userId)
-          .in("session_id", args.sessionIds)
-          .order("created_at", { ascending: false })
-          .limit(32)
+      ? trace.measure("session_messages", () =>
+          supabase
+            .from("workout_messages")
+            .select("id, raw_text, reply_text, status, created_at, updated_at, session_id, result_json")
+            .eq("user_id", args.userId)
+            .in("session_id", args.sessionIds)
+            .order("created_at", { ascending: false })
+            .limit(32),
+        )
       : Promise.resolve({ data: [], error: null }),
-    supabase
-      .from("workout_messages")
-      .select("id, raw_text, reply_text, status, created_at, updated_at, session_id, result_json")
-      .eq("user_id", args.userId)
-      .is("session_id", null)
-      .gte("created_at", bounds.start)
-      .lt("created_at", bounds.end)
-      .order("created_at", { ascending: false })
-      .limit(8),
+    trace.measure("floating_messages", () =>
+      supabase
+        .from("workout_messages")
+        .select("id, raw_text, reply_text, status, created_at, updated_at, session_id, result_json")
+        .eq("user_id", args.userId)
+        .is("session_id", null)
+        .gte("created_at", bounds.start)
+        .lt("created_at", bounds.end)
+        .order("created_at", { ascending: false })
+        .limit(8),
+    ),
   ]);
 
   if (sessionMessagesResult.error) {
@@ -396,10 +421,12 @@ async function loadChatHistory(args: {
 
   const parseLogsResult =
     messageIds.length > 0
-      ? await supabase
-          .from("workout_ai_parse_logs")
-          .select("message_id, parsed_json")
-          .in("message_id", messageIds)
+      ? await trace.measure("parse_logs", () =>
+          supabase
+            .from("workout_ai_parse_logs")
+            .select("message_id, parsed_json")
+            .in("message_id", messageIds),
+        )
       : { data: [], error: null };
 
   if (parseLogsResult.error) {
@@ -423,7 +450,7 @@ async function loadChatHistory(args: {
       ),
     ),
   ];
-  const activityMap = await loadActivityMap(activityIds);
+  const activityMap = await trace.measure("activity_map", () => loadActivityMap(activityIds));
   const items: WorkoutsChatItem[] = [];
 
   for (const message of messageRows) {
@@ -480,26 +507,44 @@ async function loadChatHistory(args: {
     });
   }
 
+  trace.log({
+    sessionIds: args.sessionIds.length,
+    messages: messageRows.length,
+    activityIds: activityIds.length,
+  });
   return items;
 }
 
 export default async function WorkoutsPage(props: WorkoutsPageProps) {
-  const user = await requireUser();
+  const trace = createServerPerfTrace("workouts.page");
+  const user = await trace.measure("require_user", () => requireUser());
   const resolvedSearchParams = props.searchParams ? await props.searchParams : {};
   const selectedDate = readSelectedDate(resolvedSearchParams.date);
-  const sidebarData = await loadSidebarData(user.id, selectedDate);
+  const sidebarData = await trace.measure("sidebar", () =>
+    loadSidebarData(user.id, selectedDate),
+  );
   const [chatHistory, sessionDetails] = await Promise.all([
-    loadChatHistory({
-      userId: user.id,
-      selectedDate,
-      sessionIds: sidebarData.sessionsForSelectedDate.map((session) => session.id),
-      hasActiveSession: Boolean(sidebarData.activeSession),
-    }),
-    loadSelectedDaySessionDetails({
-      userId: user.id,
-      sessions: sidebarData.sessionsForSelectedDate,
-    }),
+    trace.measure("chat_history", () =>
+      loadChatHistory({
+        userId: user.id,
+        selectedDate,
+        sessionIds: sidebarData.sessionsForSelectedDate.map((session) => session.id),
+        hasActiveSession: Boolean(sidebarData.activeSession),
+      }),
+    ),
+    trace.measure("session_details", () =>
+      loadSelectedDaySessionDetails({
+        userId: user.id,
+        sessions: sidebarData.sessionsForSelectedDate,
+      }),
+    ),
   ]);
+  trace.log({
+    selectedDate,
+    sessionsForSelectedDate: sidebarData.sessionsForSelectedDate.length,
+    chatItems: chatHistory.length,
+    sessionDetails: sessionDetails.length,
+  });
 
   return (
     <WorkoutsPageShell

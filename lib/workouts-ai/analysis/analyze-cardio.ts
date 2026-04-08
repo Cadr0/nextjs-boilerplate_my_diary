@@ -10,6 +10,7 @@ type AnalyzeCardioInput = {
 };
 
 type CardioRow = {
+  activity_id: string | null;
   duration_sec: number | null;
   distance_m: number | null;
   pace_sec_per_km: number | null;
@@ -102,33 +103,16 @@ function buildSessionAggregates(rows: CardioRow[]) {
     .slice(-6);
 }
 
-export async function analyzeCardio(
-  input: AnalyzeCardioInput,
-): Promise<WorkoutCardioProgress | null> {
-  const supabase = await createClient();
-  const result = await supabase
-    .from("workout_cardio_entries")
-    .select(
-      "duration_sec, distance_m, pace_sec_per_km, session_id, workout_sessions!inner(entry_date, status, user_id), workout_activity_catalog!inner(slug, display_name), workout_events!inner(superseded_by_event_id)",
-    )
-    .eq("activity_id", input.activityId)
-    .eq("workout_sessions.user_id", input.userId)
-    .neq("workout_sessions.status", "cancelled")
-    .is("workout_events.superseded_by_event_id", null)
-    .order("created_at", { ascending: true })
-    .limit(Math.max(24, (input.sessionLimit ?? 6) * 8));
-
-  if (result.error) {
-    throw new Error(result.error.message);
-  }
-
-  const rows = (result.data ?? []) as unknown as CardioRow[];
-
-  if (rows.length === 0) {
+function buildCardioProgress(args: {
+  activityId: string;
+  rows: CardioRow[];
+  sessionLimit?: number;
+}): WorkoutCardioProgress | null {
+  if (args.rows.length === 0) {
     return null;
   }
 
-  const sessions = buildSessionAggregates(rows).slice(-(input.sessionLimit ?? 6));
+  const sessions = buildSessionAggregates(args.rows).slice(-(args.sessionLimit ?? 6));
   const first = sessions[0] ?? null;
   const last = sessions[sessions.length - 1] ?? null;
   const totalDistanceM = round(
@@ -159,29 +143,31 @@ export async function analyzeCardio(
 
   let trend: WorkoutCardioProgress["trend"] = "stable";
   let recommendation: WorkoutCardioProgress["recommendation"] = "maintain";
-  let message = "Кардио-динамика пока стабильна.";
+  let message = "РљР°СЂРґРёРѕ-РґРёРЅР°РјРёРєР° РїРѕРєР° СЃС‚Р°Р±РёР»СЊРЅР°.";
 
   if (sessions.length < 2) {
     recommendation = "insufficient_data";
-    message = "Пока мало данных, чтобы надёжно оценить кардио-прогресс.";
+    message = "РџРѕРєР° РјР°Р»Рѕ РґР°РЅРЅС‹С…, С‡С‚РѕР±С‹ РЅР°РґС‘Р¶РЅРѕ РѕС†РµРЅРёС‚СЊ РєР°СЂРґРёРѕ-РїСЂРѕРіСЂРµСЃСЃ.";
   } else if ((paceChangePct ?? 0) < -3 || (distanceChangePct ?? 0) > 5) {
     trend = "up";
     recommendation = "increase_distance";
-    message = "Кардио идёт вверх: ты либо ускоряешься, либо увеличиваешь объём.";
+    message = "РљР°СЂРґРёРѕ РёРґС‘С‚ РІРІРµСЂС…: С‚С‹ Р»РёР±Рѕ СѓСЃРєРѕСЂСЏРµС€СЊСЃСЏ, Р»РёР±Рѕ СѓРІРµР»РёС‡РёРІР°РµС€СЊ РѕР±СЉС‘Рј.";
   } else if ((paceChangePct ?? 0) > 5 && (distanceChangePct ?? 0) < -5) {
     trend = "down";
     recommendation = "recover";
-    message = "Темп просел, а дистанция уменьшилась — возможно, нужна более мягкая неделя.";
+    message = "РўРµРјРї РїСЂРѕСЃРµР», Р° РґРёСЃС‚Р°РЅС†РёСЏ СѓРјРµРЅСЊС€РёР»Р°СЃСЊ вЂ” РІРѕР·РјРѕР¶РЅРѕ, РЅСѓР¶РЅР° Р±РѕР»РµРµ РјСЏРіРєР°СЏ РЅРµРґРµР»СЏ.";
   } else if (sessions.length < 3) {
     recommendation = "improve_consistency";
-    message = "Для уверенного вывода по кардио нужна более регулярная база.";
+    message = "Р”Р»СЏ СѓРІРµСЂРµРЅРЅРѕРіРѕ РІС‹РІРѕРґР° РїРѕ РєР°СЂРґРёРѕ РЅСѓР¶РЅР° Р±РѕР»РµРµ СЂРµРіСѓР»СЏСЂРЅР°СЏ Р±Р°Р·Р°.";
   }
 
   return {
-    activityId: input.activityId,
-    activitySlug: rows[0]?.workout_activity_catalog?.slug ?? input.activityId,
+    activityId: args.activityId,
+    activitySlug: args.rows[0]?.workout_activity_catalog?.slug ?? args.activityId,
     activityName:
-      rows[0]?.workout_activity_catalog?.display_name ?? rows[0]?.workout_activity_catalog?.slug ?? input.activityId,
+      args.rows[0]?.workout_activity_catalog?.display_name ??
+      args.rows[0]?.workout_activity_catalog?.slug ??
+      args.activityId,
     sessionsAnalyzed: sessions.length,
     totalDistanceM,
     totalDurationSec,
@@ -193,4 +179,79 @@ export async function analyzeCardio(
     recommendation,
     message,
   };
+}
+
+export async function analyzeCardioBatch(input: {
+  userId: string;
+  sessionLimit?: number;
+}): Promise<WorkoutCardioProgress[]> {
+  const supabase = await createClient();
+  const result = await supabase
+    .from("workout_cardio_entries")
+    .select(
+      "activity_id, duration_sec, distance_m, pace_sec_per_km, session_id, workout_sessions!inner(entry_date, status, user_id), workout_activity_catalog!inner(slug, display_name), workout_events!inner(superseded_by_event_id)",
+    )
+    .eq("workout_sessions.user_id", input.userId)
+    .neq("workout_sessions.status", "cancelled")
+    .not("activity_id", "is", null)
+    .is("workout_events.superseded_by_event_id", null)
+    .order("created_at", { ascending: true });
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  const groupedRows = new Map<string, CardioRow[]>();
+
+  for (const row of (result.data ?? []) as unknown as CardioRow[]) {
+    if (!row.activity_id) {
+      continue;
+    }
+
+    const current = groupedRows.get(row.activity_id) ?? [];
+    current.push(row);
+    groupedRows.set(row.activity_id, current);
+  }
+
+  return [...groupedRows.entries()]
+    .map(([activityId, rows]) =>
+      buildCardioProgress({
+        activityId,
+        rows,
+        sessionLimit: input.sessionLimit,
+      }),
+    )
+    .filter((item): item is WorkoutCardioProgress => item !== null)
+    .sort(
+      (left, right) =>
+        right.sessionsAnalyzed - left.sessionsAnalyzed ||
+        left.activityName.localeCompare(right.activityName, "ru"),
+    );
+}
+
+export async function analyzeCardio(
+  input: AnalyzeCardioInput,
+): Promise<WorkoutCardioProgress | null> {
+  const supabase = await createClient();
+  const result = await supabase
+    .from("workout_cardio_entries")
+    .select(
+      "activity_id, duration_sec, distance_m, pace_sec_per_km, session_id, workout_sessions!inner(entry_date, status, user_id), workout_activity_catalog!inner(slug, display_name), workout_events!inner(superseded_by_event_id)",
+    )
+    .eq("activity_id", input.activityId)
+    .eq("workout_sessions.user_id", input.userId)
+    .neq("workout_sessions.status", "cancelled")
+    .is("workout_events.superseded_by_event_id", null)
+    .order("created_at", { ascending: true })
+    .limit(Math.max(24, (input.sessionLimit ?? 6) * 8));
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  return buildCardioProgress({
+    activityId: input.activityId,
+    rows: (result.data ?? []) as unknown as CardioRow[],
+    sessionLimit: input.sessionLimit,
+  });
 }

@@ -4,6 +4,7 @@ import { WorkspaceProvider } from "@/components/workspace-provider";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { getAuthAccountInfo, getAuthState, getUserDisplayName } from "@/lib/auth";
 import { getSupabaseConfigError } from "@/lib/diary";
+import { createServerPerfTrace } from "@/lib/server-perf";
 import { getWorkspaceSnapshot } from "@/lib/workspace-sync-server";
 import { emptyWorkspaceSyncState } from "@/lib/workspace-sync";
 
@@ -14,9 +15,11 @@ export default async function WorkspaceLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const trace = createServerPerfTrace("workspace.layout");
   const configError = getSupabaseConfigError();
 
   if (configError) {
+    trace.log({ configured: false });
     return (
       <WorkspaceProvider
         initialEntries={[]}
@@ -36,14 +39,21 @@ export default async function WorkspaceLayout({
     );
   }
 
-  const { user } = await getAuthState();
+  const { user } = await trace.measure("auth_state", () => getAuthState());
 
   if (!user) {
+    trace.log({ authenticated: false });
     redirect("/login?next=/diary");
   }
 
   const { entries, metricDefinitions, profile, workspaceSync, error } =
-    await getWorkspaceSnapshot(90);
+    await trace.measure("workspace_snapshot", () => getWorkspaceSnapshot(90));
+  trace.log({
+    authenticated: true,
+    entries: entries.length,
+    metricDefinitions: metricDefinitions.length,
+    hasError: Boolean(error),
+  });
   const displayName = getUserDisplayName(user);
   const accountInfo = getAuthAccountInfo(user);
 

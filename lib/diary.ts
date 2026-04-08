@@ -32,6 +32,7 @@ import { matchExistingMemory } from "@/lib/diary-memory/match-existing-memory";
 import { resolveMemoryTransition } from "@/lib/diary-memory/resolve-memory-transition";
 import { markMemoryItemsAsStale, upsertMemoryItem } from "@/lib/diary-memory/upsert-memory-item";
 import { requireUser } from "@/lib/auth";
+import { createServerPerfTrace } from "@/lib/server-perf";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseConfigError } from "@/lib/supabase/env";
 import type {
@@ -1266,9 +1267,11 @@ function createMetricValueRows(
 export { getSupabaseConfigError } from "@/lib/supabase/env";
 
 export async function getWorkspaceBootstrap(limit = 90) {
+  const trace = createServerPerfTrace("workspace.bootstrap");
   const configError = getSupabaseConfigError();
 
   if (configError) {
+    trace.log({ limit, configured: false });
     return {
       entries: [] as DiaryEntry[],
       metricDefinitions: [] as MetricDefinition[],
@@ -1277,12 +1280,14 @@ export async function getWorkspaceBootstrap(limit = 90) {
   }
 
   try {
-    const user = await requireUser();
-    const supabase = await createClient();
+    const user = await trace.measure("require_user", () => requireUser());
+    const supabase = await trace.measure("create_client", () => createClient());
 
     const [definitionsResult, entriesResult] = await Promise.all([
-      listMetricDefinitionsWithFallback(supabase, user.id),
-      listEntriesWithFallback(supabase, user.id, limit),
+      trace.measure("metric_definitions", () =>
+        listMetricDefinitionsWithFallback(supabase, user.id),
+      ),
+      trace.measure("entries", () => listEntriesWithFallback(supabase, user.id, limit)),
     ]);
 
     if (definitionsResult.error) {
@@ -1303,15 +1308,21 @@ export async function getWorkspaceBootstrap(limit = 90) {
 
     const entryRows = (entriesResult.data ?? []) as unknown as DailyEntryRow[];
     const entryIds = entryRows.map((entry) => entry.id);
-    const valueResult =
+    const [valueResult, memoryRows] = await Promise.all([
       entryIds.length === 0
-        ? { data: [] as EntryMetricValueRow[], error: null }
-        : await supabase
-            .from("daily_entry_metric_values")
-            .select(entryMetricSelect)
-            .eq("user_id", user.id)
-            .in("entry_id", entryIds)
-            .order("sort_order_snapshot", { ascending: true });
+        ? Promise.resolve({ data: [] as EntryMetricValueRow[], error: null })
+        : trace.measure("entry_metric_values", () =>
+            supabase
+              .from("daily_entry_metric_values")
+              .select(entryMetricSelect)
+              .eq("user_id", user.id)
+              .in("entry_id", entryIds)
+              .order("sort_order_snapshot", { ascending: true }),
+          ),
+      trace.measure("entry_memory_items", () =>
+        listMemoryItemsForEntryIdsSafe(supabase, user.id, entryIds),
+      ),
+    ]);
 
     if (valueResult.error) {
       return {
@@ -1332,7 +1343,6 @@ export async function getWorkspaceBootstrap(limit = 90) {
       },
       {},
     );
-    const memoryRows = await listMemoryItemsForEntryIdsSafe(supabase, user.id, entryIds);
     const memoryByEntry = memoryRows.reduce<Record<string, MemoryItemRow[]>>((result, row) => {
       if (!row.source_entry_id) {
         return result;
@@ -1345,6 +1355,13 @@ export async function getWorkspaceBootstrap(limit = 90) {
       result[row.source_entry_id].push(row);
       return result;
     }, {});
+    trace.log({
+      limit,
+      entries: entryRows.length,
+      metricDefinitions:
+        ((definitionsResult.data ?? []) as unknown as MetricDefinitionRow[]).length,
+      memoryItems: memoryRows.length,
+    });
 
     return {
       entries: entryRows.map((entry) =>
@@ -1360,6 +1377,11 @@ export async function getWorkspaceBootstrap(limit = 90) {
       error: null,
     };
   } catch (error) {
+    trace.log({
+      limit,
+      failed: true,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return {
       entries: [] as DiaryEntry[],
       metricDefinitions: [] as MetricDefinition[],

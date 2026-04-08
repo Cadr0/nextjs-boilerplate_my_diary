@@ -2,17 +2,16 @@ import { NextResponse } from "next/server";
 
 import { createUsageGuard } from "@/lib/ai/access";
 import { requireUser } from "@/lib/auth";
-import { analyzeCardio } from "@/lib/workouts-ai/analysis/analyze-cardio";
+import { createServerPerfTrace, withTimeout } from "@/lib/server-perf";
+import { analyzeCardioBatch } from "@/lib/workouts-ai/analysis/analyze-cardio";
 import { analyzeConsistency } from "@/lib/workouts-ai/analysis/analyze-consistency";
-import { buildInsights } from "@/lib/workouts-ai/analysis/build-insights";
+import {
+  buildHeuristicInsights,
+  buildInsights,
+} from "@/lib/workouts-ai/analysis/build-insights";
 import { buildProgressSummary } from "@/lib/workouts-ai/analysis/build-progress-summary";
-import { analyzeStrength } from "@/lib/workouts-ai/analysis/analyze-strength";
-import type {
-  WorkoutCardioProgress,
-  WorkoutProgressResponse,
-  WorkoutStrengthProgress,
-} from "@/lib/workouts-ai/domain/types";
-import { createClient } from "@/lib/supabase/server";
+import { analyzeStrengthBatch } from "@/lib/workouts-ai/analysis/analyze-strength";
+import type { WorkoutProgressResponse } from "@/lib/workouts-ai/domain/types";
 
 function readPositiveInt(value: string | null, fallback: number) {
   if (!value) {
@@ -23,84 +22,60 @@ function readPositiveInt(value: string | null, fallback: number) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-async function loadStrengthActivityIds(userId: string) {
-  const supabase = await createClient();
-  const result = await supabase
-    .from("workout_strength_sets")
-    .select("activity_id, workout_sessions!inner(user_id)")
-    .eq("workout_sessions.user_id", userId);
-
-  if (result.error) {
-    throw new Error(result.error.message);
-  }
-
-  return [...new Set((result.data ?? []).flatMap((row) => (row.activity_id ? [row.activity_id] : [])))];
-}
-
-async function loadCardioActivityIds(userId: string) {
-  const supabase = await createClient();
-  const result = await supabase
-    .from("workout_cardio_entries")
-    .select("activity_id, workout_sessions!inner(user_id)")
-    .eq("workout_sessions.user_id", userId);
-
-  if (result.error) {
-    throw new Error(result.error.message);
-  }
-
-  return [...new Set((result.data ?? []).flatMap((row) => (row.activity_id ? [row.activity_id] : [])))];
-}
-
 export async function GET(request: Request) {
+  const trace = createServerPerfTrace("workouts.progress");
+
   try {
-    const user = await requireUser();
+    const user = await trace.measure("require_user", () => requireUser());
     const { searchParams } = new URL(request.url);
     const periodDays = readPositiveInt(searchParams.get("period_days"), 28);
     const sessionLimit = readPositiveInt(searchParams.get("session_limit"), 6);
-    const usageGuard = await createUsageGuard(user.id);
+    const usageGuard = await trace.measure("usage_guard", () => createUsageGuard(user.id));
     const model = usageGuard.resolveTextModel(undefined);
 
-    const [strengthActivityIds, cardioActivityIds, consistency] = await Promise.all([
-      loadStrengthActivityIds(user.id),
-      loadCardioActivityIds(user.id),
-      analyzeConsistency({ userId: user.id, periodDays }),
-    ]);
-
-    const [strengthRaw, cardioRaw] = await Promise.all([
-      Promise.all(
-        strengthActivityIds.map((activityId) =>
-          analyzeStrength({ activityId, userId: user.id, sessionLimit }),
-        ),
+    const [strength, cardio, consistency] = await Promise.all([
+      trace.measure("strength_batch", () =>
+        analyzeStrengthBatch({ userId: user.id, sessionLimit }),
       ),
-      Promise.all(
-        cardioActivityIds.map((activityId) =>
-          analyzeCardio({ activityId, userId: user.id, sessionLimit }),
-        ),
+      trace.measure("cardio_batch", () =>
+        analyzeCardioBatch({ userId: user.id, sessionLimit }),
+      ),
+      trace.measure("consistency", () =>
+        analyzeConsistency({ userId: user.id, periodDays }),
       ),
     ]);
-
-    const strength = strengthRaw.filter(
-      (item): item is WorkoutStrengthProgress => item !== null,
-    );
-    const cardio = cardioRaw.filter(
-      (item): item is WorkoutCardioProgress => item !== null,
-    );
     const summary = buildProgressSummary({
       periodDays,
       strength,
       cardio,
       consistency,
     });
-    const insightResult = await buildInsights({
+    const heuristicInsights = buildHeuristicInsights({
       strength,
       cardio,
       consistency,
       summary,
       model,
-      consumeAi: async () => {
-        await usageGuard.consume("ai");
-      },
     });
+    const insightResult = await trace.measure("insights", () =>
+      withTimeout(
+        buildInsights({
+          strength,
+          cardio,
+          consistency,
+          summary,
+          model,
+          consumeAi: async () => {
+            await usageGuard.consume("ai");
+          },
+        }),
+        1200,
+        () => ({
+          insights: heuristicInsights,
+          source: "heuristic" as const,
+        }),
+      ),
+    );
 
     const response: WorkoutProgressResponse = {
       strength,
@@ -110,15 +85,35 @@ export async function GET(request: Request) {
       insights: insightResult.insights,
       insightSource: insightResult.source,
     };
+    trace.log({
+      periodDays,
+      sessionLimit,
+      strengthActivities: strength.length,
+      cardioActivities: cardio.length,
+      insightSource: insightResult.source,
+    });
 
-    return NextResponse.json(response);
+    return NextResponse.json(response, {
+      headers: {
+        "Server-Timing": trace.toServerTimingHeader(),
+      },
+    });
   } catch (error) {
+    trace.log({
+      failed: true,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       {
         error:
           error instanceof Error ? error.message : "Failed to load workout progress.",
       },
-      { status: 500 },
+      {
+        status: 500,
+        headers: {
+          "Server-Timing": trace.toServerTimingHeader(),
+        },
+      },
     );
   }
 }

@@ -4,6 +4,7 @@ import type { PostgrestError } from "@supabase/supabase-js";
 
 import { getUserDisplayName, requireUser } from "@/lib/auth";
 import { getWorkspaceBootstrap } from "@/lib/diary";
+import { createServerPerfTrace } from "@/lib/server-perf";
 import { createClient } from "@/lib/supabase/server";
 import {
   defaultProfile,
@@ -321,22 +322,33 @@ export async function updateWorkspaceSyncState(nextState: WorkspaceSyncState) {
 }
 
 export async function getWorkspaceSnapshot(limit = 90): Promise<WorkspaceSnapshot> {
-  const bootstrap = await getWorkspaceBootstrap(limit);
+  const trace = createServerPerfTrace("workspace.snapshot");
 
   try {
-    const [profile, workspaceSync] = await Promise.all([
-      getWorkspaceProfile(),
-      getWorkspaceSyncState(),
+    const [bootstrap, profileResult, workspaceSyncResult] = await Promise.all([
+      trace.measure("bootstrap", () => getWorkspaceBootstrap(limit)),
+      trace.measure("profile", () => getWorkspaceProfile()),
+      trace.measure("workspace_sync", () => getWorkspaceSyncState()),
     ]);
+    trace.log({ limit });
 
     return {
       entries: bootstrap.entries,
       metricDefinitions: bootstrap.metricDefinitions,
-      profile,
-      workspaceSync,
+      profile: profileResult,
+      workspaceSync: workspaceSyncResult,
       error: bootstrap.error,
     };
   } catch (error) {
+    const bootstrap = await trace.measure("bootstrap_fallback", () =>
+      getWorkspaceBootstrap(limit),
+    );
+    trace.log({
+      limit,
+      failed: true,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
     return {
       entries: bootstrap.entries,
       metricDefinitions: bootstrap.metricDefinitions,

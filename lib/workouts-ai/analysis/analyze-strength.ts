@@ -10,6 +10,7 @@ type AnalyzeStrengthInput = {
 };
 
 type StrengthRow = {
+  activity_id: string | null;
   weight_kg: number | null;
   reps: number | null;
   session_id: string;
@@ -90,33 +91,16 @@ function buildSessionAggregates(rows: StrengthRow[]) {
     .slice(-6);
 }
 
-export async function analyzeStrength(
-  input: AnalyzeStrengthInput,
-): Promise<WorkoutStrengthProgress | null> {
-  const supabase = await createClient();
-  const result = await supabase
-    .from("workout_strength_sets")
-    .select(
-      "weight_kg, reps, session_id, workout_sessions!inner(entry_date, status, user_id), workout_activity_catalog!inner(slug, display_name), workout_events!inner(superseded_by_event_id)",
-    )
-    .eq("activity_id", input.activityId)
-    .eq("workout_sessions.user_id", input.userId)
-    .neq("workout_sessions.status", "cancelled")
-    .is("workout_events.superseded_by_event_id", null)
-    .order("created_at", { ascending: true })
-    .limit(Math.max(24, (input.sessionLimit ?? 6) * 8));
-
-  if (result.error) {
-    throw new Error(result.error.message);
-  }
-
-  const rows = (result.data ?? []) as unknown as StrengthRow[];
-
-  if (rows.length === 0) {
+function buildStrengthProgress(args: {
+  activityId: string;
+  rows: StrengthRow[];
+  sessionLimit?: number;
+}): WorkoutStrengthProgress | null {
+  if (args.rows.length === 0) {
     return null;
   }
 
-  const sessions = buildSessionAggregates(rows).slice(-(input.sessionLimit ?? 6));
+  const sessions = buildSessionAggregates(args.rows).slice(-(args.sessionLimit ?? 6));
   const first = sessions[0] ?? null;
   const last = sessions[sessions.length - 1] ?? null;
   const maxWeightKg = sessions.reduce<number | null>(
@@ -144,30 +128,31 @@ export async function analyzeStrength(
 
   let trend: WorkoutStrengthProgress["trend"] = "stable";
   let recommendation: WorkoutStrengthProgress["recommendation"] = "maintain";
-  let message = "Динамика по силовым пока стабильна.";
+  let message = "Р”РёРЅР°РјРёРєР° РїРѕ СЃРёР»РѕРІС‹Рј РїРѕРєР° СЃС‚Р°Р±РёР»СЊРЅР°.";
 
   if (sessions.length < 2) {
-    trend = "stable";
     recommendation = "insufficient_data";
-    message = "Пока мало данных для надёжного вывода по силовому прогрессу.";
+    message = "РџРѕРєР° РјР°Р»Рѕ РґР°РЅРЅС‹С… РґР»СЏ РЅР°РґС‘Р¶РЅРѕРіРѕ РІС‹РІРѕРґР° РїРѕ СЃРёР»РѕРІРѕРјСѓ РїСЂРѕРіСЂРµСЃСЃСѓ.";
   } else if ((weightChangePct ?? 0) > 2 || (repsChangePct ?? 0) > 3) {
     trend = "up";
     recommendation = "increase_weight";
-    message = "Ты стабильно растёшь по силовым показателям.";
+    message = "РўС‹ СЃС‚Р°Р±РёР»СЊРЅРѕ СЂР°СЃС‚С‘С€СЊ РїРѕ СЃРёР»РѕРІС‹Рј РїРѕРєР°Р·Р°С‚РµР»СЏРј.";
   } else if ((volumeChangePct ?? 0) < -8) {
     trend = "down";
     recommendation = "reduce_load";
-    message = "Объём заметно просел, стоит проверить нагрузку и восстановление.";
+    message = "РћР±СЉС‘Рј Р·Р°РјРµС‚РЅРѕ РїСЂРѕСЃРµР», СЃС‚РѕРёС‚ РїСЂРѕРІРµСЂРёС‚СЊ РЅР°РіСЂСѓР·РєСѓ Рё РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёРµ.";
   } else if (sessions.length < 3) {
     recommendation = "improve_consistency";
-    message = "Есть данные, но для уверенного прогресса нужна более регулярная практика.";
+    message = "Р•СЃС‚СЊ РґР°РЅРЅС‹Рµ, РЅРѕ РґР»СЏ СѓРІРµСЂРµРЅРЅРѕРіРѕ РїСЂРѕРіСЂРµСЃСЃР° РЅСѓР¶РЅР° Р±РѕР»РµРµ СЂРµРіСѓР»СЏСЂРЅР°СЏ РїСЂР°РєС‚РёРєР°.";
   }
 
   return {
-    activityId: input.activityId,
-    activitySlug: rows[0]?.workout_activity_catalog?.slug ?? input.activityId,
+    activityId: args.activityId,
+    activitySlug: args.rows[0]?.workout_activity_catalog?.slug ?? args.activityId,
     activityName:
-      rows[0]?.workout_activity_catalog?.display_name ?? rows[0]?.workout_activity_catalog?.slug ?? input.activityId,
+      args.rows[0]?.workout_activity_catalog?.display_name ??
+      args.rows[0]?.workout_activity_catalog?.slug ??
+      args.activityId,
     sessionsAnalyzed: sessions.length,
     maxWeightKg,
     totalVolume,
@@ -179,4 +164,79 @@ export async function analyzeStrength(
     recommendation,
     message,
   };
+}
+
+export async function analyzeStrengthBatch(input: {
+  userId: string;
+  sessionLimit?: number;
+}): Promise<WorkoutStrengthProgress[]> {
+  const supabase = await createClient();
+  const result = await supabase
+    .from("workout_strength_sets")
+    .select(
+      "activity_id, weight_kg, reps, session_id, workout_sessions!inner(entry_date, status, user_id), workout_activity_catalog!inner(slug, display_name), workout_events!inner(superseded_by_event_id)",
+    )
+    .eq("workout_sessions.user_id", input.userId)
+    .neq("workout_sessions.status", "cancelled")
+    .not("activity_id", "is", null)
+    .is("workout_events.superseded_by_event_id", null)
+    .order("created_at", { ascending: true });
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  const groupedRows = new Map<string, StrengthRow[]>();
+
+  for (const row of (result.data ?? []) as unknown as StrengthRow[]) {
+    if (!row.activity_id) {
+      continue;
+    }
+
+    const current = groupedRows.get(row.activity_id) ?? [];
+    current.push(row);
+    groupedRows.set(row.activity_id, current);
+  }
+
+  return [...groupedRows.entries()]
+    .map(([activityId, rows]) =>
+      buildStrengthProgress({
+        activityId,
+        rows,
+        sessionLimit: input.sessionLimit,
+      }),
+    )
+    .filter((item): item is WorkoutStrengthProgress => item !== null)
+    .sort(
+      (left, right) =>
+        right.sessionsAnalyzed - left.sessionsAnalyzed ||
+        left.activityName.localeCompare(right.activityName, "ru"),
+    );
+}
+
+export async function analyzeStrength(
+  input: AnalyzeStrengthInput,
+): Promise<WorkoutStrengthProgress | null> {
+  const supabase = await createClient();
+  const result = await supabase
+    .from("workout_strength_sets")
+    .select(
+      "activity_id, weight_kg, reps, session_id, workout_sessions!inner(entry_date, status, user_id), workout_activity_catalog!inner(slug, display_name), workout_events!inner(superseded_by_event_id)",
+    )
+    .eq("activity_id", input.activityId)
+    .eq("workout_sessions.user_id", input.userId)
+    .neq("workout_sessions.status", "cancelled")
+    .is("workout_events.superseded_by_event_id", null)
+    .order("created_at", { ascending: true })
+    .limit(Math.max(24, (input.sessionLimit ?? 6) * 8));
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  return buildStrengthProgress({
+    activityId: input.activityId,
+    rows: (result.data ?? []) as unknown as StrengthRow[],
+    sessionLimit: input.sessionLimit,
+  });
 }
