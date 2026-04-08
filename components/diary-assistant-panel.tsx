@@ -1,7 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ClipboardEvent,
+  type DragEvent,
+} from "react";
 
 import { useWorkspace } from "@/components/workspace-provider";
 import { supportsChatImageUpload } from "@/lib/ai/models";
@@ -59,6 +67,10 @@ function readFileAsDataUrl(file: File) {
   });
 }
 
+function pickFirstImageFile(files: Iterable<File>) {
+  return [...files].find((file) => file.type.startsWith("image/")) ?? null;
+}
+
 export function DiaryAssistantPanel() {
   const {
     analysisError,
@@ -87,10 +99,12 @@ export function DiaryAssistantPanel() {
   } | null>(null);
   const [pendingImage, setPendingImage] = useState<ChatImageAttachment | null>(null);
   const [messageImages, setMessageImages] = useState<Record<string, ChatImageAttachment>>({});
+  const [isChatDragActive, setIsChatDragActive] = useState(false);
   const modelMenuRef = useRef<HTMLDivElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const chatAbortRef = useRef<AbortController | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const chatDragDepthRef = useRef(0);
 
   const chatMessages = useMemo(
     () => diaryChats[selectedDate] ?? [],
@@ -321,14 +335,7 @@ export function DiaryAssistantPanel() {
     }
   };
 
-  const handleImageSelection = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-
-    if (!file) {
-      return;
-    }
-
+  const attachImageFile = async (file: File) => {
     if (!canAttachImages) {
       setChatError("Для отправки фото переключите модель на Gemma 4 31B IT.");
       return;
@@ -360,6 +367,81 @@ export function DiaryAssistantPanel() {
     } catch (error) {
       setChatError(error instanceof Error ? error.message : "Не удалось загрузить изображение.");
     }
+  };
+
+  const handleImageSelection = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    await attachImageFile(file);
+  };
+
+  const handleChatPaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    if (chatState === "sending") {
+      return;
+    }
+
+    const file = pickFirstImageFile(event.clipboardData.files);
+
+    if (!file) {
+      return;
+    }
+
+    event.preventDefault();
+    void attachImageFile(file);
+  };
+
+  const handleChatDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes("Files") || chatState === "sending") {
+      return;
+    }
+
+    chatDragDepthRef.current += 1;
+    setIsChatDragActive(true);
+  };
+
+  const handleChatDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes("Files") || chatState === "sending") {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleChatDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes("Files")) {
+      return;
+    }
+
+    chatDragDepthRef.current = Math.max(0, chatDragDepthRef.current - 1);
+
+    if (chatDragDepthRef.current === 0) {
+      setIsChatDragActive(false);
+    }
+  };
+
+  const handleChatDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    chatDragDepthRef.current = 0;
+    setIsChatDragActive(false);
+
+    if (chatState === "sending") {
+      return;
+    }
+
+    const file = pickFirstImageFile(event.dataTransfer.files);
+
+    if (!file) {
+      setChatError("Можно прикрепить только изображение.");
+      return;
+    }
+
+    void attachImageFile(file);
   };
 
   const handleConfirmSleepReminder = async () => {
@@ -594,7 +676,17 @@ export function DiaryAssistantPanel() {
             void sendChatMessage(chatInput);
           }}
         >
-          <div className="rounded-[26px] border border-[var(--border)] bg-[rgba(255,255,255,0.98)] p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] backdrop-blur sm:rounded-[30px] sm:px-4 sm:py-3">
+          <div
+            className={`rounded-[26px] border bg-[rgba(255,255,255,0.98)] p-3 shadow-[0_18px_36px_rgba(24,33,29,0.08)] backdrop-blur transition sm:rounded-[30px] sm:px-4 sm:py-3 ${
+              isChatDragActive
+                ? "border-[var(--accent)] shadow-[0_22px_42px_rgba(47,111,97,0.14)]"
+                : "border-[var(--border)]"
+            }`}
+            onDragEnter={handleChatDragEnter}
+            onDragOver={handleChatDragOver}
+            onDragLeave={handleChatDragLeave}
+            onDrop={handleChatDrop}
+          >
             {pendingImage ? (
               <div className="mb-3 flex items-start gap-3 rounded-[22px] border border-[rgba(47,111,97,0.14)] bg-[rgba(247,249,246,0.86)] p-3">
                 <div className="overflow-hidden rounded-[18px] border border-[var(--border)] bg-white">
@@ -634,6 +726,7 @@ export function DiaryAssistantPanel() {
             <input
               value={chatInput}
               onChange={(event) => setChatInput(event.target.value)}
+              onPaste={handleChatPaste}
               placeholder="Спросите Diary AI"
               className="min-w-[220px] flex-1 rounded-full border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.96)] px-4 py-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:text-base"
             />

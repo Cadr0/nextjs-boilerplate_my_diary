@@ -891,7 +891,9 @@ export function DayEntryComposer() {
 
   return (
     <section
-      className="mt-2 grid gap-2.5 sm:mt-3 sm:gap-3.5"
+      className={`mt-2 grid gap-2.5 transition sm:mt-3 sm:gap-3.5 ${
+        isDragActive ? "rounded-[22px] ring-2 ring-[rgba(47,111,97,0.18)]" : ""
+      }`}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -916,15 +918,6 @@ export function DayEntryComposer() {
             rows={7}
             className="w-full min-h-[220px] resize-y rounded-[18px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:min-h-[280px] sm:rounded-[20px] sm:px-4 sm:text-[15px]"
           />
-          <div
-            className={`mt-2 rounded-[16px] border border-dashed px-3 py-2 text-xs transition sm:px-4 sm:text-sm ${
-              isDragActive
-                ? "border-[var(--accent)] bg-[rgba(47,111,97,0.08)] text-[var(--accent)]"
-                : "border-[rgba(24,33,29,0.12)] bg-[rgba(247,249,246,0.55)] text-[var(--muted)]"
-            }`}
-          >
-            Вставьте фото из буфера обмена или перетащите изображение сюда. Мы распознаем текст и добавим его в запись.
-          </div>
         </div>
 
         <div className="border-t border-[var(--border)] pt-2 sm:pt-3">
