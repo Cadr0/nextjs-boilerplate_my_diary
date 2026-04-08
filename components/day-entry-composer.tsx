@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent } from "react";
 import { createPortal } from "react-dom";
 
 import { useWorkspace } from "@/components/workspace-provider";
@@ -272,6 +272,14 @@ function mapPhotoOcrErrorMessage(rawMessage: string) {
   return rawMessage;
 }
 
+function isImageFile(file: File | null | undefined) {
+  return Boolean(file && file.type.startsWith("image/"));
+}
+
+function collectImageFiles(source: Iterable<File>) {
+  return [...source].filter((file) => isImageFile(file));
+}
+
 export function DayEntryComposer() {
   const {
     applyVoiceExtraction,
@@ -290,6 +298,8 @@ export function DayEntryComposer() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const selectedNotesRef = useRef(selectedDraft.notes);
+  const dragDepthRef = useRef(0);
   const timerRef = useRef<number | null>(null);
   const hideProgressTimerRef = useRef<number | null>(null);
   const isStartingRef = useRef(false);
@@ -308,6 +318,7 @@ export function DayEntryComposer() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
 
   const activeMetricPayload = useMemo(
     () =>
@@ -330,6 +341,10 @@ export function DayEntryComposer() {
   const isProcessing = activeStage !== null;
   const progressMessage = activeStage ? PROCESSING_COPY_BY_STAGE[activeStage] : null;
   const recordingStatus = isRecording ? `Идет запись ${formatDuration(recordingSeconds)}` : null;
+  useEffect(() => {
+    selectedNotesRef.current = selectedDraft.notes;
+  }, [selectedDraft.notes]);
+
   const stopStream = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
@@ -602,7 +617,7 @@ export function DayEntryComposer() {
         return;
       }
 
-      const mergedNotes = mergeImportedNotes(selectedDraft.notes, ocrResult.transcript);
+      const mergedNotes = mergeImportedNotes(selectedNotesRef.current, ocrResult.transcript);
       updateNotes(mergedNotes);
       setPhotoTranscriptTruncated(Boolean(ocrResult.truncated));
       setUploadedFileName(normalizedFile.name || file.name || "photo");
@@ -628,6 +643,77 @@ export function DayEntryComposer() {
       );
       failProcessingFlow();
     }
+  };
+
+  const handlePhotoBatch = async (files: File[]) => {
+    const imageFiles = collectImageFiles(files);
+
+    if (imageFiles.length === 0) {
+      setError("Поддерживаются только изображения из буфера обмена или перетаскивания.");
+      return;
+    }
+
+    for (const file of imageFiles) {
+      await handlePhotoSelection(file);
+    }
+
+    if (imageFiles.length > 1) {
+      setUploadedFileName(`${imageFiles.length} фото`);
+      setNotice(`Добавлено ${imageFiles.length} фото. Текст объединён в запись.`);
+    }
+  };
+
+  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = collectImageFiles(event.clipboardData.files);
+
+    if (files.length === 0 || isProcessing || isRecording) {
+      return;
+    }
+
+    event.preventDefault();
+    void handlePhotoBatch(files);
+  };
+
+  const handleDragEnter = (event: DragEvent<HTMLElement>) => {
+    if (!event.dataTransfer.types.includes("Files") || isProcessing || isRecording) {
+      return;
+    }
+
+    dragDepthRef.current += 1;
+    setIsDragActive(true);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLElement>) => {
+    if (!event.dataTransfer.types.includes("Files") || isProcessing || isRecording) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleDragLeave = (event: DragEvent<HTMLElement>) => {
+    if (!event.dataTransfer.types.includes("Files")) {
+      return;
+    }
+
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+
+    if (dragDepthRef.current === 0) {
+      setIsDragActive(false);
+    }
+  };
+
+  const handleDrop = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDragActive(false);
+
+    if (isProcessing || isRecording) {
+      return;
+    }
+
+    void handlePhotoBatch([...event.dataTransfer.files]);
   };
 
   const transcribeVoiceBlob = async (blob: Blob) => {
@@ -804,7 +890,13 @@ export function DayEntryComposer() {
   };
 
   return (
-    <section className="mt-2 grid gap-2.5 sm:mt-3 sm:gap-3.5">
+    <section
+      className="mt-2 grid gap-2.5 sm:mt-3 sm:gap-3.5"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="grid gap-2">
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
@@ -819,10 +911,20 @@ export function DayEntryComposer() {
           <textarea
             value={selectedDraft.notes}
             onChange={(event) => updateNotes(event.target.value)}
+            onPaste={handlePaste}
             placeholder="Что сегодня произошло, как ты себя чувствовал и что было важным?"
             rows={7}
             className="w-full min-h-[220px] resize-y rounded-[18px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-3 text-sm leading-7 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:min-h-[280px] sm:rounded-[20px] sm:px-4 sm:text-[15px]"
           />
+          <div
+            className={`mt-2 rounded-[16px] border border-dashed px-3 py-2 text-xs transition sm:px-4 sm:text-sm ${
+              isDragActive
+                ? "border-[var(--accent)] bg-[rgba(47,111,97,0.08)] text-[var(--accent)]"
+                : "border-[rgba(24,33,29,0.12)] bg-[rgba(247,249,246,0.55)] text-[var(--muted)]"
+            }`}
+          >
+            Вставьте фото из буфера обмена или перетащите изображение сюда. Мы распознаем текст и добавим его в запись.
+          </div>
         </div>
 
         <div className="border-t border-[var(--border)] pt-2 sm:pt-3">
