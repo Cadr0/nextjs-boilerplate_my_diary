@@ -17,6 +17,12 @@ export async function DELETE() {
     const admin = createAdminClient();
 
     const cleanupTargets = [
+      { table: "workout_messages", column: "user_id" },
+      { table: "workout_ai_parse_logs", column: "user_id" },
+      { table: "workout_events", column: "user_id" },
+      { table: "workout_sessions", column: "user_id" },
+      { table: "memory_items", column: "user_id" },
+      { table: "user_daily_usage", column: "user_id" },
       { table: "daily_entry_metric_values", column: "user_id" },
       { table: "metric_definitions", column: "user_id" },
       { table: "daily_entries", column: "user_id" },

@@ -19,7 +19,7 @@
 
 ### Что не делаем в этом шаге
 
-- не удаляем текущий `components/workout-experience.tsx`;
+- не меняем без необходимости текущую точку входа `app/(workspace)/workouts/page.tsx`;
 - не ломаем текущий `workspace_sync_state`;
 - не делаем миграции БД в рамках этого шага;
 - не внедряем новую сложную UI-логику;
@@ -30,17 +30,9 @@
 ### Что есть сейчас
 
 - Маршрут `/workouts` уже существует и рендерится из `app/(workspace)/workouts/page.tsx`.
-- `components/workouts-section.tsx` является тонкой обёрткой над `WorkoutExperience`.
-- `components/workout-experience.tsx` это большой клиентский модуль, который объединяет:
-  - ручное создание и редактирование тренировок;
-  - ручное создание и редактирование программ;
-  - историю завершённых сессий;
-  - карточки упражнений и логов;
-  - отдельную AI-панель внизу страницы.
-- `components/workout-assistant-panel.tsx` уже реализует чат и AI-анализ, но:
-  - чат не является главным интерфейсом управления тренировкой;
-  - сообщения не превращаются в нормализованные workout facts;
-  - фактическое логирование по-прежнему строится вокруг ручного UI.
+- Текущая страница отдает легкую оболочку и загружает данные дня через `components/workouts-ai/workouts-page-shell.tsx`.
+- `components/workouts-ai/*` уже реализуют основной чат, сайдбар, анализ и модальное окно сессии.
+- Основной рабочий поток строится вокруг `app/api/workouts/day` и `app/api/workouts/progress`, а не вокруг большого монолитного клиентского экрана.
 - `lib/workouts.ts` уже содержит полезные типы и утилиты:
   - пресеты (`strength`, `timed`, `cardio`, `interval`, `mobility`, `rehab`, `check`, `custom`);
   - библиотеку полей и метрик;
@@ -67,7 +59,7 @@
   - `ChatMessageContent`
   - `ModelPicker`
   - базовые chat UI patterns.
-- `components/workout-assistant-panel.tsx` как reference для chat UX и streaming.
+- `components/workouts-ai/workouts-chat.tsx` как reference для chat UX и streaming.
 - `lib/workouts.ts`:
   - словарь базовых workout metrics;
   - форматтеры;
@@ -82,7 +74,7 @@
 
 ### Что лучше заменить постепенно
 
-- `components/workout-experience.tsx` как монолитный центр бизнес-логики.
+- избыточную зависимость страницы от legacy-слоя `workspace_sync_state`.
 - JSON blob `workouts` / `workout_routines` как долгосрочный source of truth для фактов.
 - Модель “сначала программа и карточки, потом AI”.
 - Date-keyed `workoutChats` как единственный разговорный контекст.
