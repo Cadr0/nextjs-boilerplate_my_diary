@@ -136,13 +136,20 @@ export function extractWorkoutRequestSignals(message: string): WorkoutRequestSig
       )
     : false;
 
+  const asksForContinuation =
+    /(что дальше|что потом|что еще дальше|следующий блок|следующий этап|следующее упражнение|продолжай|продолжим|продолжение|дальше по тренировке|what next|what now|next block|next step|next exercise|continue workout|continue|keep going)/i.test(
+      normalized,
+    );
+
   return {
     location,
     durationMin,
     focusAreas: collectFocusAreas(message),
     explicitStart,
     explicitNoStart,
+    asksForContinuation,
     asksForWorkout:
+      asksForContinuation ||
       /(дай|составь|собери|предложи|покажи|нужна|хочу)\s+.*(тренировк|комплекс|workout|routine)/i.test(
         normalized,
       ) ||
@@ -243,6 +250,17 @@ export function detectWorkoutResponseMode(
       6,
       "user asked for a structured workout",
     );
+  }
+
+  if (signals.asksForContinuation) {
+    addScore(
+      scores,
+      reasons,
+      input.hasActiveSession ? "start_workout_session" : "proposed_workout",
+      input.hasActiveSession ? 7 : 5,
+      "user asked to continue the workout flow",
+    );
+    scores.clarify -= 4;
   }
 
   if (signals.asksForExercises) {

@@ -164,6 +164,7 @@ export type WorkoutRequestSignals = {
   focusAreas: WorkoutRequestFocus[];
   explicitStart: boolean;
   explicitNoStart: boolean;
+  asksForContinuation: boolean;
   asksForWorkout: boolean;
   asksForExercises: boolean;
   asksForAdviceOnly: boolean;

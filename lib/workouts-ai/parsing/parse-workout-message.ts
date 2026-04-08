@@ -160,6 +160,21 @@ function parseFallback(message: string): WorkoutAiParsedResult {
   const language = detectWorkoutReplyLanguage(message);
 
   if (
+    /(что дальше|что потом|что еще дальше|следующий блок|следующий этап|следующее упражнение|продолжай|продолжим|продолжение|дальше по тренировке|what next|what now|next block|next step|next exercise|continue workout|continue|keep going)/i.test(
+      normalized,
+    )
+  ) {
+    return {
+      intent: "template_request",
+      confidence: 0.9,
+      requires_confirmation: false,
+      facts: [],
+      actions: [{ type: "suggest_template" }],
+      clarification_question: null,
+    };
+  }
+
+  if (
     /(какие|что еще|что ещё|что лучше|лучше всего|посоветуй|рекомендуй)/i.test(normalized) &&
     /(упражнен|тренировк|сделать|делать)/i.test(normalized)
   ) {
