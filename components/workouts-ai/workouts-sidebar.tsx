@@ -18,6 +18,7 @@ import {
 
 type WorkoutsSidebarProps = {
   data: WorkoutsSidebarData;
+  loading?: boolean;
   isMobileSidebarOpen: boolean;
   onCloseSidebar: () => void;
   onDateSelect: (date: string) => void;
@@ -101,6 +102,7 @@ function DayRow(props: {
 
 export function WorkoutsSidebar({
   data,
+  loading = false,
   isMobileSidebarOpen,
   onCloseSidebar,
   onDateSelect,
@@ -127,7 +129,12 @@ export function WorkoutsSidebar({
       footer={<WorkspaceUserControls subtitle="Профиль, приложение и выход" />}
     >
       <WorkspaceSidebarSection label="Текущий день">
-        {data.activeSession ? (
+        {loading ? (
+          <div className="grid gap-3">
+            <div className="h-20 animate-pulse rounded-[22px] bg-white/72" />
+            <div className="h-16 animate-pulse rounded-[22px] bg-white/72" />
+          </div>
+        ) : data.activeSession ? (
           <SessionRow
             session={data.activeSession}
             active
@@ -148,29 +155,41 @@ export function WorkoutsSidebar({
 
       <WorkspaceSidebarSection
         label="Дни"
-        meta={data.days.length}
+        meta={loading ? "..." : data.days.length}
         className="min-h-0 flex flex-1 flex-col overflow-hidden"
       >
         <div className="grid auto-rows-max content-start min-h-0 flex-1 gap-1.5 overflow-y-auto pr-1 [mask-image:linear-gradient(to_bottom,black_0,black_calc(100%-32px),transparent_100%)]">
-          {data.days.map((day) => (
-            <DayRow
-              key={day.date}
-              day={day}
-              selected={day.date === data.selectedDate}
-              onSelect={() => {
-                onDateSelect(day.date);
-                onCloseSidebar();
-              }}
-            />
-          ))}
+          {loading
+            ? Array.from({ length: 8 }, (_, index) => (
+                <div
+                  key={`day-skeleton-${index}`}
+                  className="h-[72px] animate-pulse rounded-[20px] bg-white/72"
+                />
+              ))
+            : data.days.map((day) => (
+                <DayRow
+                  key={day.date}
+                  day={day}
+                  selected={day.date === data.selectedDate}
+                  onSelect={() => {
+                    onDateSelect(day.date);
+                    onCloseSidebar();
+                  }}
+                />
+              ))}
         </div>
       </WorkspaceSidebarSection>
 
       <WorkspaceSidebarSection
         label="Тренировки дня"
-        meta={data.sessionsForSelectedDate.length}
+        meta={loading ? "..." : data.sessionsForSelectedDate.length}
       >
-        {data.sessionsForSelectedDate.length > 0 ? (
+        {loading ? (
+          <div className="grid gap-2">
+            <div className="h-20 animate-pulse rounded-[22px] bg-white/72" />
+            <div className="h-20 animate-pulse rounded-[22px] bg-white/72" />
+          </div>
+        ) : data.sessionsForSelectedDate.length > 0 ? (
           <div className="grid gap-2">
             {data.sessionsForSelectedDate.map((session) => (
               <SessionRow

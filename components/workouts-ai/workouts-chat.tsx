@@ -12,6 +12,8 @@ type WorkoutsChatProps = {
   draft: string;
   selectedDate: string;
   disabled?: boolean;
+  loading?: boolean;
+  error?: string | null;
   quickActions: WorkoutsQuickAction[];
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
@@ -25,6 +27,8 @@ export function WorkoutsChat({
   draft,
   selectedDate,
   disabled = false,
+  loading = false,
+  error = null,
   quickActions,
   onDraftChange,
   onSubmit,
@@ -104,7 +108,20 @@ export function WorkoutsChat({
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-1 py-4">
-        {messages.length === 0 ? (
+        {loading ? (
+          <div className="grid gap-4">
+            <div className="h-28 animate-pulse rounded-[26px] bg-white/72" />
+            <div className="h-24 animate-pulse rounded-[26px] bg-white/72" />
+            <div className="h-20 animate-pulse rounded-[26px] bg-white/72" />
+          </div>
+        ) : error ? (
+          <div className="rounded-[26px] border border-[rgba(212,145,151,0.24)] bg-[rgba(255,245,245,0.94)] px-5 py-5">
+            <p className="text-base font-semibold text-[var(--foreground)]">
+              Не удалось загрузить тренировки дня
+            </p>
+            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{error}</p>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="fade-up-delay flex h-full min-h-[320px] items-center justify-center">
             <div className="max-w-lg rounded-[30px] border border-dashed border-[rgba(24,33,29,0.16)] bg-white/64 px-6 py-8 text-center">
               <p className="font-display text-2xl tracking-[-0.04em] text-[var(--foreground)]">
@@ -128,7 +145,7 @@ export function WorkoutsChat({
       <div className="shrink-0 pt-2">
         <WorkoutsInput
           value={draft}
-          disabled={disabled}
+          disabled={disabled || loading}
           onChange={onDraftChange}
           onSubmit={onSubmit}
         />

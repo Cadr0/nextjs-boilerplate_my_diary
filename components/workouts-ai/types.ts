@@ -81,3 +81,9 @@ export type WorkoutsSidebarData = {
   sessionsForSelectedDate: WorkoutsSessionListItem[];
   daySummary: WorkoutsSelectedDaySummary;
 };
+
+export type WorkoutsPageData = {
+  sidebarData: WorkoutsSidebarData;
+  sessionDetails: WorkoutsSessionDetailItem[];
+  chatHistory: WorkoutsChatItem[];
+};

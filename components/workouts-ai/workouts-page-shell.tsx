@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import type {
   WorkoutsChatItem,
+  WorkoutsPageData,
   WorkoutsQuickAction,
   WorkoutsSessionDetailItem,
   WorkoutsSidebarData,
@@ -13,6 +14,7 @@ import {
   buildAssistantMessageFromPipelineResult,
   buildDefaultQuickActions,
   buildOptimisticSidebar,
+  getTodayIsoDate,
   getSidebarDayLabel,
   shiftIsoDate,
 } from "@/components/workouts-ai/workouts-ui";
@@ -24,9 +26,7 @@ import { WorkspaceSectionShell } from "@/components/workspace-shell";
 import type { WorkoutPipelineResult } from "@/lib/workouts-ai/domain/types";
 
 type WorkoutsPageShellProps = {
-  initialChat: WorkoutsChatItem[];
-  initialSidebar: WorkoutsSidebarData;
-  initialSessionDetails: WorkoutsSessionDetailItem[];
+  initialSelectedDate: string;
 };
 
 function createClientMessageId() {
@@ -37,96 +37,130 @@ function createClientMessageId() {
   return `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function mergeChatItems(
-  current: WorkoutsChatItem[],
-  incoming: WorkoutsChatItem[],
-) {
-  if (current.length === 0) {
-    return incoming;
-  }
-
-  if (incoming.length === 0) {
-    return current;
-  }
-
-  const byId = new Map<string, WorkoutsChatItem>();
-
-  for (const item of current) {
-    byId.set(item.id, item);
-  }
-
-  for (const item of incoming) {
-    const existing = byId.get(item.id);
-
-    byId.set(
-      item.id,
-      existing
-        ? {
-            ...existing,
-            ...item,
-          }
-        : item,
-    );
-  }
-
-  return [...byId.values()].sort((left, right) => {
-    if (left.createdAt === right.createdAt) {
-      return left.id.localeCompare(right.id);
-    }
-
-    return left.createdAt.localeCompare(right.createdAt);
-  });
+function createEmptySidebarData(selectedDate: string): WorkoutsSidebarData {
+  return {
+    selectedDate,
+    activeSession: null,
+    days: [
+      {
+        date: selectedDate,
+        summary: null,
+        sessionCount: 0,
+        eventCount: 0,
+        lastActivityLabel: null,
+        hasActiveSession: false,
+      },
+    ],
+    sessionsForSelectedDate: [],
+    daySummary: {
+      date: selectedDate,
+      sessionCount: 0,
+      eventCount: 0,
+      activityLabels: [],
+    },
+  };
 }
 
 export function WorkoutsPageShell({
-  initialChat,
-  initialSidebar,
-  initialSessionDetails,
+  initialSelectedDate,
 }: WorkoutsPageShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const analysisRef = useRef<HTMLDivElement | null>(null);
+  const requestedDate = searchParams.get("date") ?? initialSelectedDate ?? getTodayIsoDate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [draft, setDraft] = useState("");
-  const [chatItems, setChatItems] = useState(initialChat);
-  const [sidebarData, setSidebarData] = useState(initialSidebar);
-  const [sessionDetails, setSessionDetails] = useState(initialSessionDetails);
+  const [selectedDate, setSelectedDate] = useState(requestedDate);
+  const [chatItems, setChatItems] = useState<WorkoutsChatItem[]>([]);
+  const [sidebarData, setSidebarData] = useState<WorkoutsSidebarData>(() =>
+    createEmptySidebarData(requestedDate),
+  );
+  const [sessionDetails, setSessionDetails] = useState<WorkoutsSessionDetailItem[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPageLoading, setIsPageLoading] = useState(true);
+  const [pageError, setPageError] = useState<string | null>(null);
   const [analysisRefreshKey, setAnalysisRefreshKey] = useState(0);
   const [, startRefreshTransition] = useTransition();
-  const hydratedDateRef = useRef(initialSidebar.selectedDate);
   const submitLockRef = useRef(false);
+  const pageAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (hydratedDateRef.current !== initialSidebar.selectedDate) {
-      hydratedDateRef.current = initialSidebar.selectedDate;
-      setChatItems(initialChat);
-      return;
+    return () => {
+      pageAbortRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (requestedDate !== selectedDate) {
+      setSelectedDate(requestedDate);
+    }
+  }, [requestedDate, selectedDate]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    pageAbortRef.current?.abort();
+    pageAbortRef.current = controller;
+    setIsPageLoading(true);
+    setPageError(null);
+    setSelectedSessionId(null);
+    setSidebarData(createEmptySidebarData(selectedDate));
+    setSessionDetails([]);
+    setChatItems([]);
+    setDraft("");
+
+    async function load() {
+      try {
+        const response = await fetch(`/api/workouts/day?date=${selectedDate}`, {
+          method: "GET",
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as WorkoutsPageData | { error?: string };
+
+        if (!response.ok || !("sidebarData" in payload)) {
+          throw new Error(
+            ("error" in payload ? payload.error : null) ??
+              "Не удалось загрузить данные тренировок.",
+          );
+        }
+
+        setSidebarData(payload.sidebarData);
+        setSessionDetails(payload.sessionDetails);
+        setChatItems(payload.chatHistory);
+        setPageError(null);
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setPageError(
+          error instanceof Error ? error.message : "Не удалось загрузить тренировки.",
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsPageLoading(false);
+        }
+      }
     }
 
-    setChatItems((current) => mergeChatItems(current, initialChat));
-  }, [initialChat, initialSidebar.selectedDate]);
+    void load();
 
-  useEffect(() => {
-    setSidebarData(initialSidebar);
-    setDraft("");
-  }, [initialSidebar]);
-
-  useEffect(() => {
-    setSessionDetails(initialSessionDetails);
-  }, [initialSessionDetails]);
+    return () => {
+      controller.abort();
+    };
+  }, [selectedDate]);
 
   useEffect(() => {
     if (!selectedSessionId) {
       return;
     }
 
-    if (!initialSessionDetails.some((session) => session.id === selectedSessionId)) {
+    if (!sessionDetails.some((session) => session.id === selectedSessionId)) {
       setSelectedSessionId(null);
     }
-  }, [initialSessionDetails, selectedSessionId]);
+  }, [sessionDetails, selectedSessionId]);
 
   const quickActions = useMemo(
     () => buildDefaultQuickActions(Boolean(sidebarData.activeSession)),
@@ -142,6 +176,7 @@ export function WorkoutsPageShell({
   function updateSelectedDate(date: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("date", date);
+    setSelectedDate(date);
 
     startRefreshTransition(() => {
       router.replace(`${pathname}?${params.toString()}`, {
@@ -151,7 +186,7 @@ export function WorkoutsPageShell({
   }
 
   function goToRelativeDay(offset: number) {
-    updateSelectedDate(shiftIsoDate(sidebarData.selectedDate, offset));
+    updateSelectedDate(shiftIsoDate(selectedDate, offset));
   }
 
   function scrollToAnalysis() {
@@ -245,10 +280,8 @@ export function WorkoutsPageShell({
         }),
       );
       setAnalysisRefreshKey((current) => current + 1);
-
-      startRefreshTransition(() => {
-        router.refresh();
-      });
+      setSelectedSessionId(result.sessionId ?? null);
+      setPageError(null);
     } catch (error) {
       setChatItems((current) =>
         current.map((item) =>
@@ -298,7 +331,7 @@ export function WorkoutsPageShell({
 
         <div className="min-w-0 text-center">
           <p className="truncate text-sm font-semibold text-[var(--foreground)]">
-            {getSidebarDayLabel(sidebarData.selectedDate)}
+            {getSidebarDayLabel(selectedDate)}
           </p>
         </div>
 
@@ -322,6 +355,7 @@ export function WorkoutsPageShell({
         sidebar={
           <WorkoutsSidebar
             data={sidebarData}
+            loading={isPageLoading}
             isMobileSidebarOpen={isSidebarOpen}
             onCloseSidebar={() => setIsSidebarOpen(false)}
             onDateSelect={updateSelectedDate}
@@ -337,8 +371,10 @@ export function WorkoutsPageShell({
         <WorkoutsChat
           messages={chatItems}
           draft={draft}
-          selectedDate={sidebarData.selectedDate}
-          disabled={isSubmitting}
+          selectedDate={selectedDate}
+          disabled={isSubmitting || isPageLoading}
+          loading={isPageLoading}
+          error={pageError}
           quickActions={quickActions}
           onDraftChange={setDraft}
           onSubmit={() => {
@@ -353,7 +389,7 @@ export function WorkoutsPageShell({
           <WorkoutsAnalysis
             activeSession={sidebarData.activeSession}
             refreshKey={analysisRefreshKey}
-            selectedDate={sidebarData.selectedDate}
+            selectedDate={selectedDate}
             daySummary={sidebarData.daySummary}
           />
         </div>
