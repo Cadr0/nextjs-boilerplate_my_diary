@@ -101,6 +101,32 @@ export function LandingPage({ isAuthenticated, isConfigured }: LandingPageProps)
           </div>
         </section>
       </section>
+
+      <style jsx>{`
+        .landing-animated-bg {
+          background:
+            radial-gradient(circle at 18% 14%, rgba(69, 101, 201, 0.28), transparent 38%),
+            radial-gradient(circle at 80% 82%, rgba(48, 147, 128, 0.22), transparent 35%),
+            radial-gradient(circle at 72% 24%, rgba(120, 94, 212, 0.2), transparent 32%);
+          background-size: 140% 140%;
+          animation: landing-gradient-flow 22s ease-in-out infinite alternate;
+        }
+
+        @keyframes landing-gradient-flow {
+          0% {
+            transform: translate3d(0, 0, 0) scale(1);
+            filter: hue-rotate(0deg);
+          }
+          50% {
+            transform: translate3d(-1.5%, 1%, 0) scale(1.05);
+            filter: hue-rotate(10deg);
+          }
+          100% {
+            transform: translate3d(1.5%, -1%, 0) scale(1.08);
+            filter: hue-rotate(-8deg);
+          }
+        }
+      `}</style>
     </main>
   );
 }
