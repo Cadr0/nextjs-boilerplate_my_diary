@@ -166,50 +166,36 @@ a {
   }
 }
 
-@keyframes landing-color-shift {
+@keyframes landing-color-drift {
   0%,
   100% {
-    transform: scale(1) translate3d(0, 0, 0);
+    background-position:
+      0% 0%,
+      100% 0%,
+      50% 100%,
+      50% 50%;
     filter: hue-rotate(0deg);
   }
 
-  25% {
-    transform: scale(1.08) translate3d(5%, -3%, 0);
-    filter: hue-rotate(8deg);
-  }
-
   50% {
-    transform: scale(1.14) translate3d(-6%, 4%, 0);
-    filter: hue-rotate(-6deg);
-  }
-
-  75% {
-    transform: scale(1.09) translate3d(4%, 6%, 0);
-    filter: hue-rotate(12deg);
+    background-position:
+      12% 8%,
+      84% 16%,
+      42% 84%,
+      50% 50%;
+    filter: hue-rotate(6deg);
   }
 }
 
 .landing-color-wash {
   background:
-    radial-gradient(circle at 18% 20%, rgba(50, 152, 140, 0.3), transparent 28%),
-    radial-gradient(circle at 82% 24%, rgba(73, 129, 203, 0.22), transparent 24%),
-    radial-gradient(circle at 54% 78%, rgba(66, 216, 167, 0.18), transparent 26%);
-  animation: landing-color-shift 30s ease-in-out infinite;
-  will-change: transform, filter;
-}
-
-.landing-color-orb {
-  background:
-    radial-gradient(circle, rgba(50, 152, 140, 0.3) 0%, rgba(50, 152, 140, 0.1) 42%, transparent 72%);
-  animation: landing-color-shift 36s ease-in-out infinite;
-  will-change: transform, filter;
-}
-
-.landing-color-orb-reverse {
-  background:
-    radial-gradient(circle, rgba(76, 174, 163, 0.28) 0%, rgba(38, 109, 100, 0.1) 40%, transparent 74%);
-  animation: landing-color-shift 40s ease-in-out infinite reverse;
-  will-change: transform, filter;
+    radial-gradient(circle at 18% 22%, rgba(50, 152, 140, 0.2), transparent 26%),
+    radial-gradient(circle at 82% 20%, rgba(126, 184, 214, 0.18), transparent 24%),
+    radial-gradient(circle at 50% 82%, rgba(201, 150, 92, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.08));
+  background-size: 140% 140%;
+  animation: landing-color-drift 26s ease-in-out infinite alternate;
+  will-change: background-position, filter;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -219,9 +205,7 @@ a {
 
   .fade-up,
   .fade-up-delay,
-  .landing-color-wash,
-  .landing-color-orb,
-  .landing-color-orb-reverse {
+  .landing-color-wash {
     animation: none;
   }
 }
