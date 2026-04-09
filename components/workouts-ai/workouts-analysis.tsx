@@ -107,8 +107,7 @@ export function WorkoutsAnalysis({
           День и прогресс без перегруза
         </h2>
         <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-          Сверху ты видишь срез выбранного дня, ниже — общий тренировочный прогресс и
-          рекомендации по истории.
+          Короткий срез дня и динамика за период.
         </p>
       </header>
 
@@ -123,7 +122,7 @@ export function WorkoutsAnalysis({
           <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
             {daySummary.sessionCount > 0
               ? `${daySummary.sessionCount} тренировок • ${daySummary.eventCount} событий`
-              : "На этот день пока нет сохранённых тренировок"}
+              : "Пока нет тренировок"}
           </p>
           {daySummary.activityLabels.length > 0 ? (
             <div className="mt-3 flex flex-wrap gap-2">
@@ -236,7 +235,7 @@ export function WorkoutsAnalysis({
                 </ul>
               ) : (
                 <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  Добавь ещё несколько логов, и здесь появятся персональные инсайты.
+                  Добавь логи, чтобы увидеть инсайты.
                 </p>
               )}
             </article>
