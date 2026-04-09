@@ -3,7 +3,6 @@
 import Link from "next/link";
 
 import { BrandGlyph } from "@/components/brand-glyph";
-import { BrandWordmark } from "@/components/landing/brand-wordmark";
 
 type LandingPageProps = {
   isAuthenticated: boolean;
@@ -14,80 +13,93 @@ export function LandingPage({ isAuthenticated, isConfigured }: LandingPageProps)
   const primaryHref = isAuthenticated ? "/diary" : "/login";
   const primaryLabel = isAuthenticated ? "Открыть дневник" : "Войти";
   const secondaryHref = isAuthenticated ? "/analytics" : "/register";
-  const secondaryLabel = isAuthenticated ? "Аналитика" : "Создать аккаунт";
+  const secondaryLabel = isAuthenticated ? "Аналитика" : "Регистрация";
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#070707] text-white">
+    <main className="relative flex h-screen w-full items-center overflow-hidden bg-[rgb(238,244,251)] text-slate-900">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-55"
+        className="pointer-events-none absolute inset-0 opacity-60"
         style={{
           backgroundImage:
-            "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.16) 1px, transparent 0)",
-          backgroundSize: "26px 26px",
+            "radial-gradient(circle at 1px 1px, rgba(71,85,105,0.2) 1px, transparent 0)",
+          backgroundSize: "22px 22px",
         }}
       />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.1),transparent_46%)]" />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.2),rgba(0,0,0,0.8))]" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(circle at 20% 10%, rgba(84,123,255,0.16), transparent 34%), radial-gradient(circle at 82% 85%, rgba(48,86,201,0.14), transparent 34%)",
+        }}
+      />
 
-      <section className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-8 sm:px-8">
-        <header className="flex items-center justify-between rounded-full border border-white/10 bg-white/[0.03] px-4 py-3 backdrop-blur-sm sm:px-6">
-          <Link href="/" className="flex items-center gap-3">
-            <BrandGlyph />
-            <BrandWordmark compact />
-          </Link>
+      <section className="relative z-10 mx-auto flex h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+        <header className="mx-auto w-full max-w-5xl">
+          <div className="flex items-center justify-between gap-4 rounded-full border border-white/80 bg-white/70 px-4 py-3 shadow-[0_18px_40px_rgba(24,33,29,0.08)] backdrop-blur">
+            <Link href="/" className="flex items-center gap-3">
+              <BrandGlyph className="h-10 w-10 rounded-2xl shadow-[0_12px_28px_rgba(32,77,67,0.24)]" />
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Diary AI</p>
+                <p className="text-xs text-slate-500">личный дневник</p>
+              </div>
+            </Link>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Link
-              href={secondaryHref}
-              className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/85 transition hover:bg-white/10"
-            >
-              {secondaryLabel}
-            </Link>
-            <Link
-              href={isConfigured ? primaryHref : "#"}
-              className="rounded-full border border-white/30 bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
-            >
-              {primaryLabel}
-            </Link>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link
+                href={secondaryHref}
+                className="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-white"
+              >
+                {secondaryLabel}
+              </Link>
+              <Link
+                href={isConfigured ? primaryHref : "#"}
+                className="rounded-full bg-[color:var(--accent-strong)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
+              >
+                {primaryLabel}
+              </Link>
+            </div>
           </div>
         </header>
 
-        <div className="flex flex-1 items-center justify-center">
-          <section className="mx-auto max-w-3xl text-center">
-            <p className="text-xs uppercase tracking-[0.32em] text-white/50">super minimal</p>
-            <h1 className="mt-5 text-balance text-[clamp(2.6rem,7vw,6.2rem)] font-semibold leading-[0.95] tracking-[-0.05em]">
-              Дневник без шума.
+        <section className="flex flex-1 items-center justify-center">
+          <div className="w-full max-w-4xl rounded-[2.6rem] border border-white/75 bg-white/72 px-6 py-10 text-center shadow-[0_25px_60px_rgba(45,78,138,0.12)] backdrop-blur sm:px-10 sm:py-14">
+            <p className="text-[0.68rem] uppercase tracking-[0.28em] text-[color:var(--accent)]">
+              diary ai
+            </p>
+            <h1 className="mt-4 text-balance text-[clamp(2rem,5vw,4.4rem)] font-semibold leading-[0.96] tracking-[-0.04em] text-slate-950">
+              Понимай свою жизнь,
               <br />
-              Только суть.
+              а не просто записывай
             </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-pretty text-base leading-relaxed text-white/65 sm:text-lg">
-              Фиксируй день, держи фокус и понимай себя. Минимальный интерфейс,
-              максимум ясности.
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-600 sm:text-lg">
+              Ежедневные записи, понятная структура и аналитика в одном спокойном
+              пространстве.
             </p>
 
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href={isConfigured ? primaryHref : "#"}
-                className="rounded-full border border-white/30 bg-white px-8 py-3.5 text-base font-semibold text-black transition hover:opacity-90"
+                className="rounded-full bg-[color:var(--accent-strong)] px-8 py-3.5 text-base font-semibold text-white transition hover:bg-[color:var(--accent)]"
               >
                 Начать
               </Link>
               <Link
                 href={secondaryHref}
-                className="rounded-full border border-white/15 px-8 py-3.5 text-base text-white/90 transition hover:bg-white/10"
+                className="rounded-full border border-slate-200 bg-white/90 px-8 py-3.5 text-base font-medium text-slate-700 transition hover:bg-white"
               >
                 {secondaryLabel}
               </Link>
             </div>
 
             {!isConfigured ? (
-              <p className="mt-5 text-sm text-white/45">
-                Конфигурация окружения не завершена — вход станет активным после настройки.
+              <p className="mt-4 text-sm text-amber-700">
+                Вход станет активным после настройки переменных окружения Supabase.
               </p>
             ) : null}
-          </section>
-        </div>
+          </div>
+        </section>
       </section>
     </main>
   );
