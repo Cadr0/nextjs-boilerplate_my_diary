@@ -173,35 +173,43 @@ a {
     filter: hue-rotate(0deg);
   }
 
-  33% {
-    transform: scale(1.08) translate3d(2%, -2%, 0);
-    filter: hue-rotate(10deg);
+  25% {
+    transform: scale(1.08) translate3d(5%, -3%, 0);
+    filter: hue-rotate(8deg);
   }
 
-  66% {
-    transform: scale(1.12) translate3d(-3%, 3%, 0);
-    filter: hue-rotate(-8deg);
+  50% {
+    transform: scale(1.14) translate3d(-6%, 4%, 0);
+    filter: hue-rotate(-6deg);
+  }
+
+  75% {
+    transform: scale(1.09) translate3d(4%, 6%, 0);
+    filter: hue-rotate(12deg);
   }
 }
 
 .landing-color-wash {
   background:
-    radial-gradient(circle at 18% 20%, rgba(50, 152, 140, 0.28), transparent 28%),
-    radial-gradient(circle at 82% 24%, rgba(73, 129, 203, 0.18), transparent 24%),
-    radial-gradient(circle at 54% 78%, rgba(66, 216, 167, 0.14), transparent 26%);
-  animation: landing-color-shift 24s ease-in-out infinite;
+    radial-gradient(circle at 18% 20%, rgba(50, 152, 140, 0.3), transparent 28%),
+    radial-gradient(circle at 82% 24%, rgba(73, 129, 203, 0.22), transparent 24%),
+    radial-gradient(circle at 54% 78%, rgba(66, 216, 167, 0.18), transparent 26%);
+  animation: landing-color-shift 30s ease-in-out infinite;
+  will-change: transform, filter;
 }
 
 .landing-color-orb {
   background:
-    radial-gradient(circle, rgba(50, 152, 140, 0.28) 0%, rgba(50, 152, 140, 0.08) 42%, transparent 72%);
-  animation: landing-color-shift 28s ease-in-out infinite;
+    radial-gradient(circle, rgba(50, 152, 140, 0.3) 0%, rgba(50, 152, 140, 0.1) 42%, transparent 72%);
+  animation: landing-color-shift 36s ease-in-out infinite;
+  will-change: transform, filter;
 }
 
 .landing-color-orb-reverse {
   background:
-    radial-gradient(circle, rgba(76, 174, 163, 0.22) 0%, rgba(38, 109, 100, 0.07) 40%, transparent 74%);
-  animation: landing-color-shift 32s ease-in-out infinite reverse;
+    radial-gradient(circle, rgba(76, 174, 163, 0.28) 0%, rgba(38, 109, 100, 0.1) 40%, transparent 74%);
+  animation: landing-color-shift 40s ease-in-out infinite reverse;
+  will-change: transform, filter;
 }
 
 @media (prefers-reduced-motion: reduce) {
