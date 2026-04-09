@@ -143,11 +143,10 @@ export function WorkoutsSidebar({
         ) : (
           <div className="rounded-[22px] border border-dashed border-[rgba(24,33,29,0.16)] bg-white/72 px-4 py-5">
             <p className="text-sm font-semibold text-[var(--foreground)]">
-              На этот день нет активной сессии
+              Нет активной сессии
             </p>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Открой нужную дату и напиши в чат свободной фразой. AI создаст или продолжит
-              тренировку именно в выбранном дне.
+              Выбери дату и напиши в чат.
             </p>
           </div>
         )}
@@ -156,7 +155,7 @@ export function WorkoutsSidebar({
       <WorkspaceSidebarSection
         label="Дни"
         meta={loading ? "..." : data.days.length}
-        className="min-h-0 flex flex-1 flex-col overflow-hidden"
+        className="min-h-[12rem] flex flex-[1.35] flex-col overflow-hidden md:min-h-[16rem]"
       >
         <div className="grid auto-rows-max content-start min-h-0 flex-1 gap-1.5 overflow-y-auto pr-1 [mask-image:linear-gradient(to_bottom,black_0,black_calc(100%-32px),transparent_100%)]">
           {loading
@@ -205,8 +204,7 @@ export function WorkoutsSidebar({
           </div>
         ) : (
           <p className="px-1 text-sm leading-6 text-[var(--muted)]">
-            За выбранный день пока нет тренировок. Начни чат с любой фразы, и здесь появится
-            история именно этого дня.
+            Пока пусто. Начни чат — тренировки появятся здесь.
           </p>
         )}
       </WorkspaceSidebarSection>
