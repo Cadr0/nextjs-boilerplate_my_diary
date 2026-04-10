@@ -126,10 +126,6 @@ export function normalizeAiModelSelection(
     return normalizedModel;
   }
 
-  if (normalizedModel.endsWith(":free")) {
-    return DEFAULT_OPENROUTER_FREE_MODEL;
-  }
-
   return DEFAULT_ROUTERAI_PAID_MODEL;
 }
 
