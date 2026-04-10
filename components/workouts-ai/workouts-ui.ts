@@ -217,6 +217,27 @@ export function formatSessionStatus(status: WorkoutsSessionListItem["status"]) {
   return "Остановлена";
 }
 
+export function formatWorkoutEventTypeLabel(eventType: string) {
+  switch (eventType) {
+    case "session_started":
+      return "Старт сессии";
+    case "block_started":
+      return "Начало блока";
+    case "block_completed":
+      return "Блок завершён";
+    case "activity_logged":
+      return "Запись упражнения";
+    case "activity_corrected":
+      return "Исправление упражнения";
+    case "session_completed":
+      return "Сессия завершена";
+    case "session_cancelled":
+      return "Сессия остановлена";
+    default:
+      return uppercaseFirst(eventType.replace(/_/g, " "));
+  }
+}
+
 function formatWeight(weightKg: number | null) {
   if (weightKg === null) {
     return null;

@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import type { WorkoutsSessionDetailItem } from "@/components/workouts-ai/types";
 import { WorkoutEventCard } from "@/components/workouts-ai/workout-event-card";
 import {
+  formatWorkoutEventTypeLabel,
   formatSessionClock,
   formatSessionDate,
   formatSessionStatus,
@@ -68,7 +69,7 @@ export function WorkoutsSessionModal({
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">
-                Workout detail
+                Детали тренировки
               </p>
               <h2 className="mt-2 font-display text-2xl tracking-[-0.04em] text-[var(--foreground)]">
                 {getHeadingDayLabel(session.entryDate)}
@@ -121,7 +122,7 @@ export function WorkoutsSessionModal({
                       {formatSessionClock(event.occurredAt) ?? "Без времени"}
                     </p>
                     <span className="text-xs text-[var(--muted)]">
-                      {event.eventType.replace(/_/g, " ")}
+                      {formatWorkoutEventTypeLabel(event.eventType)}
                     </span>
                   </div>
                   <WorkoutEventCard card={event.card} />
