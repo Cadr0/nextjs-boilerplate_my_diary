@@ -7,6 +7,7 @@ const TECHNICAL_AI_ERROR_PATTERNS = [
   /returned empty/i,
   /failed to parse ai json/i,
   /structured parse failed/i,
+  /no endpoints found/i,
   /image ocr request failed/i,
   /supabase migration/i,
 ];

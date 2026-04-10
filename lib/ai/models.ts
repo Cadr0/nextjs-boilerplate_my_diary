@@ -2,9 +2,9 @@ export type AiModelProvider = "openrouter" | "routerai";
 export type AiModelPlan = "free" | "pro";
 
 export const OPENROUTER_FREE_MODEL_IDS = [
+  "openrouter/free",
   "nvidia/nemotron-3-super-120b-a12b:free",
   "minimax/minimax-m2.5:free",
-  "stepfun/step-3.5-flash:free",
 ] as const;
 
 export const ROUTERAI_PAID_MODEL_IDS = [
@@ -14,7 +14,7 @@ export const ROUTERAI_PAID_MODEL_IDS = [
 
 export const ROUTERAI_CHAT_IMAGE_MODEL_IDS = ["google/gemma-4-31b-it"] as const;
 
-export const DEFAULT_OPENROUTER_FREE_MODEL = OPENROUTER_FREE_MODEL_IDS[2];
+export const DEFAULT_OPENROUTER_FREE_MODEL = OPENROUTER_FREE_MODEL_IDS[0];
 export const DEFAULT_ROUTERAI_PAID_MODEL = ROUTERAI_PAID_MODEL_IDS[0];
 export const SUPPORTED_AI_MODEL_IDS = [
   ...ROUTERAI_PAID_MODEL_IDS,
@@ -34,18 +34,18 @@ export const aiModelOptions = [
   },
   {
     id: OPENROUTER_FREE_MODEL_IDS[0],
+    label: "OpenRouter Free",
+    description: "OpenRouter | Free | Automatic router across available free models.",
+  },
+  {
+    id: OPENROUTER_FREE_MODEL_IDS[1],
     label: "Nemotron 120B",
     description: "OpenRouter | Free | Large free reasoning model.",
   },
   {
-    id: OPENROUTER_FREE_MODEL_IDS[1],
+    id: OPENROUTER_FREE_MODEL_IDS[2],
     label: "MiniMax M2.5",
     description: "OpenRouter | Free | General purpose free model.",
-  },
-  {
-    id: OPENROUTER_FREE_MODEL_IDS[2],
-    label: "Step 3.5 Flash",
-    description: "OpenRouter | Free | Fast responses and draft analysis.",
   },
 ] as const;
 
