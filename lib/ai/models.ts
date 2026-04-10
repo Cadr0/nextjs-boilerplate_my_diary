@@ -1,4 +1,5 @@
 export type AiModelProvider = "openrouter" | "routerai";
+export type AiModelPlan = "free" | "pro";
 
 export const OPENROUTER_FREE_MODEL_IDS = [
   "nvidia/nemotron-3-super-120b-a12b:free",
@@ -15,6 +16,10 @@ export const ROUTERAI_CHAT_IMAGE_MODEL_IDS = ["google/gemma-4-31b-it"] as const;
 
 export const DEFAULT_OPENROUTER_FREE_MODEL = OPENROUTER_FREE_MODEL_IDS[2];
 export const DEFAULT_ROUTERAI_PAID_MODEL = ROUTERAI_PAID_MODEL_IDS[0];
+export const SUPPORTED_AI_MODEL_IDS = [
+  ...ROUTERAI_PAID_MODEL_IDS,
+  ...OPENROUTER_FREE_MODEL_IDS,
+] as const;
 
 export const aiModelOptions = [
   {
@@ -68,6 +73,77 @@ export function supportsChatImageUpload(model: string | undefined | null) {
   return (ROUTERAI_CHAT_IMAGE_MODEL_IDS as readonly string[]).includes(model);
 }
 
+export function isSupportedAiModel(model: string | undefined | null) {
+  if (!model) {
+    return false;
+  }
+
+  return (SUPPORTED_AI_MODEL_IDS as readonly string[]).includes(model);
+}
+
+export function normalizeAiModelSelection(
+  model: string | undefined | null,
+  options: {
+    plan?: AiModelPlan;
+    allowUndefined: true;
+  },
+): string | undefined;
+export function normalizeAiModelSelection(
+  model: string | undefined | null,
+  options?: {
+    plan?: AiModelPlan;
+    allowUndefined?: false | undefined;
+  },
+): string;
+export function normalizeAiModelSelection(
+  model: string | undefined | null,
+  options: {
+    plan?: AiModelPlan;
+    allowUndefined?: boolean;
+  } = {},
+) {
+  const normalizedModel =
+    typeof model === "string" && model.trim().length > 0 ? model.trim() : undefined;
+  const plan = options.plan ?? "pro";
+
+  if (!normalizedModel) {
+    if (options.allowUndefined) {
+      return undefined;
+    }
+
+    return plan === "free"
+      ? DEFAULT_OPENROUTER_FREE_MODEL
+      : DEFAULT_ROUTERAI_PAID_MODEL;
+  }
+
+  if (plan === "free") {
+    return isOpenRouterFreeModel(normalizedModel)
+      ? normalizedModel
+      : DEFAULT_OPENROUTER_FREE_MODEL;
+  }
+
+  if (isSupportedAiModel(normalizedModel)) {
+    return normalizedModel;
+  }
+
+  if (normalizedModel.endsWith(":free")) {
+    return DEFAULT_OPENROUTER_FREE_MODEL;
+  }
+
+  return DEFAULT_ROUTERAI_PAID_MODEL;
+}
+
 export function resolveAiProvider(model: string | undefined | null): AiModelProvider {
-  return isOpenRouterFreeModel(model) ? "openrouter" : "routerai";
+  const normalizedModel =
+    typeof model === "string" && model.trim().length > 0 ? model.trim() : undefined;
+
+  if (!normalizedModel) {
+    return "routerai";
+  }
+
+  if (isRouterAiPaidModel(normalizedModel)) {
+    return "routerai";
+  }
+
+  return "openrouter";
 }

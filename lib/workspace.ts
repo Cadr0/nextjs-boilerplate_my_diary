@@ -1,4 +1,8 @@
-import { aiModelOptions as aiModelCatalog, DEFAULT_OPENROUTER_FREE_MODEL } from "@/lib/ai/models";
+import {
+  aiModelOptions as aiModelCatalog,
+  DEFAULT_OPENROUTER_FREE_MODEL,
+  normalizeAiModelSelection,
+} from "@/lib/ai/models";
 import type { MemoryItem } from "@/lib/ai/memory/types";
 import {
   createWorkoutExercise as createWorkoutExerciseRecord,
@@ -498,6 +502,19 @@ export const defaultProfile: WorkspaceProfile = {
   aiModel: DEFAULT_OPENROUTER_FREE_MODEL,
 };
 
+export function normalizeWorkspaceProfile(
+  profileOverrides: Partial<WorkspaceProfile> = {},
+): WorkspaceProfile {
+  const plan = profileOverrides.plan === "pro" ? "pro" : defaultProfile.plan;
+
+  return {
+    ...defaultProfile,
+    ...profileOverrides,
+    plan,
+    aiModel: normalizeAiModelSelection(profileOverrides.aiModel, { plan }),
+  };
+}
+
 function generateId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return `${prefix}-${crypto.randomUUID()}`;
@@ -915,10 +932,7 @@ export function createDefaultWorkspaceState(
     tasks: [],
     reminders: [],
     metricDefinitions,
-    profile: {
-      ...defaultProfile,
-      ...profileOverrides,
-    },
+    profile: normalizeWorkspaceProfile(profileOverrides),
     diaryChats: {},
     analyticsChats: {},
     workoutChats: {},

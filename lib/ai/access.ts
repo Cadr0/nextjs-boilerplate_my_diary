@@ -1,9 +1,6 @@
 import "server-only";
 
-import {
-  DEFAULT_OPENROUTER_FREE_MODEL,
-  isOpenRouterFreeModel,
-} from "@/lib/ai/models";
+import { normalizeAiModelSelection } from "@/lib/ai/models";
 import { createClient } from "@/lib/supabase/server";
 
 export type UserPlan = "free" | "pro";
@@ -188,14 +185,15 @@ export async function createUsageGuard(userId: string) {
           : undefined;
 
       if (plan === "free") {
-        if (normalizedModel && isOpenRouterFreeModel(normalizedModel)) {
-          return normalizedModel;
-        }
-
-        return DEFAULT_OPENROUTER_FREE_MODEL;
+        return normalizeAiModelSelection(normalizedModel, {
+          plan: "free",
+        });
       }
 
-      return normalizedModel;
+      return normalizeAiModelSelection(normalizedModel, {
+        plan: "pro",
+        allowUndefined: true,
+      });
     },
     async consume(kind: UsageKind) {
       if (plan !== "free") {

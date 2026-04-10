@@ -100,9 +100,84 @@ export function normalizeMemoryText(value: string) {
     .trim();
 }
 
+const memoryNoiseTokens = new Set([
+  "и",
+  "или",
+  "но",
+  "а",
+  "на",
+  "в",
+  "во",
+  "с",
+  "со",
+  "к",
+  "по",
+  "для",
+  "уже",
+  "ещё",
+  "еще",
+  "теперь",
+  "сразу",
+  "потом",
+  "today",
+  "already",
+  "now",
+  "then",
+  "and",
+  "but",
+  "for",
+  "with",
+]);
+
+export function tokenizeMemoryText(value: string) {
+  return normalizeMemoryText(value)
+    .split(" ")
+    .filter((token) => token.length >= 2 && !memoryNoiseTokens.has(token));
+}
+
+export function calculateMemoryTokenOverlap(left: string, right: string) {
+  const leftTokens = new Set(tokenizeMemoryText(left));
+  const rightTokens = new Set(tokenizeMemoryText(right));
+
+  if (leftTokens.size === 0 || rightTokens.size === 0) {
+    return 0;
+  }
+
+  let matches = 0;
+
+  for (const token of leftTokens) {
+    if (rightTokens.has(token)) {
+      matches += 1;
+    }
+  }
+
+  return matches / Math.max(leftTokens.size, rightTokens.size);
+}
+
+export function hasMemoryTextOverlap(
+  left: string,
+  right: string,
+  threshold = 0.24,
+) {
+  const normalizedLeft = normalizeMemoryText(left);
+  const normalizedRight = normalizeMemoryText(right);
+
+  if (!normalizedLeft || !normalizedRight) {
+    return false;
+  }
+
+  if (
+    normalizedLeft.includes(normalizedRight) ||
+    normalizedRight.includes(normalizedLeft)
+  ) {
+    return true;
+  }
+
+  return calculateMemoryTokenOverlap(normalizedLeft, normalizedRight) >= threshold;
+}
+
 export function mapLegacyStatusToCanonical(
   status: MemoryItemStatus,
 ): CanonicalMemoryItemStatus {
   return normalizeMemoryStatus(status);
 }
-

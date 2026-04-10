@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import { parsePeriodAnalysisInput } from "@/lib/ai/contracts";
 import { resolveAiProvider } from "@/lib/ai/models";
+import { getUserFacingAiError } from "@/lib/ai/user-facing-errors";
 import {
   buildWorkoutSummaryContextText,
   sanitizeWorkoutDateSummaries,
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
   const { user } = await getAuthState();
 
   if (!user) {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    return NextResponse.json({ error: "Требуется вход в аккаунт." }, { status: 401 });
   }
 
   try {
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
         .slice(-14) ?? [];
 
     if (messages.length === 0) {
-      return NextResponse.json({ error: "At least one message is required." }, { status: 400 });
+      return NextResponse.json({ error: "Нужно хотя бы одно сообщение." }, { status: 400 });
     }
 
     const contextPayload = parsePeriodAnalysisInput({
@@ -108,7 +109,10 @@ export async function POST(request: Request) {
       provider === "openrouter" ? getOpenRouterConfigError() : getRouterAiConfigError();
 
     if (providerConfigError) {
-      return NextResponse.json({ error: providerConfigError }, { status: 500 });
+      return NextResponse.json(
+        { error: "AI-чат по периоду временно недоступен. Попробуйте чуть позже." },
+        { status: 500 },
+      );
     }
 
     const requestTimestamp = payload.context?.requestTimestamp ?? new Date().toISOString();
@@ -182,8 +186,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : "Failed to send period AI message.",
+        error: getUserFacingAiError(error, "Не удалось отправить сообщение по периоду."),
       },
       { status: 500 },
     );

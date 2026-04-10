@@ -1,5 +1,9 @@
 import type { MemoryItem, MemoryItemType } from "@/lib/ai/memory/types";
-import { normalizeMemoryText, normalizeStatus } from "@/lib/diary-memory/smart-memory-types";
+import {
+  hasMemoryTextOverlap,
+  normalizeMemoryText,
+  normalizeStatus,
+} from "@/lib/diary-memory/smart-memory-types";
 import type {
   ResolutionSignal,
   ResolvedMemoryTransition,
@@ -11,10 +15,7 @@ function signalAppliesToCandidate(signal: ResolutionSignal, candidate: SmartMemo
     return false;
   }
 
-  return (
-    candidate.normalizedSubject.includes(signal.normalizedSubjectHint) ||
-    signal.normalizedSubjectHint.includes(candidate.normalizedSubject)
-  );
+  return hasMemoryTextOverlap(candidate.normalizedSubject, signal.normalizedSubjectHint, 0.22);
 }
 
 function signalAppliesToExisting(signal: ResolutionSignal, existing: MemoryItem) {
@@ -26,10 +27,7 @@ function signalAppliesToExisting(signal: ResolutionSignal, existing: MemoryItem)
     existing.normalizedSubject || existing.canonicalSubject || existing.title,
   );
 
-  return (
-    existingSubject.includes(signal.normalizedSubjectHint) ||
-    signal.normalizedSubjectHint.includes(existingSubject)
-  );
+  return hasMemoryTextOverlap(existingSubject, signal.normalizedSubjectHint, 0.22);
 }
 
 function pickStrongestSignal(

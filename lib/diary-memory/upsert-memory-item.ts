@@ -470,6 +470,7 @@ export async function markMemoryItemsAsStale(args: {
   items: MemoryItem[];
   nowIso: string;
 }) {
+  const staleIds: string[] = [];
   const staleCandidates = args.items.filter((item) => {
     const status = normalizeMemoryStatus(item.status);
     return status === "active" || status === "monitoring";
@@ -490,14 +491,14 @@ export async function markMemoryItemsAsStale(args: {
       continue;
     }
 
-    const updateResult = await args.supabase
-      .from("memory_items")
-      .update({
-        status: "stale",
+    const updateResult = await updateMemoryItemWithStatusFallback(args.supabase, {
+      id: item.id,
+      userId: args.userId,
+      payload: {
         state_reason: "stale_by_inactivity",
-      })
-      .eq("id", item.id)
-      .eq("user_id", args.userId);
+      },
+      status: "stale",
+    });
 
     if (updateResult.error) {
       console.error("[memory] Failed to mark memory as stale", {
@@ -517,5 +518,8 @@ export async function markMemoryItemsAsStale(args: {
       confidence: 0.8,
       metadata: { inactivity_days: ageDays },
     });
+    staleIds.push(item.id);
   }
+
+  return staleIds;
 }

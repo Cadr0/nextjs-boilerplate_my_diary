@@ -1,38 +1,13 @@
 import type { MemoryItem } from "@/lib/ai/memory/types";
 import {
+  calculateMemoryTokenOverlap,
+  hasMemoryTextOverlap,
   normalizeMemoryText,
   normalizeStatus,
   type MemoryMatchResult,
   type ResolutionSignal,
   type SmartMemoryCandidate,
 } from "@/lib/diary-memory/smart-memory-types";
-
-function countTokenOverlap(left: string, right: string) {
-  const leftTokens = new Set(
-    normalizeMemoryText(left)
-      .split(" ")
-      .filter((token) => token.length >= 3),
-  );
-  const rightTokens = new Set(
-    normalizeMemoryText(right)
-      .split(" ")
-      .filter((token) => token.length >= 3),
-  );
-
-  if (leftTokens.size === 0 || rightTokens.size === 0) {
-    return 0;
-  }
-
-  let matches = 0;
-
-  for (const token of leftTokens) {
-    if (rightTokens.has(token)) {
-      matches += 1;
-    }
-  }
-
-  return matches / Math.max(leftTokens.size, rightTokens.size);
-}
 
 function buildSubjectMatchScore(candidate: SmartMemoryCandidate, existing: MemoryItem) {
   const candidateSubject = candidate.normalizedSubject;
@@ -57,8 +32,8 @@ function buildSubjectMatchScore(candidate: SmartMemoryCandidate, existing: Memor
   }
 
   return Math.max(
-    countTokenOverlap(candidateSubject, existingSubject),
-    countTokenOverlap(candidate.summary, existing.summary || existing.content),
+    calculateMemoryTokenOverlap(candidateSubject, existingSubject),
+    calculateMemoryTokenOverlap(candidate.summary, existing.summary || existing.content),
   );
 }
 
@@ -80,10 +55,7 @@ function matchesSignalSubject(existing: MemoryItem, signals: ResolutionSignal[])
       return false;
     }
 
-    return (
-      existingSubject.includes(signal.normalizedSubjectHint) ||
-      signal.normalizedSubjectHint.includes(existingSubject)
-    );
+    return hasMemoryTextOverlap(existingSubject, signal.normalizedSubjectHint, 0.22);
   });
 }
 

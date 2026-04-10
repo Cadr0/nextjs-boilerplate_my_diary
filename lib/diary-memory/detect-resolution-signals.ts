@@ -64,8 +64,16 @@ function cleanSubjectHint(rawHint: string | undefined) {
     return null;
   }
 
-  const normalized = normalizeMemoryText(value)
+  const clipped = value
+    .split(
+      /\b(?:и уже|и сразу|и потом|и теперь|а потом|после этого|после чего|and already|and then|but)\b/i,
+      1,
+    )[0]
+    ?.trim() ?? "";
+
+  const normalized = normalizeMemoryText(clipped)
     .replace(/\b(это|его|ее|её|их|то|тему|вопрос)\b/g, "")
+    .replace(/\b(сегодня|уже|теперь|already|today|now)\b/g, "")
     .replace(/\s+/g, " ")
     .trim();
 

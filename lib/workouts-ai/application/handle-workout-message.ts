@@ -486,13 +486,28 @@ export async function handleWorkoutMessage(
   });
 
   if (!persistenceRequested || !finalValidation.canSave) {
+    const needsClarification =
+      decision.mode === "clarify" || (persistenceRequested && finalValidation.requiresClarification);
+    const clarificationText = needsClarification
+      ? decision.clarification ??
+        decision.assistantText ??
+        t(replyLanguage, {
+          ru: "Нужна одна короткая деталь, чтобы записать это без ошибки.",
+          en: "I need one short detail to save this correctly.",
+        })
+      : null;
     const finalDecision =
-      decision.mode === "clarify" || (persistenceRequested && finalValidation.requiresClarification)
+      needsClarification
         ? {
             ...decision,
             mode: "clarify" as const,
-            assistantText: decision.clarification ?? decision.assistantText,
-            clarification: decision.clarification ?? decision.assistantText,
+            assistantText:
+              decision.assistantText?.trim() ||
+              t(replyLanguage, {
+                ru: "Нужна одна короткая деталь, чтобы записать это без ошибки.",
+                en: "I need one short detail to save this correctly.",
+              }),
+            clarification: clarificationText,
             shouldRenderClarification: true,
             shouldRenderSuggestions: false,
             shouldRenderWorkoutCard: false,
@@ -506,7 +521,7 @@ export async function handleWorkoutMessage(
       language: replyLanguage,
     });
     const status =
-      finalDecision.mode === "clarify" || (persistenceRequested && finalValidation.requiresClarification)
+      finalDecision.mode === "clarify" || needsClarification
         ? "clarification_required"
         : "processed";
     const resultJson = buildStoredResultJson({

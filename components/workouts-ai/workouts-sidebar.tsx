@@ -110,7 +110,7 @@ export function WorkoutsSidebar({
 }: WorkoutsSidebarProps) {
   return (
     <WorkspaceSidebarFrame
-      eyebrow="AI-first workouts"
+      eyebrow="Тренировки с AI"
       title="Тренировки"
       currentSection="workouts"
       contentClassName="flex min-h-0 flex-col overflow-hidden"

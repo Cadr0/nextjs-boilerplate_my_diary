@@ -51,7 +51,7 @@ export function WorkoutsChat({
         <div className="flex flex-col gap-4">
           <div>
             <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
-              Workout Copilot
+              AI-тренер
             </p>
 
             <div className="mt-1 flex items-center gap-3">

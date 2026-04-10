@@ -70,6 +70,7 @@ import {
   getTodayIsoDate,
   getVisibleMetricDefinitions,
   metricTemplateLibrary,
+  normalizeWorkspaceProfile,
   normalizeMetricValue,
   sanitizeMetricDefinition,
   serializeMetricDefinitionsForSave,
@@ -485,7 +486,7 @@ function mergeDraftMaps(
 }
 
 function serializeProfileState(profile: WorkspaceProfile) {
-  return JSON.stringify(profile);
+  return JSON.stringify(normalizeWorkspaceProfile(profile));
 }
 
 function serializeWorkspaceSyncState(state: WorkspaceSyncState) {
@@ -515,12 +516,14 @@ function mergeWorkspaceState(
         ? persistedState.metricDefinitions
         : [],
     ),
-    profile: persistedState.profile
-      ? {
-          ...baseState.profile,
-          ...persistedState.profile,
-        }
-      : baseState.profile,
+    profile: normalizeWorkspaceProfile(
+      persistedState.profile
+        ? {
+            ...baseState.profile,
+            ...persistedState.profile,
+          }
+        : baseState.profile,
+    ),
     diaryChats: canPersistToServer ? mergedSyncState.diaryChats : persistedState.diaryChats ?? {},
     analyticsChats: canPersistToServer
       ? mergedSyncState.analyticsChats
@@ -553,10 +556,10 @@ function buildWorkspaceStateFromSnapshot(args: {
     baseState,
     {
       ...baseState,
-      profile: {
+      profile: normalizeWorkspaceProfile({
         ...baseState.profile,
         ...args.profile,
-      },
+      }),
       ...mergeWorkspaceSyncState(emptyWorkspaceSyncState, args.workspaceSync),
     },
     args.canPersistToServer,
@@ -1661,10 +1664,10 @@ export function WorkspaceProvider({
         ...current,
         profile:
           serializeProfileState(current.profile) === sentFingerprint
-            ? {
+            ? normalizeWorkspaceProfile({
                 ...current.profile,
                 ...result.profile,
-              }
+              })
             : current.profile,
       }));
       savedProfileFingerprint.current = serializeProfileState(result.profile);
@@ -2887,10 +2890,10 @@ export function WorkspaceProvider({
   ) => {
     setWorkspaceState((current) => ({
       ...current,
-      profile: {
+      profile: normalizeWorkspaceProfile({
         ...current.profile,
         [field]: value,
-      },
+      }),
     }));
   };
 

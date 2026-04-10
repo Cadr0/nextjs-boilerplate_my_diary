@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import { resolveAiProvider, supportsChatImageUpload } from "@/lib/ai/models";
+import { getUserFacingAiError } from "@/lib/ai/user-facing-errors";
 import { getAuthState } from "@/lib/auth";
 import { getDiaryChatMemoryContext } from "@/lib/diary";
 import { getOpenRouterConfigError, streamChatWithOpenRouter } from "@/lib/openrouter";
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
   const { user } = await getAuthState();
 
   if (!user) {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    return NextResponse.json({ error: "Требуется вход в аккаунт." }, { status: 401 });
   }
 
   try {
@@ -136,18 +137,21 @@ export async function POST(request: Request) {
       provider === "openrouter" ? getOpenRouterConfigError() : getRouterAiConfigError();
 
     if (providerConfigError) {
-      return NextResponse.json({ error: providerConfigError }, { status: 500 });
+      return NextResponse.json(
+        { error: "AI временно недоступен. Попробуйте чуть позже." },
+        { status: 500 },
+      );
     }
 
     if (!date || !draft) {
-      return NextResponse.json({ error: "Diary context is required." }, { status: 400 });
+      return NextResponse.json({ error: "Нужен контекст дневника." }, { status: 400 });
     }
 
     if (hasImageAttachment && !supportsChatImageUpload(model)) {
       return NextResponse.json(
         {
           error:
-            "Image upload in chat is currently available only for RouterAI Gemma 4 31B IT.",
+            "Загрузка фото в чате сейчас доступна только для модели Gemma 4 31B IT.",
         },
         { status: 400 },
       );
@@ -166,7 +170,7 @@ export async function POST(request: Request) {
     });
 
     if (messages.length === 0) {
-      return NextResponse.json({ error: "At least one message is required." }, { status: 400 });
+      return NextResponse.json({ error: "Нужно хотя бы одно сообщение." }, { status: 400 });
     }
 
     await usageGuard.consume("ai");
@@ -218,8 +222,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : "Failed to send AI message.",
+        error: getUserFacingAiError(error, "Не удалось отправить сообщение в чат."),
       },
       { status: 500 },
     );

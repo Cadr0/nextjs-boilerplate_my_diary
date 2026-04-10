@@ -52,7 +52,7 @@ function resolveBucket(item: MemoryItem): keyof MemorySelectionBuckets {
   return "activeDynamic";
 }
 
-function scoreMemoryItem(item: MemoryItem, mode: MemoryContextMode) {
+export function scoreMemoryItem(item: MemoryItem, mode: MemoryContextMode) {
   const status = normalizeMemoryStatus(item.status);
 
   if (status === "stale") {
@@ -119,4 +119,3 @@ export function filterActiveMemories(args: {
     buckets,
   };
 }
-

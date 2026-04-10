@@ -8,6 +8,7 @@ import { createServerPerfTrace } from "@/lib/server-perf";
 import { createClient } from "@/lib/supabase/server";
 import {
   defaultProfile,
+  normalizeWorkspaceProfile,
   type WorkspaceProfile,
   type WorkspaceSyncState,
 } from "@/lib/workspace";
@@ -130,8 +131,7 @@ function mapProfileRow(
   row: WorkspaceProfileRow | null,
   fallbackFirstName: string,
 ) {
-  return {
-    ...defaultProfile,
+  return normalizeWorkspaceProfile({
     firstName: row?.first_name?.trim() || fallbackFirstName,
     lastName: row?.last_name?.trim() || "",
     plan: row?.plan === "pro" || row?.plan === "paid" ? "pro" : "free",
@@ -147,26 +147,28 @@ function mapProfileRow(
     notificationsEnabled: row?.notifications_enabled ?? defaultProfile.notificationsEnabled,
     chatTone: row?.chat_tone?.trim() || defaultProfile.chatTone,
     aiModel: row?.ai_model?.trim() || defaultProfile.aiModel,
-  } satisfies WorkspaceProfile;
+  });
 }
 
 function buildProfileWritePayload(userId: string, profile: WorkspaceProfile) {
+  const normalizedProfile = normalizeWorkspaceProfile(profile);
+
   return {
     user_id: userId,
-    first_name: profile.firstName.trim() || null,
-    last_name: profile.lastName.trim() || null,
-    bio: profile.bio.trim() || null,
-    timezone: profile.timezone.trim() || defaultProfile.timezone,
-    locale: profile.locale.trim() || defaultProfile.locale,
-    focus: profile.focus.trim() || defaultProfile.focus,
-    wellbeing_goal: profile.wellbeingGoal.trim() || defaultProfile.wellbeingGoal,
-    week_starts_on: profile.weekStartsOn.trim() || defaultProfile.weekStartsOn,
-    compact_metrics: Boolean(profile.compactMetrics),
-    keep_right_rail_open: Boolean(profile.keepRightRailOpen),
-    microphone_enabled: Boolean(profile.microphoneEnabled),
-    notifications_enabled: Boolean(profile.notificationsEnabled),
-    chat_tone: profile.chatTone.trim() || defaultProfile.chatTone,
-    ai_model: profile.aiModel.trim() || defaultProfile.aiModel,
+    first_name: normalizedProfile.firstName.trim() || null,
+    last_name: normalizedProfile.lastName.trim() || null,
+    bio: normalizedProfile.bio.trim() || null,
+    timezone: normalizedProfile.timezone.trim() || defaultProfile.timezone,
+    locale: normalizedProfile.locale.trim() || defaultProfile.locale,
+    focus: normalizedProfile.focus.trim() || defaultProfile.focus,
+    wellbeing_goal: normalizedProfile.wellbeingGoal.trim() || defaultProfile.wellbeingGoal,
+    week_starts_on: normalizedProfile.weekStartsOn.trim() || defaultProfile.weekStartsOn,
+    compact_metrics: Boolean(normalizedProfile.compactMetrics),
+    keep_right_rail_open: Boolean(normalizedProfile.keepRightRailOpen),
+    microphone_enabled: Boolean(normalizedProfile.microphoneEnabled),
+    notifications_enabled: Boolean(normalizedProfile.notificationsEnabled),
+    chat_tone: normalizedProfile.chatTone.trim() || defaultProfile.chatTone,
+    ai_model: normalizedProfile.aiModel.trim() || defaultProfile.aiModel,
   };
 }
 

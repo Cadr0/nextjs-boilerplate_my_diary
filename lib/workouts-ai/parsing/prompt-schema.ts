@@ -138,7 +138,7 @@ export function buildWorkoutParserSystemPrompt() {
     "If the text is ambiguous, lower confidence and ask a clarification question.",
     "clarification_question must be written in the same language as the user's message.",
     "One user message may create many facts.",
-    "Use neutral activity labels such as 'bench press', 'running', 'treadmill running', 'cycling', 'plank hold'.",
+    "Prefer activity labels in the user's language. For Russian messages, use natural labels such as 'жим лёжа', 'бег', 'беговая дорожка', 'велотренажёр', 'планка'.",
     "For corrections like 'не 65, а 62.5', intent must be 'correction'.",
     "For 'хочу потренироваться' or 'давай сегодня грудь и трицепс', intent may be 'start_session' or 'template_request' depending on whether it is a plan vs a logged fact.",
     "For 'закончил тренировку', use intent 'complete_session' and include an action 'complete_session'.",
@@ -151,7 +151,7 @@ export function buildWorkoutParserSystemPrompt() {
         facts: [
           {
             fact_type: "strength|cardio|timed|distance|mixed",
-            activity: "bench press",
+            activity: "жим лёжа",
             metrics: {
               weight_kg: 60,
               reps: 10,
@@ -189,7 +189,7 @@ export function buildWorkoutParserUserPrompt(args: {
         facts: [
           {
             fact_type: "strength",
-            activity: "bench press",
+            activity: "жим лёжа",
             metrics: { weight_kg: 60, reps: 10 },
             set_index: 1,
             occurred_at: null,
@@ -197,7 +197,7 @@ export function buildWorkoutParserUserPrompt(args: {
           },
           {
             fact_type: "strength",
-            activity: "bench press",
+            activity: "жим лёжа",
             metrics: { weight_kg: 65, reps: 8 },
             set_index: 2,
             occurred_at: null,
@@ -217,7 +217,7 @@ export function buildWorkoutParserUserPrompt(args: {
         facts: [
           {
             fact_type: "cardio",
-            activity: "running",
+            activity: "бег",
             metrics: { distance_km: 10, pace: 7 },
             set_index: null,
             occurred_at: null,
@@ -257,7 +257,7 @@ export function buildWorkoutParserUserPrompt(args: {
         facts: [
           {
             fact_type: "cardio",
-            activity: "treadmill running",
+            activity: "беговая дорожка",
             metrics: { duration_min: 30 },
             set_index: null,
             occurred_at: null,
@@ -277,7 +277,7 @@ export function buildWorkoutParserUserPrompt(args: {
         facts: [
           {
             fact_type: "cardio",
-            activity: "treadmill running",
+            activity: "беговая дорожка",
             metrics: { duration_min: 20 },
             set_index: null,
             occurred_at: null,

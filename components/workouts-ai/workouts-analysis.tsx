@@ -101,7 +101,7 @@ export function WorkoutsAnalysis({
     <section className="surface-card fade-up-delay flex min-h-[20rem] flex-col gap-4 rounded-[34px] p-4">
       <header className="rounded-[26px] border border-[var(--border)] bg-white/88 px-4 py-4">
         <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">
-          Analysis
+          Анализ
         </p>
         <h2 className="mt-2 font-display text-2xl tracking-[-0.04em] text-[var(--foreground)]">
           День и прогресс без перегруза
@@ -166,7 +166,7 @@ export function WorkoutsAnalysis({
           <>
             <article className="rounded-[26px] border border-[var(--border)] bg-white/90 px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
-                Summary
+                Сводка
               </p>
               <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
                 {state.data.summary.summaryText}

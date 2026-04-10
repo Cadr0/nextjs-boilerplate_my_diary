@@ -30,6 +30,13 @@ import { classifyMemoryCandidate } from "@/lib/diary-memory/classify-memory-cand
 import { detectResolutionSignals } from "@/lib/diary-memory/detect-resolution-signals";
 import { matchExistingMemory } from "@/lib/diary-memory/match-existing-memory";
 import { resolveMemoryTransition } from "@/lib/diary-memory/resolve-memory-transition";
+import {
+  calculateMemoryTokenOverlap,
+  hasMemoryTextOverlap,
+  normalizeMemoryText,
+  type ResolutionSignal,
+  type SmartMemoryCandidate,
+} from "@/lib/diary-memory/smart-memory-types";
 import { markMemoryItemsAsStale, upsertMemoryItem } from "@/lib/diary-memory/upsert-memory-item";
 import { requireUser } from "@/lib/auth";
 import { createServerPerfTrace } from "@/lib/server-perf";
@@ -283,11 +290,7 @@ function resolveMemoryMetadata(row: Pick<MemoryItemRow, "metadata" | "metadata_j
 }
 
 function normalizeMemoryComparisonText(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return normalizeMemoryText(value);
 }
 
 function hasProcessedSourceHash(metadata: MemoryItemMetadata, sourceHash: string) {
@@ -300,6 +303,69 @@ function hasProcessedSourceHash(metadata: MemoryItemMetadata, sourceHash: string
   }
 
   return readMemoryMetadataStringArray(metadata, "source_hashes").includes(sourceHash);
+}
+
+function isTerminalResolutionSignal(signal: ResolutionSignal) {
+  return (
+    signal.signal === "purchase_completed" ||
+    signal.signal === "already_done" ||
+    signal.signal === "finished" ||
+    signal.signal === "abandoned" ||
+    signal.signal === "no_longer_wanted" ||
+    signal.signal === "issue_gone" ||
+    signal.signal === "issue_resolved"
+  );
+}
+
+function hasExplicitFutureIntent(candidate: SmartMemoryCandidate) {
+  const text = normalizeMemoryComparisonText(
+    [candidate.title, candidate.summary, candidate.content].filter(Boolean).join(" "),
+  );
+
+  if (!text) {
+    return false;
+  }
+
+  return /\b(?:планир|собира|хоч|нужно|надо|предстоит|следующ|скоро|later|plan|planning|intend|want(?:s|ed)?|need(?:s)?\s+to|going\s+to|next)\b/u.test(
+    text,
+  );
+}
+
+function shouldSuppressCandidateAfterResolution(args: {
+  candidate: SmartMemoryCandidate;
+  signals: ResolutionSignal[];
+  signalBackfillCandidates: SmartMemoryCandidate[];
+}) {
+  if (hasExplicitFutureIntent(args.candidate)) {
+    return false;
+  }
+
+  const overlapsSignalBackfill = args.signalBackfillCandidates.some((backfillCandidate) =>
+    hasMemoryTextOverlap(
+      args.candidate.normalizedSubject,
+      backfillCandidate.normalizedSubject,
+      0.22,
+    ),
+  );
+
+  if (overlapsSignalBackfill) {
+    return true;
+  }
+
+  if (args.candidate.memoryClass !== "active_dynamic") {
+    return false;
+  }
+
+  return args.signals.some(
+    (signal) =>
+      isTerminalResolutionSignal(signal) &&
+      Boolean(signal.normalizedSubjectHint) &&
+      hasMemoryTextOverlap(
+        args.candidate.normalizedSubject,
+        signal.normalizedSubjectHint ?? "",
+        0.22,
+      ),
+  );
 }
 
 function buildSignalBackfillCandidates(args: {
@@ -315,22 +381,38 @@ function buildSignalBackfillCandidates(args: {
       continue;
     }
 
-    const matchedExisting = args.existingItems.find((item) => {
-      const normalizedStatus = normalizeMemoryStatus(item.status);
+    const matchedExisting =
+      args.existingItems
+        .filter((item) => {
+          const normalizedStatus = normalizeMemoryStatus(item.status);
+          return normalizedStatus === "active" || normalizedStatus === "monitoring";
+        })
+        .map((item) => {
+          const subjectText = normalizeMemoryComparisonText(
+            item.normalizedSubject || item.canonicalSubject || item.title,
+          );
+          const summaryText = normalizeMemoryComparisonText(item.summary || item.content);
+          const subjectOverlap = calculateMemoryTokenOverlap(
+            subjectText,
+            signal.normalizedSubjectHint ?? "",
+          );
+          const summaryOverlap = calculateMemoryTokenOverlap(
+            summaryText,
+            signal.normalizedSubjectHint ?? "",
+          );
+          const overlapScore = Math.max(subjectOverlap, summaryOverlap);
+          const hasOverlap =
+            hasMemoryTextOverlap(subjectText, signal.normalizedSubjectHint ?? "", 0.22) ||
+            overlapScore >= 0.2;
 
-      if (normalizedStatus !== "active" && normalizedStatus !== "monitoring") {
-        return false;
-      }
-
-      const subjectText = normalizeMemoryComparisonText(
-        item.normalizedSubject || item.canonicalSubject || item.title,
-      );
-
-      return (
-        subjectText.includes(signal.normalizedSubjectHint ?? "") ||
-        (signal.normalizedSubjectHint ?? "").includes(subjectText)
-      );
-    });
+          return {
+            item,
+            score: overlapScore + (hasOverlap ? 0.2 : 0),
+            hasOverlap,
+          };
+        })
+        .filter((entry) => entry.hasOverlap)
+        .sort((left, right) => right.score - left.score)[0]?.item ?? null;
 
     if (!matchedExisting || seenMemoryIds.has(matchedExisting.id)) {
       continue;
@@ -742,6 +824,24 @@ async function listAiMemoryItemsSafe(
   return memoryRows.map(mapMemoryItem);
 }
 
+function applyStaleMemoryUpdates(memoryItems: MemoryItem[], staleIds: string[]) {
+  if (staleIds.length === 0) {
+    return memoryItems;
+  }
+
+  const staleIdSet = new Set(staleIds);
+
+  return memoryItems.map((item) =>
+    staleIdSet.has(item.id)
+      ? {
+          ...item,
+          status: "stale" as const,
+          stateReason: "stale_by_inactivity",
+        }
+      : item,
+  );
+}
+
 async function touchMemoryReferencesSafe(args: {
   supabase: SupabaseClient;
   userId: string;
@@ -779,14 +879,15 @@ async function getDiaryAiSupportSafe(
   },
 ) {
   const memoryItems = await listAiMemoryItemsSafe(supabase, userId);
-  await markMemoryItemsAsStale({
+  const staleIds = await markMemoryItemsAsStale({
     supabase,
     userId,
     items: memoryItems,
     nowIso: new Date().toISOString(),
   });
+  const currentMemoryItems = applyStaleMemoryUpdates(memoryItems, staleIds);
   const memorySelection = buildDiaryAiMemoryContext({
-    items: memoryItems,
+    items: currentMemoryItems,
     queryText: args.queryText,
     mode: args.mode ?? "diary_reply",
   });
@@ -803,7 +904,7 @@ async function getDiaryAiSupportSafe(
   });
 
   return {
-    memoryItems,
+    memoryItems: currentMemoryItems,
     memoryContext: memorySelection.contextText,
     followUpCandidates,
     followUpContext: buildFollowUpContextText(followUpCandidates),
@@ -821,14 +922,15 @@ async function getDiaryAiMemoryContextSafe(
 ) {
   if (args.mode === "period_analysis") {
     const memoryItems = await listAiMemoryItemsSafe(supabase, userId);
-    await markMemoryItemsAsStale({
+    const staleIds = await markMemoryItemsAsStale({
       supabase,
       userId,
       items: memoryItems,
       nowIso: new Date().toISOString(),
     });
+    const currentMemoryItems = applyStaleMemoryUpdates(memoryItems, staleIds);
     const memorySelection = buildDiaryAiMemoryContext({
-      items: memoryItems,
+      items: currentMemoryItems,
       queryText: args.queryText,
       mode: "period_analysis",
     });
@@ -862,14 +964,15 @@ async function getPeriodAiSupportSafe(
   },
 ) {
   const memoryItems = await listAiMemoryItemsSafe(supabase, userId);
-  await markMemoryItemsAsStale({
+  const staleIds = await markMemoryItemsAsStale({
     supabase,
     userId,
     items: memoryItems,
     nowIso: new Date().toISOString(),
   });
+  const currentMemoryItems = applyStaleMemoryUpdates(memoryItems, staleIds);
   const memorySelection = buildDiaryAiMemoryContext({
-    items: memoryItems,
+    items: currentMemoryItems,
     queryText: [`Период с ${args.from} по ${args.to}`, args.queryText ?? ""].join("\n"),
     mode: "period_analysis",
   });
@@ -883,7 +986,7 @@ async function getPeriodAiSupportSafe(
     to: args.to,
     entries: args.entries,
     summary: args.summary,
-    memoryItems,
+    memoryItems: currentMemoryItems,
   });
   const followUpCandidates = args.includeFollowUps
     ? deriveFollowUpCandidates({
@@ -1737,7 +1840,15 @@ export async function syncDiaryEntryMemoryItems(id: string) {
       existingItems: recentMemoryItems,
       signals,
     });
-    const dedupedCandidates = [...smartCandidates, ...signalBackfillCandidates].filter(
+    const filteredSmartCandidates = smartCandidates.filter(
+      (candidate) =>
+        !shouldSuppressCandidateAfterResolution({
+          candidate,
+          signals,
+          signalBackfillCandidates,
+        }),
+    );
+    const dedupedCandidates = [...signalBackfillCandidates, ...filteredSmartCandidates].filter(
       (candidate, index, all) =>
         all.findIndex(
           (other) =>

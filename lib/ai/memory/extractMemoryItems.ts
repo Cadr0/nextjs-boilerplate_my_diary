@@ -2,10 +2,11 @@ import "server-only";
 
 import { DEFAULT_OPENROUTER_FREE_MODEL } from "@/lib/ai/models";
 import { buildMemoryExtractionPrompt } from "@/lib/ai/memory/prompt";
-import type {
-  ExtractMemoryItemsInput,
-  MemoryItemCandidate,
-  MemoryItemCategory,
+import {
+  memoryItemCategories,
+  type ExtractMemoryItemsInput,
+  type MemoryItemCandidate,
+  type MemoryItemCategory,
 } from "@/lib/ai/memory/types";
 import { getOpenRouterConfigError } from "@/lib/openrouter";
 import { getRouterAiConfigError } from "@/lib/routerai";
@@ -88,14 +89,7 @@ function readNormalizedNumber(value: unknown) {
 }
 
 function isMemoryCategory(value: unknown): value is MemoryItemCategory {
-  return (
-    value === "desire" ||
-    value === "plan" ||
-    value === "idea" ||
-    value === "purchase" ||
-    value === "concern" ||
-    value === "conflict"
-  );
+  return typeof value === "string" && memoryItemCategories.includes(value as MemoryItemCategory);
 }
 
 function parseMemoryItems(value: unknown): MemoryItemCandidate[] {
@@ -239,25 +233,22 @@ async function requestStructuredMemoryItems(
   try {
     return parseMemoryItems(JSON.parse(jsonCandidate) as unknown);
   } catch (parseError) {
-    const repairedResponse = await requestMemoryJsonArray(
-      provider,
-      [
-        {
-          role: "system",
-          content:
-            "You repair malformed JSON arrays. Return valid JSON only and keep the original meaning.",
-        },
-        {
-          role: "user",
-          content: [
-            "Repair this JSON array for strict JSON.parse compatibility.",
-            "Return JSON only.",
-            "",
-            jsonCandidate,
-          ].join("\n"),
-        },
-      ],
-    );
+    const repairedResponse = await requestMemoryJsonArray(provider, [
+      {
+        role: "system",
+        content:
+          "You repair malformed JSON arrays. Return valid JSON only and keep the original meaning.",
+      },
+      {
+        role: "user",
+        content: [
+          "Repair this JSON array for strict JSON.parse compatibility.",
+          "Return JSON only.",
+          "",
+          jsonCandidate,
+        ].join("\n"),
+      },
+    ]);
     const repairedCandidate = extractJsonArray(repairedResponse);
 
     try {

@@ -325,7 +325,7 @@ export function AnalyticsSection() {
 
   const sidebarContent = (
     <WorkspaceSidebarFrame
-      eyebrow="Analytics"
+      eyebrow="Аналитика"
       title="Период"
       currentSection="analytics"
       contentClassName="flex min-h-0 flex-col overflow-hidden"
@@ -413,7 +413,7 @@ export function AnalyticsSection() {
         <SectionCard className="rounded-[32px] p-5 sm:p-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <SectionHeader
-          eyebrow="Analytics"
+          eyebrow="Аналитика"
           title="Аналитика по периоду"
           description="Выбери диапазон дат, проверь сохраненные записи и запускай AI-анализ только по явной кнопке."
         />

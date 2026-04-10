@@ -27,6 +27,10 @@ function splitForStreaming(text: string) {
   return text.split(/(\s+)/).filter((part) => part.length > 0);
 }
 
+function normalizeComparableText(value: string | null | undefined) {
+  return (value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 function getResponseModeLabel(mode: WorkoutsChatItem["responseMode"]) {
   switch (mode) {
     case "conversational_advice":
@@ -289,6 +293,13 @@ export function WorkoutsMessage({ message, onAction }: WorkoutsMessageProps) {
       ? parts.slice(0, Math.max(visibleCount, 0)).join("")
       : message.text;
   const responseModeLabel = !isUser ? getResponseModeLabel(message.responseMode) : null;
+  const clarificationText = !isUser ? message.clarification ?? null : null;
+  const shouldRenderClarificationCard =
+    !isUser &&
+    message.responseMode === "clarify" &&
+    Boolean(clarificationText) &&
+    !message.pending &&
+    normalizeComparableText(clarificationText) !== normalizeComparableText(message.text);
 
   return (
     <article
@@ -310,7 +321,7 @@ export function WorkoutsMessage({ message, onAction }: WorkoutsMessageProps) {
           }`}
         >
           <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] opacity-80">
-            <span>{isUser ? "Ты" : "AI coach"}</span>
+            <span>{isUser ? "Ты" : "AI-тренер"}</span>
             <span>{formatTime(message.createdAt)}</span>
             {responseModeLabel ? (
               <span className="rounded-full bg-current/10 px-2 py-1 text-[10px] tracking-[0.12em] opacity-100">
@@ -334,8 +345,8 @@ export function WorkoutsMessage({ message, onAction }: WorkoutsMessageProps) {
           )}
         </div>
 
-        {!isUser && message.responseMode === "clarify" && message.clarification && !message.pending ? (
-          <ClarificationCard text={message.clarification} />
+        {shouldRenderClarificationCard && clarificationText ? (
+          <ClarificationCard text={clarificationText} />
         ) : null}
 
         {!isUser && message.suggestions && message.suggestions.length > 0 && !message.pending ? (

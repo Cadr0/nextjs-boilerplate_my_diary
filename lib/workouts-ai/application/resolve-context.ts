@@ -383,6 +383,7 @@ export async function resolveContext(
       if (rawResolvedActivity) {
         fact.activityId = rawResolvedActivity.id;
         fact.activitySlug = rawResolvedActivity.slug;
+        fact.activityCandidate = rawResolvedActivity.displayName;
       }
     }
 
@@ -395,6 +396,7 @@ export async function resolveContext(
     ) {
       fact.activityId = inheritedActivity.activityId;
       fact.activitySlug = inheritedActivity.slug;
+      fact.activityCandidate = inheritedActivity.displayName;
     }
 
     if (
@@ -420,6 +422,7 @@ export async function resolveContext(
           const catalogItem =
             input.catalog.find((item) => item.id === correctionTarget.activity_id) ?? null;
           fact.activitySlug = catalogItem?.slug ?? null;
+          fact.activityCandidate = catalogItem?.displayName ?? fact.activityCandidate;
         }
 
         const mergedMetrics = mergeCorrectionMetrics(fact, correctionTarget.payload_json);

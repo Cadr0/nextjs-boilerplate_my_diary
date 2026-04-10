@@ -1,13 +1,9 @@
-import type { MemoryItemCategory } from "@/lib/ai/memory/types";
+import {
+  memoryItemCategories,
+  type MemoryItemCategory,
+} from "@/lib/ai/memory/types";
 
-const allowedCategories: MemoryItemCategory[] = [
-  "desire",
-  "plan",
-  "idea",
-  "purchase",
-  "concern",
-  "conflict",
-];
+const allowedCategories: MemoryItemCategory[] = [...memoryItemCategories];
 
 type PromptMemoryItem = {
   category: MemoryItemCategory;
@@ -61,8 +57,8 @@ export function buildMemoryExtractionPrompt(args: {
     "",
     "Goal:",
     "- Identify only durable themes that may matter again in the future.",
-    "- Good examples: recurring desire, explicit plan, product the user wants to buy, unresolved concern, ongoing conflict, idea worth revisiting.",
-    "- Bad examples: one-off бытовые детали дня, обычные мелкие дела, случайная еда, погода, короткий эпизод без будущей значимости.",
+    "- Good examples: recurring desire, explicit plan, product the user wants to buy, unresolved concern, ongoing conflict, durable preference, stable routine, possession, relationship fact, milestone, contextual fact worth remembering.",
+    "- Bad examples: one-off household details, random meals, weather, trivial errands, or a short episode with no future relevance.",
     "",
     "Rules:",
     "- Return JSON only.",
@@ -73,6 +69,9 @@ export function buildMemoryExtractionPrompt(args: {
     '- Keep "title" and "content" in the user\'s original language.',
     "- Never rewrite Russian memories into English.",
     "- Preserve names, products, places, and wording as written when possible.",
+    "- If the entry explicitly says something was bought, received, finished, resolved, or is no longer wanted, prefer a durable or resolved category such as possession, milestone, resolved_issue, or contextual_fact instead of a new open desire/plan/goal/project about the same subject.",
+    "- Only keep an open future-oriented memory after an explicit completion if the user clearly states a distinct next intention.",
+    "- Use purchase only for an unfinished acquisition intent before the thing is obtained.",
     "- Use only these categories exactly:",
     `  ${allowedCategories.join(", ")}`,
     '- "title" must be a short label, 2-6 words.',
@@ -99,9 +98,9 @@ export function buildMemoryExtractionPrompt(args: {
       : "none",
     "",
     "Short summary:",
-    args.summary.trim() || "—",
+    args.summary.trim() || "-",
     "",
     "Full diary notes:",
-    args.notes.trim() || "—",
+    args.notes.trim() || "-",
   ].join("\n");
 }

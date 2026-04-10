@@ -239,6 +239,7 @@ export async function ensureResolvedActivities(
       if (existingMatch) {
         fact.activityId = existingMatch.id;
         fact.activitySlug = existingMatch.slug;
+        fact.activityCandidate = existingMatch.displayName;
       } else if (canAutoCreateCustomActivity(fact, input.normalized.confidence)) {
         const customActivity = await createOrReuseCustomActivity({
           userId: input.userId,
@@ -249,6 +250,7 @@ export async function ensureResolvedActivities(
         if (customActivity) {
           fact.activityId = customActivity.id;
           fact.activitySlug = customActivity.slug;
+          fact.activityCandidate = customActivity.displayName;
 
           if (!catalog.some((item) => item.id === customActivity.id)) {
             catalog.push(customActivity);

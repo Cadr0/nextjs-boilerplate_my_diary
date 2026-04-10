@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import { resolveAiProvider } from "@/lib/ai/models";
+import { getUserFacingAiError } from "@/lib/ai/user-facing-errors";
 import {
   buildWorkoutSummaryContextText,
   sanitizeWorkoutDateSummaries,
@@ -37,7 +38,7 @@ export async function POST(request: Request, context: RouteContext) {
   const { user } = await getAuthState();
 
   if (!user) {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    return NextResponse.json({ error: "Требуется вход в аккаунт." }, { status: 401 });
   }
 
   try {
@@ -52,13 +53,16 @@ export async function POST(request: Request, context: RouteContext) {
       provider === "openrouter" ? getOpenRouterConfigError() : getRouterAiConfigError();
 
     if (providerConfigError) {
-      return NextResponse.json({ error: providerConfigError }, { status: 500 });
+      return NextResponse.json(
+        { error: "AI-анализ записи временно недоступен. Попробуйте чуть позже." },
+        { status: 500 },
+      );
     }
 
     const { id } = await context.params;
 
     if (!id) {
-      return NextResponse.json({ error: "Entry id is required." }, { status: 400 });
+      return NextResponse.json({ error: "Не указан id записи." }, { status: 400 });
     }
 
     await usageGuard.consume("ai");
@@ -120,10 +124,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to analyze diary entry.",
+        error: getUserFacingAiError(error, "Не удалось запустить анализ записи."),
       },
       { status: 500 },
     );

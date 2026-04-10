@@ -47,12 +47,12 @@ export async function POST(request: Request) {
     const entryDate = readIsoDate(body.entry_date);
 
     if (!message) {
-      return NextResponse.json({ error: "message is required." }, { status: 400 });
+      return NextResponse.json({ error: "Нужен текст сообщения." }, { status: 400 });
     }
 
     if (!clientMessageId) {
       return NextResponse.json(
-        { error: "client_message_id is required." },
+        { error: "Нужен client_message_id." },
         { status: 400 },
       );
     }
@@ -65,11 +65,10 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(buildWorkoutChatApiResponse(result));
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : "Failed to handle workout message.",
+        error: "Не удалось обработать сообщение о тренировке.",
       },
       { status: 500 },
     );

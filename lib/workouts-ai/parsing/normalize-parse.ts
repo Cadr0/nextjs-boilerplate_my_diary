@@ -18,6 +18,14 @@ type NormalizeParseResultInput = {
   nowIso?: string;
 };
 
+function getResolvedActivityLabel(
+  activity: WorkoutCatalogLookupItem | null,
+  fallback: string | null,
+) {
+  const preferred = activity?.displayName?.trim() || activity?.canonicalName?.trim() || fallback;
+  return preferred?.trim().length ? preferred.trim() : fallback;
+}
+
 function normalizeText(value: string | null | undefined) {
   return (value ?? "")
     .trim()
@@ -434,7 +442,7 @@ export function normalizeParseResult(
     const normalizedFact: WorkoutNormalizedFact = {
       factType,
       eventType: deriveEventType(input.parsed.intent, factType),
-      activityCandidate: fact.activity,
+      activityCandidate: getResolvedActivityLabel(activity, fact.activity),
       activityId: activity?.id ?? null,
       activitySlug: activity?.slug ?? null,
       confidence: input.parsed.confidence,

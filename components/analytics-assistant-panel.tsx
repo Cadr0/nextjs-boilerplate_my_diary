@@ -236,7 +236,7 @@ export function AnalyticsAssistantPanel(props: AnalyticsAssistantPanelProps) {
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-              AI review
+              AI-разбор
             </p>
             <h2 className="text-lg font-semibold text-[var(--foreground)] sm:text-xl">
               Разбор периода
@@ -349,7 +349,7 @@ export function AnalyticsAssistantPanel(props: AnalyticsAssistantPanelProps) {
                     <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[rgba(47,111,97,0.2)] bg-[rgba(47,111,97,0.08)] text-[10px] text-[var(--accent)]">
                       AI
                     </span>
-                    Diary AI
+                    AI-разбор
                   </div>
                   <ChatMessageContent
                     content={message.content}

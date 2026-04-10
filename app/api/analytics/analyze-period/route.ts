@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import type { PeriodAiSummaryPayload } from "@/lib/ai/contracts";
 import { resolveAiProvider } from "@/lib/ai/models";
+import { getUserFacingAiError } from "@/lib/ai/user-facing-errors";
 import {
   buildWorkoutSummaryContextText,
   sanitizeWorkoutDateSummaries,
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
   const { user } = await getAuthState();
 
   if (!user) {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    return NextResponse.json({ error: "Требуется вход в аккаунт." }, { status: 401 });
   }
 
   try {
@@ -79,7 +80,10 @@ export async function POST(request: Request) {
       provider === "openrouter" ? getOpenRouterConfigError() : getRouterAiConfigError();
 
     if (providerConfigError) {
-      return NextResponse.json({ error: providerConfigError }, { status: 500 });
+      return NextResponse.json(
+        { error: "AI-анализ периода временно недоступен. Попробуйте чуть позже." },
+        { status: 500 },
+      );
     }
 
     await usageGuard.consume("ai");
@@ -147,8 +151,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : "Failed to analyze selected period.",
+        error: getUserFacingAiError(
+          error,
+          "Не удалось проанализировать выбранный период.",
+        ),
       },
       { status: 500 },
     );

@@ -1,20 +1,19 @@
 import type { MemoryItem } from "@/lib/ai/memory/types";
 import { normalizeMemoryStatus } from "@/lib/ai/memory/types";
-import { filterActiveMemories } from "@/lib/diary-memory/filter-active-memories";
-import { normalizeMemoryText, type MemoryContextMode } from "@/lib/diary-memory/smart-memory-types";
+import {
+  filterActiveMemories,
+  scoreMemoryItem,
+} from "@/lib/diary-memory/filter-active-memories";
+import {
+  calculateMemoryTokenOverlap,
+  hasMemoryTextOverlap,
+  normalizeMemoryText,
+  tokenizeMemoryText,
+  type MemoryContextMode,
+} from "@/lib/diary-memory/smart-memory-types";
 
-function tokenize(value: string) {
-  return normalizeMemoryText(value)
-    .split(" ")
-    .filter((token) => token.length >= 3);
-}
-
-function tokenOverlapScore(queryTokens: string[], item: MemoryItem) {
-  if (queryTokens.length === 0) {
-    return 0;
-  }
-
-  const haystack = normalizeMemoryText(
+function buildItemSearchHaystack(item: MemoryItem) {
+  return normalizeMemoryText(
     [
       item.title,
       item.canonicalSubject,
@@ -25,20 +24,41 @@ function tokenOverlapScore(queryTokens: string[], item: MemoryItem) {
       .filter(Boolean)
       .join(" "),
   );
+}
+
+function buildItemSubjectText(item: MemoryItem) {
+  return normalizeMemoryText(
+    [item.title, item.canonicalSubject, item.normalizedSubject].filter(Boolean).join(" "),
+  );
+}
+
+function scoreQueryRelevance(
+  normalizedQuery: string,
+  queryTokens: string[],
+  item: MemoryItem,
+) {
+  if (!normalizedQuery || queryTokens.length === 0) {
+    return 0;
+  }
+
+  const haystack = buildItemSearchHaystack(item);
 
   if (!haystack) {
     return 0;
   }
 
-  let hits = 0;
+  const subjectText = buildItemSubjectText(item);
+  const tokenScore =
+    queryTokens.filter((token) => haystack.includes(token)).length / queryTokens.length;
+  const overlapScore = Math.max(
+    calculateMemoryTokenOverlap(normalizedQuery, subjectText),
+    calculateMemoryTokenOverlap(normalizedQuery, haystack),
+  );
+  const phraseBoost = hasMemoryTextOverlap(subjectText || haystack, normalizedQuery, 0.18)
+    ? 0.24
+    : 0;
 
-  for (const token of queryTokens) {
-    if (haystack.includes(token)) {
-      hits += 1;
-    }
-  }
-
-  return hits / queryTokens.length;
+  return Math.min(1.25, Math.max(tokenScore, overlapScore) + phraseBoost);
 }
 
 function buildItemLine(item: MemoryItem, index: number) {
@@ -54,23 +74,41 @@ export function buildMemoryContext(args: {
   queryText?: string;
   limit?: number;
 }) {
-  const queryTokens = tokenize(args.queryText ?? "");
+  const limit = Math.min(10, Math.max(1, args.limit ?? 6));
+  const normalizedQuery = normalizeMemoryText(args.queryText ?? "");
+  const queryTokens = tokenizeMemoryText(args.queryText ?? "");
+  const baseLimit = Math.min(24, Math.max(8, limit * 3));
   const baseSelection = filterActiveMemories({
     items: args.items,
     mode: args.mode,
-    limit: Math.max(4, args.limit ?? 6),
+    limit: baseLimit,
   }).selected;
-
-  const ranked = baseSelection
+  const querySelection =
+    queryTokens.length === 0
+      ? []
+      : args.items
+          .map((item) => ({
+            item,
+            score: scoreQueryRelevance(normalizedQuery, queryTokens, item),
+            baseScore: scoreMemoryItem(item, args.mode),
+          }))
+          .filter((entry) => entry.baseScore > 0 && entry.score >= 0.22)
+          .sort((left, right) => right.score - left.score)
+          .slice(0, baseLimit)
+          .map((entry) => entry.item);
+  const candidatePool = [...querySelection, ...baseSelection].filter(
+    (item, index, all) => all.findIndex((candidate) => candidate.id === item.id) === index,
+  );
+  const selected = candidatePool
     .map((item) => ({
       item,
-      score: tokenOverlapScore(queryTokens, item),
+      score:
+        scoreMemoryItem(item, args.mode) +
+        scoreQueryRelevance(normalizedQuery, queryTokens, item) * 2.4,
     }))
-    .sort((left, right) => right.score - left.score);
-  const selected = ranked
     .sort((left, right) => right.score - left.score)
     .map((entry) => entry.item)
-    .slice(0, Math.min(10, Math.max(1, args.limit ?? 6)));
+    .slice(0, limit);
   const active = selected.filter((item) => {
     const status = normalizeMemoryStatus(item.status);
     return status === "active" || status === "monitoring";
@@ -116,4 +154,3 @@ export function buildMemoryContext(args: {
     selectedItems: selected,
   };
 }
-
