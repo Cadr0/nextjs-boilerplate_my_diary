@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import { handleWorkoutMessage } from "@/lib/workouts-ai/application/handle-workout-message";
+import { detectWorkoutReplyLanguage } from "@/lib/workouts-ai/domain/language";
 import type { WorkoutPipelineResult } from "@/lib/workouts-ai/domain/types";
 
 type WorkoutChatRequest = {
@@ -39,11 +41,16 @@ function buildWorkoutChatApiResponse(result: WorkoutPipelineResult) {
 }
 
 export async function POST(request: Request) {
+  let userId: string | null = null;
+  let message = "";
+  let clientMessageId = "";
+
   try {
     const user = await requireUser();
+    userId = user.id;
     const body = (await request.json()) as WorkoutChatRequest;
-    const message = readString(body.message);
-    const clientMessageId = readString(body.client_message_id);
+    message = readString(body.message);
+    clientMessageId = readString(body.client_message_id);
     const entryDate = readIsoDate(body.entry_date);
 
     if (!message) {
@@ -65,7 +72,31 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(buildWorkoutChatApiResponse(result));
-  } catch {
+  } catch (error) {
+    if (userId && clientMessageId) {
+      const supabase = await createClient();
+      const replyLanguage = detectWorkoutReplyLanguage(message);
+      const errorReply =
+        replyLanguage === "en"
+          ? "I couldn't process this workout message. Please send it once more."
+          : "Не удалось обработать сообщение о тренировке. Попробуй отправить его ещё раз.";
+
+      await supabase
+        .from("workout_messages")
+        .update({
+          status: "error",
+          reply_text: errorReply,
+          result_json: {
+            error_message:
+              error instanceof Error ? error.message : "Unknown workout chat route error.",
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId)
+        .eq("client_message_id", clientMessageId)
+        .eq("status", "received");
+    }
+
     return NextResponse.json(
       {
         error: "Не удалось обработать сообщение о тренировке.",

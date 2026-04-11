@@ -114,6 +114,20 @@ function getDayBounds(value: string) {
   };
 }
 
+function isStaleReceivedWorkoutMessage(message: WorkoutMessageRow) {
+  if (message.status !== "received") {
+    return false;
+  }
+
+  const createdAt = Date.parse(message.created_at);
+
+  if (!Number.isFinite(createdAt)) {
+    return true;
+  }
+
+  return Date.now() - createdAt >= 2 * 60 * 1000;
+}
+
 function inferFactTypeFromPayload(eventType: string, payload: Record<string, unknown>) {
   const kind = typeof payload.kind === "string" ? payload.kind : null;
 
@@ -476,6 +490,27 @@ async function loadChatHistory(args: {
     });
 
     if (!message.reply_text) {
+      if (message.status === "error" || isStaleReceivedWorkoutMessage(message)) {
+        items.push({
+          id: `${message.id}:assistant:error`,
+          role: "assistant",
+          text:
+            message.status === "error"
+              ? "Не удалось обработать это сообщение о тренировке. Можно отправить его ещё раз."
+              : "Обработка этого сообщения прервалась до ответа. Можно отправить его ещё раз.",
+          createdAt: message.updated_at,
+          tone: "error",
+          actions: [
+            {
+              id: `${message.id}:retry`,
+              label: "Повторить",
+              prompt: message.raw_text,
+              kind: "send",
+            },
+          ],
+        });
+      }
+
       continue;
     }
 
