@@ -25,27 +25,27 @@ export const aiModelOptions = [
   {
     id: DEFAULT_ROUTERAI_PAID_MODEL,
     label: "DeepSeek V3.2",
-    description: "RouterAI | Paid | Primary paid analysis model.",
+    description: "Основной вариант для самых точных разборов, памяти и длинных ответов.",
   },
   {
     id: ROUTERAI_PAID_MODEL_IDS[1],
     label: "Gemma 4 31B IT",
-    description: "RouterAI | Paid | Chat model with image input support.",
+    description: "Удобен для диалога и поддерживает работу с изображениями в чате.",
   },
   {
     id: OPENROUTER_FREE_MODEL_IDS[0],
     label: "OpenRouter Free",
-    description: "OpenRouter | Free | Automatic router across available free models.",
+    description: "Автоматический бесплатный маршрут. Подходит, когда важнее доступность, чем стабильность.",
   },
   {
     id: OPENROUTER_FREE_MODEL_IDS[1],
     label: "Nemotron 120B",
-    description: "OpenRouter | Free | Large free reasoning model.",
+    description: "Бесплатная крупная модель для более вдумчивых ответов, если нужен запас по рассуждению.",
   },
   {
     id: OPENROUTER_FREE_MODEL_IDS[2],
     label: "MiniMax M2.5",
-    description: "OpenRouter | Free | General purpose free model.",
+    description: "Бесплатный универсальный вариант для быстрых повседневных ответов.",
   },
 ] as const;
 

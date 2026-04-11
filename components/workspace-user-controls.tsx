@@ -25,6 +25,40 @@ type UserMenuPosition = {
 const USER_MENU_MAX_WIDTH = 296;
 const USER_MENU_GAP = 8;
 const USER_MENU_MARGIN = 12;
+const TIMEZONE_SUGGESTIONS = [
+  "Europe/Moscow",
+  "Europe/Berlin",
+  "Europe/London",
+  "America/New_York",
+  "America/Los_Angeles",
+  "Asia/Dubai",
+  "Asia/Tokyo",
+];
+const localeOptions = [
+  { value: "ru-RU", label: "Русский", description: "Интерфейс и ответы ассистента будут на русском." },
+  { value: "en-US", label: "English", description: "Interface labels and assistant replies will switch to English." },
+] as const;
+const weekStartsOnOptions = [
+  { value: "monday", label: "Понедельник" },
+  { value: "sunday", label: "Воскресенье" },
+] as const;
+const assistantToneOptions = [
+  {
+    value: "supportive",
+    label: "Поддерживающий",
+    description: "Мягкий и спокойный стиль. Подходит для дневника и рефлексии.",
+  },
+  {
+    value: "direct",
+    label: "Прямой",
+    description: "Короткие и более жесткие формулировки без лишней обертки.",
+  },
+  {
+    value: "coach",
+    label: "Coach",
+    description: "Больше структуры, акцента на действиях и небольшого давления вперед.",
+  },
+] as const;
 
 function getProfileName(profile: WorkspaceProfile) {
   return [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
@@ -398,6 +432,20 @@ function iconClassName(className?: string) {
   return className ?? "h-5 w-5";
 }
 
+function getLocaleLabel(locale: string) {
+  return localeOptions.find((option) => option.value === locale)?.label ?? locale;
+}
+
+function getWeekStartsOnLabel(value: string) {
+  return weekStartsOnOptions.find((option) => option.value === value)?.label ?? value;
+}
+
+function getAssistantToneMeta(value: string) {
+  return (
+    assistantToneOptions.find((option) => option.value === value) ?? assistantToneOptions[0]
+  );
+}
+
 function WorkspaceSettingsModal({
   accountEmail,
   accountInfo,
@@ -431,8 +479,11 @@ function WorkspaceSettingsModal({
     text: string;
   } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [deviceTimezone, setDeviceTimezone] = useState<string | null>(null);
   const providerLabel = getProviderLabel(accountInfo?.provider);
   const profileName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
+  const currentModel = aiModelOptions.find((option) => option.id === profile.aiModel) ?? aiModelOptions[0];
+  const currentTone = getAssistantToneMeta(profile.chatTone);
   const microphonePermissionLabel =
     microphonePermission === "granted"
       ? "Разрешение браузера: доступ открыт"
@@ -556,6 +607,14 @@ function WorkspaceSettingsModal({
     setTab(initialTab);
   }, [initialTab]);
 
+  useEffect(() => {
+    if (typeof Intl === "undefined") {
+      return;
+    }
+
+    setDeviceTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || null);
+  }, []);
+
   const tabs: Array<{ id: SettingsTab; label: string }> = [
     { id: "general", label: "Общее" },
     { id: "profile", label: "Профиль" },
@@ -610,29 +669,82 @@ function WorkspaceSettingsModal({
           {tab === "general" ? (
             <div className="grid min-h-full content-start gap-3 sm:gap-6">
               <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">Общее</h2>
+              <SettingsIntroCard
+                eyebrow="Без путаницы"
+                title="Что меняется в этом разделе"
+                description="Здесь собраны только базовые параметры интерфейса, времени и разрешений устройства. Чтобы голос и уведомления работали, нужен и переключатель в приложении, и доступ браузера."
+                chips={[
+                  `Язык: ${getLocaleLabel(profile.locale)}`,
+                  `Часовой пояс: ${profile.timezone}`,
+                  `Неделя начинается: ${getWeekStartsOnLabel(profile.weekStartsOn)}`,
+                ]}
+              />
               <SettingsRow
                 label="Язык"
                 hint="Влияет на подписи интерфейса и сообщения ассистента."
                 control={
-                  <select
-                    value={profile.locale}
-                    onChange={(event) => onChange("locale", event.target.value)}
-                    className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
-                  >
-                    <option value="ru-RU">Русский</option>
-                    <option value="en-US">English</option>
-                  </select>
+                  <div className="grid w-full gap-2 sm:w-[320px]">
+                    {localeOptions.map((option) => (
+                      <SettingsChoiceCard
+                        key={option.value}
+                        active={profile.locale === option.value}
+                        title={option.label}
+                        description={option.description}
+                        onClick={() => onChange("locale", option.value)}
+                      />
+                    ))}
+                  </div>
                 }
               />
               <SettingsRow
                 label="Часовой пояс"
                 hint="Нужен для корректного времени в уведомлениях и анализе дня."
                 control={
-                  <input
-                    value={profile.timezone}
-                    onChange={(event) => onChange("timezone", event.target.value)}
+                  <div className="grid w-full gap-2 sm:w-[320px]">
+                    <input
+                      list="workspace-timezone-suggestions"
+                      value={profile.timezone}
+                      onChange={(event) => onChange("timezone", event.target.value)}
+                      placeholder="Например, Europe/Moscow"
+                      className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-11 sm:px-4 sm:text-sm"
+                    />
+                    <datalist id="workspace-timezone-suggestions">
+                      {TIMEZONE_SUGGESTIONS.map((timezone) => (
+                        <option key={timezone} value={timezone} />
+                      ))}
+                    </datalist>
+                    <div className="flex flex-wrap gap-2">
+                      {deviceTimezone ? (
+                        <button
+                          type="button"
+                          onClick={() => onChange("timezone", deviceTimezone)}
+                          className="min-h-9 rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:min-h-10 sm:text-sm"
+                        >
+                          Взять часовой пояс устройства
+                        </button>
+                      ) : null}
+                    </div>
+                    <SettingsSupportText>
+                      Лучше использовать формат вида <code>Europe/Moscow</code>, чтобы время в анализе и напоминаниях не съезжало.
+                    </SettingsSupportText>
+                  </div>
+                }
+              />
+              <SettingsRow
+                label="Начало недели"
+                hint="Используется в календарных диапазонах и аналитике."
+                control={
+                  <select
+                    value={profile.weekStartsOn}
+                    onChange={(event) => onChange("weekStartsOn", event.target.value)}
                     className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
-                  />
+                  >
+                    {weekStartsOnOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 }
               />
               <SettingsRow
@@ -641,18 +753,26 @@ function WorkspaceSettingsModal({
                 control={<ToggleSwitch active={profile.compactMetrics} onToggle={() => onChange("compactMetrics", !profile.compactMetrics)} />}
               />
               <SettingsRow
-                label="Доступ к микрофону"
-                hint="Разрешает голосовой ввод для заполнения текста и метрик."
+                label="Держать правую панель открытой"
+                hint="Полезно на большом экране, если вы часто сверяетесь с задачами и контекстом."
+                control={<ToggleSwitch active={profile.keepRightRailOpen} onToggle={() => onChange("keepRightRailOpen", !profile.keepRightRailOpen)} />}
+              />
+              <SettingsRow
+                label="Голосовой ввод"
+                hint="Включает запись голосом внутри приложения. Браузерный доступ нужен отдельно."
                 control={
                   <div className="grid w-full gap-1.5 text-left sm:justify-items-end sm:gap-2 sm:text-right">
                     <ToggleSwitch active={profile.microphoneEnabled} onToggle={onMicrophoneToggle} />
                     <span className="w-full text-[10px] leading-3.5 text-[var(--muted)] sm:max-w-[220px] sm:text-xs">{microphonePermissionLabel}</span>
+                    <SettingsSupportText>
+                      Если переключатель включен, но браузер не дал доступ, запись голосом не стартует.
+                    </SettingsSupportText>
                   </div>
                 }
               />
               <SettingsRow
                 label="Получать уведомления"
-                hint="Включает умные напоминания и системные уведомления."
+                hint="Включает напоминания от приложения. Для показа карточек также нужен доступ браузера."
                 control={<ToggleSwitch active={profile.notificationsEnabled} onToggle={() => onChange("notificationsEnabled", !profile.notificationsEnabled)} />}
               />
               <SettingsRow
@@ -665,6 +785,9 @@ function WorkspaceSettingsModal({
                       <button type="button" onClick={() => void sendTestNotification()} className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:min-h-11 sm:px-4 sm:text-sm">Тест уведомления</button>
                     </div>
                     <span className="w-full text-[10px] leading-3.5 text-[var(--muted)] sm:max-w-[220px] sm:text-xs">{notificationPermissionLabel}</span>
+                    <SettingsSupportText>
+                      Логика простая: сначала включите уведомления в приложении, потом разрешите их в браузере.
+                    </SettingsSupportText>
                     {notificationTestStatus ? (
                       <span className={`w-full text-[10px] leading-3.5 sm:max-w-[220px] sm:text-xs ${notificationTestStatus.tone === "success" ? "text-[var(--accent)]" : "text-[rgb(136,47,63)]"}`}>
                         {notificationTestStatus.text}
@@ -678,48 +801,77 @@ function WorkspaceSettingsModal({
           {tab === "profile" ? (
             <div className="grid min-h-full content-start gap-3 sm:gap-6">
               <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">Профиль</h2>
+              <SettingsIntroCard
+                eyebrow="Память и контекст"
+                title="Эти данные ассистент использует во всех чатах"
+                description="Профиль подсказывает AI, как разговаривать с вами и что считать важным. Это влияет не только на дневник, но и на /workouts и /analytics."
+                chips={["Общий контекст", "Меньше повторных уточнений", "Одна память на весь workspace"]}
+              />
               <div className="grid gap-4 sm:grid-cols-2">
                 <SettingsField label="Имя" value={profile.firstName} onChange={(value) => onChange("firstName", value)} />
                 <SettingsField label="Фамилия" value={profile.lastName} onChange={(value) => onChange("lastName", value)} />
               </div>
-              <SettingsTextarea label="Фокус" value={profile.focus} onChange={(value) => onChange("focus", value)} />
-              <SettingsTextarea label="О себе" value={profile.bio} onChange={(value) => onChange("bio", value)} />
-              <SettingsTextarea label="Цель" value={profile.wellbeingGoal} onChange={(value) => onChange("wellbeingGoal", value)} />
+              <SettingsTextarea
+                label="Главный фокус"
+                description="Что для вас сейчас в приоритете. Например: спокойный ритм, дисциплина, восстановление."
+                value={profile.focus}
+                onChange={(value) => onChange("focus", value)}
+              />
+              <SettingsTextarea
+                label="Что важно помнить о вас"
+                description="Короткий живой контекст о вас, чтобы ассистент меньше терял нить."
+                value={profile.bio}
+                onChange={(value) => onChange("bio", value)}
+              />
+              <SettingsTextarea
+                label="Главная цель"
+                description="Какой результат вы хотите удерживать или к чему идете в ближайшее время."
+                value={profile.wellbeingGoal}
+                onChange={(value) => onChange("wellbeingGoal", value)}
+              />
             </div>
           ) : null}
           {tab === "assistant" ? (
             <div className="grid min-h-full content-start gap-3 sm:gap-6">
               <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">Ассистент</h2>
+              <SettingsIntroCard
+                eyebrow="Один стиль на все чаты"
+                title="Настройки ответа AI"
+                description="Эти параметры влияют на /diary, /workouts и /analytics одновременно. Сначала выберите качество модели, затем задайте стиль общения."
+                chips={[`Сейчас: ${currentModel.label}`, `Тон: ${currentTone.label}`, "Общая логика для всех разделов"]}
+              />
               <SettingsRow
                 label="Модель"
                 hint="Выбор модели для AI-ответов в чате и анализах."
                 control={
-                  <select
-                    value={profile.aiModel}
-                    onChange={(event) => onChange("aiModel", event.target.value)}
-                    className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
-                  >
+                  <div className="grid w-full gap-2 sm:w-[360px]">
                     {aiModelOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
+                      <SettingsChoiceCard
+                        key={option.id}
+                        active={profile.aiModel === option.id}
+                        title={option.label}
+                        description={option.description}
+                        onClick={() => onChange("aiModel", option.id)}
+                      />
                     ))}
-                  </select>
+                  </div>
                 }
               />
               <SettingsRow
                 label="Тон"
                 hint="Задает стиль ответов ассистента."
                 control={
-                  <select
-                    value={profile.chatTone}
-                    onChange={(event) => onChange("chatTone", event.target.value)}
-                    className="min-h-9 w-full rounded-full border border-[var(--border)] bg-white px-3 text-[11px] text-[var(--foreground)] outline-none sm:min-h-11 sm:w-auto sm:px-4 sm:text-sm"
-                  >
-                    <option value="supportive">Поддерживающий</option>
-                    <option value="direct">Прямой</option>
-                    <option value="coach">Coach</option>
-                  </select>
+                  <div className="grid w-full gap-2 sm:w-[360px]">
+                    {assistantToneOptions.map((option) => (
+                      <SettingsChoiceCard
+                        key={option.value}
+                        active={profile.chatTone === option.value}
+                        title={option.label}
+                        description={option.description}
+                        onClick={() => onChange("chatTone", option.value)}
+                      />
+                    ))}
+                  </div>
                 }
               />
             </div>
@@ -727,14 +879,28 @@ function WorkspaceSettingsModal({
           {tab === "account" ? (
             <div className="grid min-h-full content-start gap-3 sm:gap-6">
               <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">Учетная запись</h2>
+              <SettingsIntroCard
+                eyebrow="Главное по аккаунту"
+                title="Минимум шума, только важное"
+                description="Здесь оставлены базовые сведения о сессии, выгрузке и защите аккаунта. Технические идентификаторы спрятаны ниже, чтобы не перегружать обычный сценарий."
+                chips={[accountInfo?.email ?? accountEmail ?? "Нет email", providerLabel, `${entryCount} записей`]}
+              />
               <div className="grid gap-4 sm:grid-cols-2">
                 <SettingsReadonlyField label="Email активной сессии" value={accountInfo?.email ?? accountEmail ?? "Нет данных"} />
-                <SettingsReadonlyField label="Provider" value={providerLabel} />
-                <SettingsReadonlyField label="User ID" value={accountInfo?.userId ?? "Нет данных"} />
+                <SettingsReadonlyField label="Способ входа" value={providerLabel} />
                 <SettingsReadonlyField label="Email подтвержден" value={accountInfo ? (accountInfo.emailConfirmed ? "Да" : "Нет") : "Нет данных"} />
                 <SettingsReadonlyField label="Имя в профиле" value={profileName || "Не заполнено"} />
                 <SettingsReadonlyField label="Локаль и часовой пояс" value={`${profile.locale} · ${profile.timezone}`} />
               </div>
+              <details className="rounded-[24px] border border-[var(--border)] bg-white/80 p-4">
+                <summary className="cursor-pointer list-none text-sm font-medium text-[var(--foreground)]">
+                  Техническая диагностика
+                </summary>
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  <SettingsReadonlyField label="User ID" value={accountInfo?.userId ?? "Нет данных"} />
+                  <SettingsReadonlyField label="Провайдер" value={providerLabel} />
+                </div>
+              </details>
               <div className="grid gap-4 rounded-[24px] border border-[var(--border)] bg-white/80 p-4 sm:grid-cols-2">
                 <div className="grid gap-1">
                   <span className="text-sm text-[var(--muted)]">Записей в аккаунте</span>
@@ -876,6 +1042,46 @@ function SettingsRow({
   );
 }
 
+function SettingsIntroCard({
+  eyebrow,
+  title,
+  description,
+  chips,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  chips?: string[];
+}) {
+  return (
+    <div className="grid gap-3 rounded-[24px] border border-[rgba(47,111,97,0.14)] bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(243,248,244,0.92))] p-4 sm:p-5">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+        {eyebrow}
+      </span>
+      <div className="grid gap-1">
+        <h3 className="text-base font-semibold tracking-[-0.02em] text-[var(--foreground)] sm:text-xl">
+          {title}
+        </h3>
+        <p className="text-xs leading-5 text-[var(--muted)] sm:text-sm sm:leading-6">
+          {description}
+        </p>
+      </div>
+      {chips?.length ? (
+        <div className="flex flex-wrap gap-2">
+          {chips.map((chip) => (
+            <span
+              key={chip}
+              className="rounded-full border border-[rgba(47,111,97,0.12)] bg-white px-3 py-1 text-[10px] font-medium text-[var(--foreground)] sm:text-xs"
+            >
+              {chip}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function SettingsInfoHint({ text }: { text: string }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -910,6 +1116,48 @@ function SettingsField({
   );
 }
 
+function SettingsChoiceCard({
+  active,
+  title,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`grid w-full gap-1 rounded-[18px] border px-3 py-3 text-left transition sm:px-4 ${
+        active
+          ? "border-[var(--accent)] bg-[rgba(245,251,247,0.96)] shadow-[0_12px_24px_rgba(24,33,29,0.08)]"
+          : "border-[var(--border)] bg-white hover:border-[var(--accent)]"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-[var(--foreground)] sm:text-[0.95rem]">
+          {title}
+        </span>
+        <span
+          className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
+            active
+              ? "bg-[rgba(47,111,97,0.12)] text-[var(--accent)]"
+              : "bg-[rgba(24,33,29,0.06)] text-[var(--muted)]"
+          }`}
+        >
+          {active ? "Выбрано" : "Доступно"}
+        </span>
+      </div>
+      <p className="text-[11px] leading-5 text-[var(--muted)] sm:text-xs sm:leading-5">
+        {description}
+      </p>
+    </button>
+  );
+}
+
 function SettingsReadonlyField({
   label,
   value,
@@ -927,18 +1175,31 @@ function SettingsReadonlyField({
 
 function SettingsTextarea({
   label,
+  description,
   value,
   onChange,
 }: {
   label: string;
+  description?: string;
   value: string;
   onChange: (value: string) => void;
 }) {
   return (
     <label className="grid min-w-0 gap-1.5">
       <span className="text-[10px] font-medium text-[var(--foreground)] sm:text-sm">{label}</span>
+      {description ? (
+        <span className="text-[11px] leading-5 text-[var(--muted)] sm:text-xs">{description}</span>
+      ) : null}
       <AutoGrowTextarea value={value} onChange={onChange} minRows={3} className="w-full min-w-0 rounded-[14px] border border-[var(--border)] bg-white px-3 py-2.5 text-[11px] leading-5 text-[var(--foreground)] outline-none sm:rounded-[18px] sm:px-4 sm:py-3 sm:text-sm sm:leading-6" />
     </label>
+  );
+}
+
+function SettingsSupportText({ children }: { children: ReactNode }) {
+  return (
+    <span className="w-full text-[10px] leading-3.5 text-[var(--muted)] sm:max-w-[240px] sm:text-xs">
+      {children}
+    </span>
   );
 }
 
