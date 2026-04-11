@@ -212,12 +212,49 @@ export function interpretWorkoutAiResponse(
   const factualFacts = input.normalized.facts.filter((fact) => fact.factType !== "lifecycle");
   const hasLifecycleOnly =
     input.normalized.facts.length > 0 && factualFacts.length === 0;
-  const sessionStartRequested =
-    input.detectedMode.signals.explicitStart || input.parsed.intent === "start_session";
+  const canPersistLifecycleOnly =
+    hasLifecycleOnly &&
+    (input.detectedMode.signals.explicitStart ||
+      input.parsed.intent === "complete_session" ||
+      input.parsed.intent === "complete_block");
+  const sessionStartRequested = input.detectedMode.signals.explicitStart;
   const reasons = [...input.detectedMode.reasons];
 
+  if (hasLifecycleOnly && input.detectedMode.signals.explicitStart && input.validation.canSave) {
+    reasons.push("decision: persist explicit session start without downgrading to fact log");
+
+    return {
+      mode: "start_workout_session",
+      assistantText:
+        input.hasActiveSession
+          ? t(lang, {
+              ru: "Сессия уже открыта. Ниже оставил структуру, можно идти по ней и отмечать факты по ходу.",
+              en: "A session is already open. I left the structure below, so you can follow it and log as you go.",
+            })
+          : input.aiResponse.assistantText,
+      clarification: null,
+      suggestions: [],
+      workoutProposal: input.aiResponse.workoutProposal,
+      followUpOptions:
+        input.aiResponse.followUpOptions.length > 0
+          ? input.aiResponse.followUpOptions
+          : lang === "ru"
+            ? ["я сделал первый подход", "сделай версию полегче"]
+            : ["I logged the first set", "make it easier"],
+      shouldSaveFacts: false,
+      shouldStartSession: !input.hasActiveSession,
+      shouldRenderSuggestions: false,
+      shouldRenderWorkoutCard: Boolean(input.aiResponse.workoutProposal),
+      shouldRenderFactLog: false,
+      shouldRenderClarification: false,
+      shouldPersistMessage: true,
+      sessionStartRequested: true,
+      reasons,
+    };
+  }
+
   if (
-    (factualFacts.length > 0 || hasLifecycleOnly || input.parsed.intent === "correction") &&
+    (factualFacts.length > 0 || canPersistLifecycleOnly || input.parsed.intent === "correction") &&
     input.validation.canSave
   ) {
     reasons.push("decision: persist factual workout content");
@@ -247,7 +284,7 @@ export function interpretWorkoutAiResponse(
   }
 
   if (
-    (factualFacts.length > 0 || hasLifecycleOnly || input.parsed.intent === "correction") &&
+    (factualFacts.length > 0 || canPersistLifecycleOnly || input.parsed.intent === "correction") &&
     input.validation.requiresClarification
   ) {
     reasons.push("decision: factual message needs clarification");

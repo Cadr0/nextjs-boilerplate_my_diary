@@ -140,7 +140,8 @@ export function buildWorkoutParserSystemPrompt() {
     "One user message may create many facts.",
     "Prefer activity labels in the user's language. For Russian messages, use natural labels such as 'жим лёжа', 'бег', 'беговая дорожка', 'велотренажёр', 'планка'.",
     "For corrections like 'не 65, а 62.5', intent must be 'correction'.",
-    "For 'хочу потренироваться' or 'давай сегодня грудь и трицепс', intent may be 'start_session' or 'template_request' depending on whether it is a plan vs a logged fact.",
+    "For planning requests like 'хочу домашнюю тренировку на 15 минут' or 'собери тренировку на грудь', prefer intent 'template_request'.",
+    "Use intent 'start_session' only when the user clearly wants to start now, for example 'запусти тренировку', 'начинаю тренировку' or 'хочу начать прямо сейчас'.",
     "For 'закончил тренировку', use intent 'complete_session' and include an action 'complete_session'.",
     "JSON schema:",
     JSON.stringify(

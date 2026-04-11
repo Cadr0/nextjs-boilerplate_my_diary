@@ -289,6 +289,89 @@ function buildFallbackAssistantText(
   ].join(" ");
 }
 
+function normalizeComparableText(value: string | null | undefined) {
+  return (value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function countSentences(value: string) {
+  return value
+    .split(/[.!?]+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0).length;
+}
+
+function hasWorkoutProposalOverlap(text: string, proposal: WorkoutProposal | null) {
+  if (!proposal) {
+    return false;
+  }
+
+  const comparableText = normalizeComparableText(text);
+
+  if (!comparableText) {
+    return false;
+  }
+
+  const proposalLabels = [
+    proposal.title,
+    ...proposal.blocks.flatMap((block) => [
+      block.title,
+      ...block.exercises.map((exercise) => exercise.title),
+    ]),
+  ]
+    .map((label) => normalizeComparableText(label))
+    .filter((label) => label.length >= 8);
+
+  return proposalLabels.some((label) => comparableText.includes(label));
+}
+
+function shouldCondenseWorkoutCardReply(args: {
+  assistantText: string;
+  mode: WorkoutResponseMode;
+  workoutProposal: WorkoutProposal | null;
+}) {
+  if (
+    !args.workoutProposal ||
+    (args.mode !== "proposed_workout" && args.mode !== "start_workout_session")
+  ) {
+    return false;
+  }
+
+  return (
+    args.assistantText.length > 220 ||
+    countSentences(args.assistantText) > 2 ||
+    hasWorkoutProposalOverlap(args.assistantText, args.workoutProposal)
+  );
+}
+
+function buildWorkoutCardAssistantText(
+  lang: "ru" | "en",
+  mode: WorkoutResponseMode,
+  proposal: WorkoutProposal | null,
+) {
+  const duration =
+    proposal?.estimatedDurationMin && proposal.estimatedDurationMin > 0
+      ? proposal.estimatedDurationMin
+      : null;
+
+  if (mode === "start_workout_session") {
+    return lang === "ru"
+      ? duration
+        ? `План ниже уже готов на ${duration} минут. Можно стартовать и по ходу присылать выполненные подходы или интервалы.`
+        : "План ниже уже готов. Можно стартовать и по ходу присылать выполненные подходы или интервалы."
+      : duration
+        ? `The plan below is ready for about ${duration} minutes. You can start now and send completed sets or intervals as you go.`
+        : "The plan below is ready. You can start now and send completed sets or intervals as you go.";
+  }
+
+  return lang === "ru"
+    ? duration
+      ? `Собрал план ниже примерно на ${duration} минут. Если нужно, сразу адаптирую его под твой формат и темп.`
+      : "Собрал план ниже. Если нужно, сразу адаптирую его под твой формат и темп."
+    : duration
+      ? `I built the plan below for about ${duration} minutes. If needed, I can adapt it to your format and pace right away.`
+      : "I built the plan below. If needed, I can adapt it to your format and pace right away.";
+}
+
 function buildFallbackFollowUps(
   mode: WorkoutResponseMode,
   lang: "ru" | "en",
@@ -395,6 +478,7 @@ function buildSystemPrompt() {
     "Do not turn suggestions into logged facts.",
     "If the user asked for advice only, keep it advisory and non-prescriptive.",
     "If a workout proposal exists, mention it as a proposal, not as an executed session.",
+    "If a workout proposal exists, assistant_text must stay to one or two short sentences and must not restate workout blocks or exercise lists that are already present in the structured proposal.",
     "If the message already looks like a logged fact, keep the reply short.",
     "Return JSON only with this schema:",
     JSON.stringify(
@@ -500,10 +584,26 @@ export async function buildWorkoutAiResponse(
       input.detectedMode.mode,
       fallbackText,
     );
+    const presentationMode =
+      normalized.candidateMode === "proposed_workout" ||
+      normalized.candidateMode === "start_workout_session"
+        ? normalized.candidateMode
+        : input.workoutProposal &&
+            (input.detectedMode.mode === "proposed_workout" ||
+              input.detectedMode.mode === "start_workout_session")
+          ? input.detectedMode.mode
+          : normalized.candidateMode;
+    const assistantText = shouldCondenseWorkoutCardReply({
+      assistantText: normalized.assistantText,
+      mode: presentationMode,
+      workoutProposal: input.workoutProposal,
+    })
+      ? buildWorkoutCardAssistantText(lang, presentationMode, input.workoutProposal)
+      : normalized.assistantText;
 
     return {
       candidateMode: normalized.candidateMode,
-      assistantText: normalized.assistantText,
+      assistantText,
       suggestions: input.suggestions,
       workoutProposal: input.workoutProposal,
       followUpOptions:

@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 
 import { createUsageGuard, getUsageGuardErrorResponse } from "@/lib/ai/access";
 import type { PeriodAiSummaryPayload } from "@/lib/ai/contracts";
+import {
+  buildFallbackPeriodAnalysisMarkdown,
+  formatPeriodAnalysisMarkdown,
+} from "@/lib/ai/format-period-analysis";
 import { resolveAiProvider } from "@/lib/ai/models";
 import { getUserFacingAiError } from "@/lib/ai/user-facing-errors";
 import {
@@ -12,12 +16,12 @@ import { getAuthState } from "@/lib/auth";
 import { parsePeriodAnalysisInput } from "@/lib/ai/contracts";
 import { getPeriodAiAnalysisSupport } from "@/lib/diary";
 import {
+  analyzeDiaryPeriod as analyzePeriodWithOpenRouter,
   getOpenRouterConfigError,
-  streamPeriodAnalysisWithOpenRouter,
 } from "@/lib/openrouter";
 import {
+  analyzeDiaryPeriod as analyzePeriodWithRouterAi,
   getRouterAiConfigError,
-  streamPeriodAnalysisWithRouterAi,
 } from "@/lib/routerai";
 
 function buildPeriodMemoryQueryText(args: {
@@ -40,7 +44,7 @@ function buildPeriodMemoryQueryText(args: {
     `Разбор периода с ${args.from} по ${args.to}`,
     args.summary
       ? [
-          `Сохранённых дней: ${args.summary.saved_days}`,
+          `Сохраненных дней: ${args.summary.saved_days}`,
           `Среднее настроение: ${args.summary.average_mood ?? "нет данных"}`,
           `Средняя энергия: ${args.summary.average_energy ?? "нет данных"}`,
           `Средний стресс: ${args.summary.average_stress ?? "нет данных"}`,
@@ -119,18 +123,32 @@ export async function POST(request: Request) {
       workoutContext,
     };
 
-    const stream =
-      provider === "openrouter"
-        ? await streamPeriodAnalysisWithOpenRouter(normalizedPayload)
-        : await streamPeriodAnalysisWithRouterAi(normalizedPayload);
+    let content: string;
 
-    return new Response(stream, {
+    try {
+      const analysis =
+        provider === "openrouter"
+          ? await analyzePeriodWithOpenRouter(normalizedPayload)
+          : await analyzePeriodWithRouterAi(normalizedPayload);
+      content = formatPeriodAnalysisMarkdown({
+        analysis,
+        summary: payload.summary,
+      });
+    } catch {
+      content = buildFallbackPeriodAnalysisMarkdown({
+        from: payload.from,
+        to: payload.to,
+        entries: payload.entries,
+        summary: payload.summary,
+        followUpCandidates: aiSupport.followUpCandidates.map((candidate) => candidate.question),
+      });
+    }
+
+    return new Response(content, {
       status: 200,
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-        "X-Accel-Buffering": "no",
         ...(aiSupport.followUpCandidates.length > 0
           ? {
               "X-Diary-Follow-Up-Candidates": encodeURIComponent(
@@ -151,10 +169,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        error: getUserFacingAiError(
-          error,
-          "Не удалось проанализировать выбранный период.",
-        ),
+        error: getUserFacingAiError(error, "Не удалось проанализировать выбранный период."),
       },
       { status: 500 },
     );

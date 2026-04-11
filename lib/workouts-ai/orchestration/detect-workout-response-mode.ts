@@ -130,11 +130,14 @@ export function extractWorkoutRequestSignals(message: string): WorkoutRequestSig
     /(без запуска|не запускай|не надо запускать|подскажи без запуска|without starting|do not start)/i.test(
       normalized,
     );
-  const explicitStart = !explicitNoStart
+  const explicitStartBase = !explicitNoStart
     ? /(запусти|запуск|стартуем|начать|начни|хочу начать|start workout|launch workout)/i.test(
         normalized,
       )
     : false;
+  const explicitStart =
+    explicitStartBase ||
+    (!explicitNoStart && /(стартую|начинаю(?: тренировку)?)/i.test(normalized));
 
   const asksForContinuation =
     /(что дальше|что потом|что еще дальше|следующий блок|следующий этап|следующее упражнение|продолжай|продолжим|продолжение|дальше по тренировке|what next|what now|next block|next step|next exercise|continue workout|continue|keep going)/i.test(
@@ -221,13 +224,21 @@ export function detectWorkoutResponseMode(
     );
   }
 
-  if (signals.explicitStart || input.parsed.intent === "start_session") {
+  if (signals.explicitStart) {
     addScore(
       scores,
       reasons,
       "start_workout_session",
       7,
       "explicit start wording present",
+    );
+  } else if (input.parsed.intent === "start_session" && !signals.asksForWorkout) {
+    addScore(
+      scores,
+      reasons,
+      "start_workout_session",
+      4,
+      "parser intent=start_session without a conflicting workout-plan request",
     );
   }
 
@@ -370,7 +381,11 @@ export function detectWorkoutResponseMode(
     );
   }
 
-  if (hasLifecycleFacts && !hasPersistableFacts) {
+  if (
+    hasLifecycleFacts &&
+    !hasPersistableFacts &&
+    (signals.explicitStart || (input.parsed.intent === "start_session" && !signals.asksForWorkout))
+  ) {
     addScore(
       scores,
       reasons,

@@ -122,6 +122,10 @@ export function normalizeAiModelSelection(
       : DEFAULT_OPENROUTER_FREE_MODEL;
   }
 
+  if (normalizedModel === DEFAULT_OPENROUTER_FREE_MODEL) {
+    return DEFAULT_ROUTERAI_PAID_MODEL;
+  }
+
   if (isSupportedAiModel(normalizedModel)) {
     return normalizedModel;
   }

@@ -261,8 +261,10 @@ export async function ensureResolvedActivities(
 
     fact.dedupeKey = buildWorkoutEventDedupeKey({
       factType: fact.factType,
+      eventType: fact.eventType,
       activityId: fact.activityId,
       sessionScope: input.sessionScope ?? null,
+      occurredAt: fact.occurredAt,
       metrics: fact.metrics,
       correctionTargetEventId: fact.correctionTargetEventId,
     });

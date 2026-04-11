@@ -47,7 +47,7 @@ function buildPeriodMemoryQueryText(args: {
     args.currentAnalysis ?? "",
     args.context.summary
       ? [
-          `Сохранённых дней: ${args.context.summary.saved_days}`,
+          `Сохраненных дней: ${args.context.summary.saved_days}`,
           `Среднее настроение: ${args.context.summary.average_mood ?? "нет данных"}`,
           `Средняя энергия: ${args.context.summary.average_energy ?? "нет данных"}`,
           `Средний стресс: ${args.context.summary.average_stress ?? "нет данных"}`,

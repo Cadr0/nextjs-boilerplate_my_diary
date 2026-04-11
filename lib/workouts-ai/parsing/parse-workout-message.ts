@@ -221,6 +221,24 @@ function parseFallback(message: string): WorkoutAiParsedResult {
     };
   }
 
+  if (
+    /(дай|составь|собери|предложи|покажи|нужна|хочу)\s+.*(тренировк|комплекс|workout|routine)/i.test(
+      normalized,
+    ) &&
+    !/(запусти|запуск|стартуем|стартую|начать|начни|начинаю(?: тренировку)?|хочу начать|start workout|launch workout)/i.test(
+      normalized,
+    )
+  ) {
+    return {
+      intent: "template_request",
+      confidence: 0.88,
+      requires_confirmation: false,
+      facts: [],
+      actions: [{ type: "suggest_template" }],
+      clarification_question: null,
+    };
+  }
+
   const correctionMatch = normalized.match(/не\s+(\d+(?:[.,]\d+)?)\s*,?\s*а\s*(\d+(?:[.,]\d+)?)/i);
 
   if (correctionMatch?.[2]) {

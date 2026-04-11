@@ -18,6 +18,7 @@ import {
   findMetricDefinitionBySemantic,
   formatCompactDate,
   formatHistoryDate,
+  PERIOD_ANALYSIS_SNAPSHOT_VERSION,
   shiftIsoDate,
 } from "@/lib/workspace";
 
@@ -77,7 +78,15 @@ export function AnalyticsSection() {
   const rangeEnd = selectedDate;
   const rangeStart = shiftIsoDate(selectedDate, -(daysBack - 1));
   const rangeKey = useMemo(() => `${rangeStart}:${rangeEnd}`, [rangeEnd, rangeStart]);
-  const persistedAnalysis = periodAnalyses[rangeKey] ?? null;
+  const persistedAnalysis = useMemo(() => {
+    const snapshot = periodAnalyses[rangeKey] ?? null;
+
+    if (!snapshot || snapshot.version !== PERIOD_ANALYSIS_SNAPSHOT_VERSION) {
+      return null;
+    }
+
+    return snapshot;
+  }, [periodAnalyses, rangeKey]);
 
   useEffect(() => {
     analysisAbortRef.current?.abort();
@@ -239,7 +248,6 @@ export function AnalyticsSection() {
           entries: rangePayload,
           summary: periodSummary,
           workoutSummaries: rangeWorkoutSummaries,
-          currentAnalysis: analysisText || undefined,
           model: profile.aiModel,
         }),
       });
@@ -275,6 +283,7 @@ export function AnalyticsSection() {
           analysisText: finalText,
           followUpCandidates: nextFollowUps,
           updatedAt: new Date().toISOString(),
+          version: PERIOD_ANALYSIS_SNAPSHOT_VERSION,
         });
         setAnalysisState("idle");
         return;
@@ -302,6 +311,7 @@ export function AnalyticsSection() {
         analysisText: finalText,
         followUpCandidates: nextFollowUps,
         updatedAt: new Date().toISOString(),
+        version: PERIOD_ANALYSIS_SNAPSHOT_VERSION,
       });
       setAnalysisState("idle");
     } catch (requestError) {

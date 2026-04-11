@@ -432,8 +432,10 @@ export async function resolveContext(
 
     fact.dedupeKey = buildWorkoutEventDedupeKey({
       factType: fact.factType,
+      eventType: fact.eventType,
       activityId: fact.activityId,
       sessionScope: sessionContext.activeSessionId,
+      occurredAt: fact.occurredAt,
       metrics: fact.metrics,
       correctionTargetEventId: fact.correctionTargetEventId,
     });

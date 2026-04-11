@@ -250,6 +250,10 @@ export function sanitizePeriodAnalysisSnapshot(
       ? candidate.followUpCandidates.filter((item): item is string => typeof item === "string")
       : [],
     updatedAt: resolveTimestamp(candidate.updatedAt, new Date(0).toISOString()),
+    version:
+      typeof candidate.version === "number" && Number.isFinite(candidate.version)
+        ? candidate.version
+        : 0,
   };
 }
 

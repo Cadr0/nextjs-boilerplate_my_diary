@@ -54,6 +54,7 @@ import type {
   WorkspaceSyncState,
 } from "@/lib/workspace";
 import {
+  PERIOD_ANALYSIS_SNAPSHOT_VERSION,
   WORKSPACE_STORAGE_KEY,
   WORKSPACE_STORAGE_VERSION,
   buildEntryFingerprint,
@@ -2946,6 +2947,7 @@ export function WorkspaceProvider({
           analysisText: snapshot.analysisText,
           followUpCandidates: snapshot.followUpCandidates,
           updatedAt: snapshot.updatedAt,
+          version: PERIOD_ANALYSIS_SNAPSHOT_VERSION,
         };
       }
 

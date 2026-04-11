@@ -354,15 +354,21 @@ function buildDerivedLifecycleFacts(
 
 export function buildWorkoutEventDedupeKey(input: {
   factType: string;
+  eventType: string;
   activityId: string | null;
   sessionScope?: string | null;
+  occurredAt?: string | null;
   metrics: Record<string, number | string | boolean | null>;
   correctionTargetEventId: string | null;
 }) {
+  const lifecycleScope =
+    input.factType === "lifecycle" ? input.occurredAt?.slice(0, 10) ?? null : null;
   const signature = JSON.stringify({
     factType: input.factType,
+    eventType: input.eventType,
     activityId: input.activityId,
     sessionScope: input.sessionScope ?? null,
+    lifecycleScope,
     metrics: input.metrics,
     correctionTargetEventId: input.correctionTargetEventId,
   });
@@ -457,8 +463,10 @@ export function normalizeParseResult(
 
     normalizedFact.dedupeKey = buildWorkoutEventDedupeKey({
       factType: normalizedFact.factType,
+      eventType: normalizedFact.eventType,
       activityId: normalizedFact.activityId,
       sessionScope: null,
+      occurredAt: normalizedFact.occurredAt,
       metrics: normalizedFact.metrics,
       correctionTargetEventId: normalizedFact.correctionTargetEventId,
     });

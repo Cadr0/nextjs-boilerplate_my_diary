@@ -157,7 +157,10 @@ export type PeriodAnalysisSnapshot = {
   analysisText: string;
   followUpCandidates: string[];
   updatedAt: string;
+  version: number;
 };
+
+export const PERIOD_ANALYSIS_SNAPSHOT_VERSION = 1;
 
 export type WorkspaceProfile = {
   firstName: string;

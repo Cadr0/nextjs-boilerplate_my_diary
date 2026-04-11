@@ -315,6 +315,17 @@ function resolveEffectiveIntent(args: {
     return "clarification" as const;
   }
 
+  if (
+    args.decision.mode === "proposed_workout" ||
+    args.decision.mode === "suggested_exercises"
+  ) {
+    return "template_request" as const;
+  }
+
+  if (args.decision.mode === "conversational_advice" && !args.hasFacts) {
+    return args.parsedIntent === "analysis_request" ? "analysis_request" : "unknown";
+  }
+
   return args.parsedIntent;
 }
 

@@ -31,6 +31,78 @@ function normalizeComparableText(value: string | null | undefined) {
   return (value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function countSentences(value: string) {
+  return value
+    .split(/[.!?]+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0).length;
+}
+
+function hasWorkoutProposalOverlap(
+  text: string,
+  proposal: NonNullable<WorkoutsChatItem["workoutProposal"]> | null | undefined,
+) {
+  if (!proposal) {
+    return false;
+  }
+
+  const comparableText = normalizeComparableText(text);
+
+  if (!comparableText) {
+    return false;
+  }
+
+  const proposalLabels = [
+    proposal.title,
+    ...proposal.blocks.flatMap((block) => [
+      block.title,
+      ...block.exercises.map((exercise) => exercise.title),
+    ]),
+  ]
+    .map((label) => normalizeComparableText(label))
+    .filter((label) => label.length >= 8);
+
+  return proposalLabels.some((label) => comparableText.includes(label));
+}
+
+function buildWorkoutProposalBubbleText(
+  message: WorkoutsChatItem,
+  visibleText: string,
+) {
+  if (
+    !message.workoutProposal ||
+    (message.responseMode !== "proposed_workout" &&
+      message.responseMode !== "start_workout_session")
+  ) {
+    return visibleText;
+  }
+
+  const shouldCondense =
+    visibleText.length > 220 ||
+    countSentences(visibleText) > 2 ||
+    hasWorkoutProposalOverlap(visibleText, message.workoutProposal);
+
+  if (!shouldCondense) {
+    return visibleText;
+  }
+
+  const duration =
+    typeof message.workoutProposal.estimatedDurationMin === "number" &&
+    message.workoutProposal.estimatedDurationMin > 0
+      ? message.workoutProposal.estimatedDurationMin
+      : null;
+
+  if (message.responseMode === "start_workout_session") {
+    return duration
+      ? `План ниже уже готов на ${duration} минут. Можно стартовать и по ходу присылать выполненные подходы или интервалы.`
+      : "План ниже уже готов. Можно стартовать и по ходу присылать выполненные подходы или интервалы.";
+  }
+
+  return duration
+    ? `Собрал план ниже примерно на ${duration} минут. Если нужно, сразу адаптирую его под твой формат и темп.`
+    : "Собрал план ниже. Если нужно, сразу адаптирую его под твой формат и темп.";
+}
+
 function getResponseModeLabel(mode: WorkoutsChatItem["responseMode"]) {
   switch (mode) {
     case "conversational_advice":
@@ -292,6 +364,7 @@ export function WorkoutsMessage({ message, onAction }: WorkoutsMessageProps) {
     : message.streaming
       ? parts.slice(0, Math.max(visibleCount, 0)).join("")
       : message.text;
+  const renderedText = !isUser ? buildWorkoutProposalBubbleText(message, visibleText) : visibleText;
   const responseModeLabel = !isUser ? getResponseModeLabel(message.responseMode) : null;
   const clarificationText = !isUser ? message.clarification ?? null : null;
   const shouldRenderClarificationCard =
@@ -341,7 +414,7 @@ export function WorkoutsMessage({ message, onAction }: WorkoutsMessageProps) {
               <span className="h-2 w-2 animate-pulse rounded-full bg-current/40 [animation-delay:240ms]" />
             </div>
           ) : (
-            <p className="whitespace-pre-wrap text-[15px] leading-6">{visibleText}</p>
+            <p className="whitespace-pre-wrap text-[15px] leading-6">{renderedText}</p>
           )}
         </div>
 

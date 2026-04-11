@@ -607,7 +607,22 @@ export function buildAssistantActions(args: {
     return [] satisfies WorkoutsQuickAction[];
   }
 
-  const followUpActions = args.followUpOptions.slice(0, 2).map((prompt, index) => ({
+  const normalizedFollowUpOptions =
+    args.mode === "start_workout_session" && args.hasActiveSession
+      ? args.followUpOptions.filter((prompt) => {
+          const normalized = prompt.trim().toLowerCase();
+
+          return !(
+            normalized.includes("начат") ||
+            normalized.includes("запусти") ||
+            normalized.includes("старт") ||
+            normalized.includes("start workout") ||
+            normalized.includes("start the workout")
+          );
+        })
+      : args.followUpOptions;
+
+  const followUpActions = normalizedFollowUpOptions.slice(0, 2).map((prompt, index) => ({
     id: `follow-up-${index}`,
     label: prompt,
     prompt,
