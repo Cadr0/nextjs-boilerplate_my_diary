@@ -3,7 +3,6 @@
 import { useEffect, useRef } from "react";
 
 import type { WorkoutsChatItem, WorkoutsQuickAction } from "@/components/workouts-ai/types";
-import { WorkspaceCommandDeck } from "@/components/workspace-command-deck";
 import { WorkoutsInput } from "@/components/workouts-ai/workouts-input";
 import { WorkoutsMessage } from "@/components/workouts-ai/workouts-message";
 import { getHeadingDayLabel, getSidebarDayLabel } from "@/components/workouts-ai/workouts-ui";
@@ -48,12 +47,6 @@ export function WorkoutsChat({
 
   return (
     <section className="surface-card flex min-h-[72vh] flex-col overflow-hidden rounded-[34px] p-3 sm:p-4">
-      <WorkspaceCommandDeck
-        currentSection="workouts"
-        selectedDate={selectedDate}
-        className="mb-3"
-      />
-
       <header className="fade-up rounded-[28px] border border-[var(--border)] bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(247,241,231,0.9))] px-4 py-4">
         <div className="flex flex-col gap-4">
           <div>
