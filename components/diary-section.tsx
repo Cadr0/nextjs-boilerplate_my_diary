@@ -24,6 +24,7 @@ import { useEffect, useRef, useState } from "react";
 import { DiaryAssistantPanel } from "@/components/diary-assistant-panel";
 import { DayEntryComposer } from "@/components/day-entry-composer";
 import { WorkspaceSectionShell } from "@/components/workspace-shell";
+import { WorkspaceCommandDeck } from "@/components/workspace-command-deck";
 import {
   WorkspaceSidebarFrame,
   WorkspaceSidebarSection,
@@ -389,6 +390,11 @@ export function DiarySection() {
           </div>
         }
       >
+          <WorkspaceCommandDeck
+            currentSection="diary"
+            selectedDate={selectedDate}
+            className="mb-4"
+          />
 
           <div className="surface-card rounded-[28px] p-3 sm:rounded-[34px] sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">

@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { AnalyticsAssistantPanel } from "@/components/analytics-assistant-panel";
+import { WorkspaceCommandDeck } from "@/components/workspace-command-deck";
 import { WorkspaceSectionShell } from "@/components/workspace-shell";
 import { WorkspaceSidebarFrame, WorkspaceSidebarSection } from "@/components/workspace-sidebar";
 import { WorkspaceUserControls } from "@/components/workspace-user-controls";
@@ -420,6 +421,12 @@ export function AnalyticsSection() {
           </div>
         }
       >
+        <WorkspaceCommandDeck
+          currentSection="analytics"
+          selectedDate={selectedDate}
+          className="mb-4"
+        />
+
         <SectionCard className="rounded-[32px] p-5 sm:p-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <SectionHeader
