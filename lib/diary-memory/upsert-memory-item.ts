@@ -177,6 +177,41 @@ function mergeMetadata(args: {
   } satisfies MemoryItemMetadata;
 }
 
+function readMetadataString(metadata: MemoryItemMetadata, key: string) {
+  const value = metadata[key];
+  return typeof value === "string" ? value : null;
+}
+
+function readMetadataStringArray(metadata: MemoryItemMetadata, key: string) {
+  const value = metadata[key];
+
+  if (!Array.isArray(value)) {
+    return [] as string[];
+  }
+
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function hasProcessedSourceHash(metadata: MemoryItemMetadata, sourceHash: string) {
+  if (!sourceHash) {
+    return false;
+  }
+
+  if (readMetadataString(metadata, "source_hash") === sourceHash) {
+    return true;
+  }
+
+  return readMetadataStringArray(metadata, "source_hashes").includes(sourceHash);
+}
+
+function hasProcessedSourceEntryId(metadata: MemoryItemMetadata, sourceEntryId: string | null) {
+  if (!sourceEntryId) {
+    return false;
+  }
+
+  return readMetadataStringArray(metadata, "source_entry_ids").includes(sourceEntryId);
+}
+
 async function insertMemoryEvent(
   supabase: SupabaseClient,
   input: PersistedMemoryEventInput,
@@ -306,9 +341,15 @@ export async function upsertMemoryItem(args: {
   }
 
   const nextStatus = transition.status;
-  const nextMentionCount = Math.max(existing.mentionCount, 1) + 1;
+  const existingMetadata = existing.metadataJson ?? existing.metadata;
+  const isReprocessingSameSource =
+    hasProcessedSourceHash(existingMetadata, sourceHash) ||
+    hasProcessedSourceEntryId(existingMetadata, sourceEntryId);
+  const nextMentionCount = isReprocessingSameSource
+    ? Math.max(existing.mentionCount, 1)
+    : Math.max(existing.mentionCount, 1) + 1;
   const nextMetadata = mergeMetadata({
-    existing: existing.metadataJson ?? existing.metadata,
+    existing: existingMetadata,
     incoming: candidate.metadata,
     sourceHash,
     sourceEntryId,

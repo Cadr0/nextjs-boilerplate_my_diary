@@ -13,13 +13,24 @@ import { useWorkspace } from "@/components/workspace-provider";
 import { aiModelOptions } from "@/lib/workspace";
 import type { WorkspaceProfile } from "@/lib/workspace";
 
-type SettingsTab = "general" | "profile" | "assistant" | "account";
+type SettingsTab = "general" | "profile" | "memory" | "assistant" | "account";
 type MenuPlacement = "top" | "bottom";
 type UserMenuPosition = {
   left: number;
   top: number;
   width: number;
   placement: MenuPlacement;
+};
+type SettingsMemoryItem = {
+  id: string;
+  category: string;
+  title: string;
+  summary: string;
+  content: string;
+  status: string;
+  sourceEntryId: string | null;
+  updatedAt: string;
+  createdAt: string;
 };
 
 const USER_MENU_MAX_WIDTH = 296;
@@ -59,6 +70,24 @@ const assistantToneOptions = [
     description: "Больше структуры, акцента на действиях и небольшого давления вперед.",
   },
 ] as const;
+const memoryCategoryMeta = {
+  desire: { label: "Желания", description: "То, что вам хочется или к чему тянет." },
+  plan: { label: "Планы", description: "Намерения и следующие шаги, которые ещё актуальны." },
+  idea: { label: "Идеи", description: "Мысли и задумки, к которым можно вернуться позже." },
+  purchase: { label: "Покупки", description: "Покупки, выбор вещей и материальные намерения." },
+  concern: { label: "Тревоги", description: "То, что вызывает напряжение или сомнения." },
+  conflict: { label: "Конфликты", description: "Напряжённые ситуации и неурегулированные столкновения." },
+  goal: { label: "Цели", description: "Более крупные ориентиры и направления движения." },
+  project: { label: "Проекты", description: "Дела и инициативы, которые тянутся во времени." },
+  possession: { label: "Обладание", description: "То, что у вас уже есть и что важно помнить системе." },
+  preference: { label: "Предпочтения", description: "Вкусы, привычки и устойчивые личные выборы." },
+  issue: { label: "Проблемы", description: "Открытые затруднения, которые ещё не закрыты." },
+  resolved_issue: { label: "Решённое", description: "То, что уже было закрыто и важно хранить как историю." },
+  relationship_fact: { label: "Отношения", description: "Факты о людях и связи с ними." },
+  contextual_fact: { label: "Контекст", description: "Долгоживущие факты о вашей жизни и обстоятельствах." },
+  routine: { label: "Рутины", description: "Повторяющиеся действия и устойчивый распорядок." },
+  milestone: { label: "Вехи", description: "События и достижения, которые важно не потерять." },
+} as const;
 
 function getProfileName(profile: WorkspaceProfile) {
   return [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Diary AI";
@@ -212,6 +241,10 @@ export function WorkspaceUserControls({
     updateProfile("microphoneEnabled", granted);
   };
 
+  const handleMemoryChanged = () => {
+    router.refresh();
+  };
+
   const openSettings = (tab: SettingsTab = "general") => {
     setSettingsInitialTab(tab);
     setIsUserMenuOpen(false);
@@ -251,6 +284,7 @@ export function WorkspaceUserControls({
     if (
       requestedTab !== "general" &&
       requestedTab !== "profile" &&
+      requestedTab !== "memory" &&
       requestedTab !== "assistant" &&
       requestedTab !== "account"
     ) {
@@ -407,6 +441,7 @@ export function WorkspaceUserControls({
               profile={profile}
               onClose={closeSettings}
               onChange={updateProfile}
+              onMemoryChanged={handleMemoryChanged}
               onMicrophoneToggle={() => void handleMicrophoneToggle()}
             />,
             portalTarget,
@@ -446,6 +481,43 @@ function getAssistantToneMeta(value: string) {
   );
 }
 
+function getMemoryCategoryMeta(category: string) {
+  return (
+    memoryCategoryMeta[category as keyof typeof memoryCategoryMeta] ?? {
+      label: category,
+      description: "Сохранённый фрагмент долговременной памяти.",
+    }
+  );
+}
+
+function getMemoryStatusLabel(status: string) {
+  if (status === "active" || status === "open") {
+    return "Активно";
+  }
+
+  if (status === "monitoring") {
+    return "Под наблюдением";
+  }
+
+  if (status === "completed" || status === "resolved") {
+    return "Завершено";
+  }
+
+  if (status === "abandoned") {
+    return "Отложено";
+  }
+
+  if (status === "superseded") {
+    return "Заменено";
+  }
+
+  if (status === "stale" || status === "archived") {
+    return "Устарело";
+  }
+
+  return status;
+}
+
 function WorkspaceSettingsModal({
   accountEmail,
   accountInfo,
@@ -456,6 +528,7 @@ function WorkspaceSettingsModal({
   profile,
   onClose,
   onChange,
+  onMemoryChanged,
   onMicrophoneToggle,
 }: {
   accountEmail: string | null;
@@ -467,6 +540,7 @@ function WorkspaceSettingsModal({
   profile: WorkspaceProfile;
   onClose: () => void;
   onChange: <K extends keyof WorkspaceProfile>(field: K, value: WorkspaceProfile[K]) => void;
+  onMemoryChanged: () => void;
   onMicrophoneToggle: () => void;
 }) {
   const [tab, setTab] = useState<SettingsTab>(initialTab);
@@ -480,6 +554,10 @@ function WorkspaceSettingsModal({
   } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [deviceTimezone, setDeviceTimezone] = useState<string | null>(null);
+  const [memoryItems, setMemoryItems] = useState<SettingsMemoryItem[]>([]);
+  const [memoryState, setMemoryState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [memoryError, setMemoryError] = useState<string | null>(null);
+  const [memoryDeleteKey, setMemoryDeleteKey] = useState<string | null>(null);
   const providerLabel = getProviderLabel(accountInfo?.provider);
   const profileName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
   const currentModel = aiModelOptions.find((option) => option.id === profile.aiModel) ?? aiModelOptions[0];
@@ -615,12 +693,170 @@ function WorkspaceSettingsModal({
     setDeviceTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || null);
   }, []);
 
+  const loadMemoryItems = async (options?: { cancelled?: () => boolean }) => {
+    setMemoryState("loading");
+    setMemoryError(null);
+
+    try {
+      const response = await fetch("/api/workspace/memory", {
+        method: "GET",
+        cache: "no-store",
+      });
+      const result = (await response.json()) as {
+        items?: SettingsMemoryItem[];
+        error?: string;
+      };
+
+      if (!response.ok || !Array.isArray(result.items)) {
+        throw new Error(result.error ?? "Не удалось загрузить память.");
+      }
+
+      if (options?.cancelled?.()) {
+        return;
+      }
+
+      setMemoryItems(result.items);
+      setMemoryState("ready");
+    } catch (error) {
+      if (options?.cancelled?.()) {
+        return;
+      }
+
+      setMemoryError(
+        error instanceof Error ? error.message : "Не удалось загрузить память.",
+      );
+      setMemoryState("error");
+    }
+  };
+
+  useEffect(() => {
+    if (tab !== "memory") {
+      return;
+    }
+
+    let cancelled = false;
+    setMemoryState("loading");
+
+    const loadMemory = async () => {
+      try {
+        const response = await fetch("/api/workspace/memory", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const result = (await response.json()) as {
+          items?: SettingsMemoryItem[];
+          error?: string;
+        };
+
+        if (!response.ok || !Array.isArray(result.items)) {
+          throw new Error(result.error ?? "Не удалось загрузить память.");
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setMemoryItems(result.items);
+        setMemoryError(null);
+        setMemoryState("ready");
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setMemoryError(
+          error instanceof Error ? error.message : "Не удалось загрузить память.",
+        );
+        setMemoryState("error");
+      }
+    };
+
+    void loadMemory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tab]);
+
   const tabs: Array<{ id: SettingsTab; label: string }> = [
     { id: "general", label: "Общее" },
     { id: "profile", label: "Профиль" },
+    { id: "memory", label: "Память" },
     { id: "assistant", label: "Ассистент" },
     { id: "account", label: "Учетная запись" },
   ];
+
+  const groupedMemoryItems = memoryItems.reduce<Record<string, SettingsMemoryItem[]>>(
+    (result, item) => {
+      result[item.category] = [...(result[item.category] ?? []), item];
+      return result;
+    },
+    {},
+  );
+  const orderedMemoryGroups = Object.entries(groupedMemoryItems).sort((left, right) => {
+    const leftMeta = getMemoryCategoryMeta(left[0]);
+    const rightMeta = getMemoryCategoryMeta(right[0]);
+    return leftMeta.label.localeCompare(rightMeta.label, "ru");
+  });
+
+  const handleDeleteMemory = async (payload: { memoryId?: string; category?: string }) => {
+    const targetItem =
+      typeof payload.memoryId === "string"
+        ? memoryItems.find((item) => item.id === payload.memoryId) ?? null
+        : null;
+    const targetCategory =
+      typeof payload.category === "string" ? getMemoryCategoryMeta(payload.category) : null;
+    const confirmMessage = targetItem
+      ? `Удалить из памяти «${targetItem.title}»?`
+      : targetCategory
+        ? `Удалить весь раздел «${targetCategory.label}»?`
+        : "Удалить выбранную память?";
+
+    if (typeof window !== "undefined" && !window.confirm(confirmMessage)) {
+      return;
+    }
+
+    const deleteKey =
+      typeof payload.memoryId === "string" && payload.memoryId.length > 0
+        ? payload.memoryId
+        : `category:${payload.category ?? "unknown"}`;
+    setMemoryDeleteKey(deleteKey);
+    setMemoryError(null);
+
+    try {
+      const response = await fetch("/api/workspace/memory", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      const result = (await response.json()) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(result.error ?? "Не удалось обновить память.");
+      }
+
+      if (payload.memoryId) {
+        setMemoryItems((current) => current.filter((item) => item.id !== payload.memoryId));
+      } else if (payload.category) {
+        setMemoryItems((current) =>
+          current.filter((item) => item.category !== payload.category),
+        );
+      }
+
+      void loadMemoryItems();
+      onMemoryChanged();
+    } catch (error) {
+      setMemoryError(
+        error instanceof Error ? error.message : "Не удалось обновить память.",
+      );
+    } finally {
+      setMemoryDeleteKey(null);
+    }
+  };
 
   return (
     <div
@@ -831,6 +1067,118 @@ function WorkspaceSettingsModal({
               />
             </div>
           ) : null}
+          {tab === "memory" ? (
+            <div className="grid min-h-full content-start gap-3 sm:gap-6">
+              <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">Память</h2>
+              <SettingsIntroCard
+                eyebrow="Общая память ассистента"
+                title="Что система помнит о вас"
+                description="Здесь показана долговременная память, которая используется в /diary, /workouts и /analytics. Можно просматривать её по разделам и удалять отдельные элементы или целый раздел."
+                chips={[
+                  `${memoryItems.length} элементов`,
+                  "Общая для всех чатов",
+                  "Удаление влияет на будущие ответы",
+                ]}
+              />
+              {memoryState === "loading" ? (
+                <div className="rounded-[24px] border border-[var(--border)] bg-white/80 p-4 text-sm text-[var(--muted)]">
+                  Загружаю память...
+                </div>
+              ) : null}
+              {memoryError ? (
+                <div className="rounded-[24px] border border-[rgba(136,47,63,0.16)] bg-[rgba(255,248,248,0.96)] p-4 text-sm text-[rgb(136,47,63)]">
+                  {memoryError}
+                </div>
+              ) : null}
+              {memoryState === "ready" && orderedMemoryGroups.length === 0 ? (
+                <div className="rounded-[24px] border border-[var(--border)] bg-white/80 p-4 text-sm text-[var(--muted)]">
+                  Пока нет сохранённых элементов памяти. Они появятся по мере работы с дневником, аналитикой и тренировками.
+                </div>
+              ) : null}
+              {orderedMemoryGroups.map(([category, items]) => {
+                const meta = getMemoryCategoryMeta(category);
+                const isDeletingSection = memoryDeleteKey === `category:${category}`;
+
+                return (
+                  <details
+                    key={category}
+                    className="rounded-[24px] border border-[var(--border)] bg-white/86 p-4"
+                    open
+                  >
+                    <summary className="flex cursor-pointer list-none items-start justify-between gap-3">
+                      <div className="grid gap-1">
+                        <span className="text-base font-semibold text-[var(--foreground)]">
+                          {meta.label}
+                        </span>
+                        <span className="text-xs leading-5 text-[var(--muted)]">
+                          {meta.description}
+                        </span>
+                      </div>
+                      <span className="rounded-full border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.9)] px-3 py-1 text-[11px] font-medium text-[var(--muted)]">
+                        {items.length}
+                      </span>
+                    </summary>
+                    <div className="mt-4 grid gap-3">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteMemory({ category })}
+                          disabled={isDeletingSection}
+                          className="min-h-10 rounded-full border border-[rgba(136,47,63,0.16)] bg-white px-4 text-xs font-medium text-[rgb(136,47,63)] transition hover:border-[rgb(136,47,63)] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isDeletingSection ? "Удаляю раздел..." : "Удалить раздел"}
+                        </button>
+                      </div>
+                      {items.map((item) => {
+                        const isDeletingItem = memoryDeleteKey === item.id;
+                        return (
+                          <details
+                            key={item.id}
+                            className="rounded-[18px] border border-[var(--border)] bg-[rgba(249,250,248,0.92)] p-3"
+                          >
+                            <summary className="grid cursor-pointer list-none gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                              <div className="grid gap-1">
+                                <span className="text-sm font-medium text-[var(--foreground)]">
+                                  {item.title}
+                                </span>
+                                <span className="text-xs leading-5 text-[var(--muted)]">
+                                  {item.summary || item.content}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
+                                <span className="rounded-full border border-[rgba(47,111,97,0.14)] bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+                                  {getMemoryStatusLabel(item.status)}
+                                </span>
+                              </div>
+                            </summary>
+                            <div className="mt-3 grid gap-3 border-t border-[var(--border)] pt-3">
+                              <p className="text-sm leading-6 text-[var(--foreground)]">
+                                {item.content}
+                              </p>
+                              <div className="flex flex-wrap gap-2 text-[11px] text-[var(--muted)]">
+                                <span>Обновлено: {new Date(item.updatedAt).toLocaleDateString("ru-RU")}</span>
+                                <span>Создано: {new Date(item.createdAt).toLocaleDateString("ru-RU")}</span>
+                              </div>
+                              <div className="flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDeleteMemory({ memoryId: item.id })}
+                                  disabled={isDeletingItem}
+                                  className="min-h-10 rounded-full border border-[rgba(136,47,63,0.16)] bg-white px-4 text-xs font-medium text-[rgb(136,47,63)] transition hover:border-[rgb(136,47,63)] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {isDeletingItem ? "Удаляю..." : "Удалить"}
+                                </button>
+                              </div>
+                            </div>
+                          </details>
+                        );
+                      })}
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          ) : null}
           {tab === "assistant" ? (
             <div className="grid min-h-full content-start gap-3 sm:gap-6">
               <h2 className="text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-3xl">Ассистент</h2>
@@ -845,15 +1193,18 @@ function WorkspaceSettingsModal({
                 hint="Выбор модели для AI-ответов в чате и анализах."
                 control={
                   <div className="grid w-full gap-2 sm:w-[360px]">
-                    {aiModelOptions.map((option) => (
-                      <SettingsChoiceCard
-                        key={option.id}
-                        active={profile.aiModel === option.id}
-                        title={option.label}
-                        description={option.description}
-                        onClick={() => onChange("aiModel", option.id)}
-                      />
-                    ))}
+                    <select
+                      value={profile.aiModel}
+                      onChange={(event) => onChange("aiModel", event.target.value)}
+                      className="min-h-10 w-full rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none sm:min-h-11"
+                    >
+                      {aiModelOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <SettingsSupportText>{currentModel.description}</SettingsSupportText>
                   </div>
                 }
               />
@@ -862,15 +1213,18 @@ function WorkspaceSettingsModal({
                 hint="Задает стиль ответов ассистента."
                 control={
                   <div className="grid w-full gap-2 sm:w-[360px]">
-                    {assistantToneOptions.map((option) => (
-                      <SettingsChoiceCard
-                        key={option.value}
-                        active={profile.chatTone === option.value}
-                        title={option.label}
-                        description={option.description}
-                        onClick={() => onChange("chatTone", option.value)}
-                      />
-                    ))}
+                    <select
+                      value={profile.chatTone}
+                      onChange={(event) => onChange("chatTone", event.target.value)}
+                      className="min-h-10 w-full rounded-[18px] border border-[var(--border)] bg-white px-4 text-sm text-[var(--foreground)] outline-none sm:min-h-11"
+                    >
+                      {assistantToneOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <SettingsSupportText>{currentTone.description}</SettingsSupportText>
                   </div>
                 }
               />
@@ -1000,12 +1354,18 @@ function WorkspaceUserMenu({
         />
         <UserMenuButton
           buttonRef={(element) => onRegisterAction(2, element)}
+          icon={<MemoryIcon />}
+          label="Память"
+          onClick={() => onOpenSettings("memory")}
+        />
+        <UserMenuButton
+          buttonRef={(element) => onRegisterAction(3, element)}
           icon={<ShieldIcon />}
           label="Учетная запись"
           onClick={() => onOpenSettings("account")}
         />
         <UserMenuButton
-          buttonRef={(element) => onRegisterAction(3, element)}
+          buttonRef={(element) => onRegisterAction(4, element)}
           icon={<RobotMenuIcon />}
           label="Ассистент"
           onClick={() => onOpenSettings("assistant")}
@@ -1317,6 +1677,14 @@ function ShieldIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
       <path d="M12 3l7 3v5c0 4.5-2.8 7.7-7 10-4.2-2.3-7-5.5-7-10V6l7-3Z" />
+    </svg>
+  );
+}
+
+function MemoryIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M7 6.5A2.5 2.5 0 0 1 9.5 4h5A2.5 2.5 0 0 1 17 6.5V20l-5-2.6L7 20V6.5Z" />
     </svg>
   );
 }

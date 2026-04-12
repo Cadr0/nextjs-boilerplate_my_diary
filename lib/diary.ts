@@ -272,37 +272,12 @@ function readMemoryMetadataString(
   return typeof value === "string" ? value : null;
 }
 
-function readMemoryMetadataStringArray(
-  metadata: MemoryItemMetadata | null | undefined,
-  key: string,
-) {
-  const value = metadata?.[key];
-
-  if (!Array.isArray(value)) {
-    return [] as string[];
-  }
-
-  return value.filter((item): item is string => typeof item === "string");
-}
-
 function resolveMemoryMetadata(row: Pick<MemoryItemRow, "metadata" | "metadata_json">) {
   return row.metadata_json ?? row.metadata ?? {};
 }
 
 function normalizeMemoryComparisonText(value: string) {
   return normalizeMemoryText(value);
-}
-
-function hasProcessedSourceHash(metadata: MemoryItemMetadata, sourceHash: string) {
-  if (!sourceHash) {
-    return false;
-  }
-
-  if (readMemoryMetadataString(metadata, "source_hash") === sourceHash) {
-    return true;
-  }
-
-  return readMemoryMetadataStringArray(metadata, "source_hashes").includes(sourceHash);
 }
 
 function isTerminalResolutionSignal(signal: ResolutionSignal) {
@@ -1805,28 +1780,23 @@ export async function syncDiaryEntryMemoryItems(id: string) {
     return currentEntry;
   }
 
-  if (
-    currentEntry.memory_items.length > 0 ||
-    recentMemoryRows.some((row) => hasProcessedSourceHash(resolveMemoryMetadata(row), sourceHash))
-  ) {
-    return currentEntry;
-  }
-
   try {
+    const extractionContextItems = recentMemoryItems
+      .filter((item) => item.sourceEntryId !== id)
+      .slice(0, 12)
+      .map((item) => ({
+        id: item.id,
+        category: item.category,
+        title: item.title,
+        content: item.content,
+        status: item.status,
+      }));
     const extractedCandidates = await extractMemoryItems({
       entryId: id,
       entryDate: bundle.entryRow.entry_date,
       summary: entryContent.summary,
       notes: entryContent.notes,
-      existingItems: recentMemoryItems
-        .slice(0, 12)
-        .map((item) => ({
-          id: item.id,
-          category: item.category,
-          title: item.title,
-          content: item.content,
-          status: item.status,
-        })),
+      existingItems: extractionContextItems,
     });
     const signals = detectResolutionSignals(entryText);
     const smartCandidates = extractedCandidates.map((candidate) =>
