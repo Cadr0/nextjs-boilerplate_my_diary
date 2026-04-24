@@ -180,6 +180,192 @@ function formatNutritionValue(value: number, unit: string) {
   return `${rounded} ${unit}`;
 }
 
+function formatMealEatenAtLabel(iso: string) {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toLocaleString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function MealEntryDetailDialog({
+  entry,
+  onClose,
+}: {
+  entry: DiaryMealEntry | null;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    if (!entry) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [entry]);
+
+  useEffect(() => {
+    if (!entry) {
+      return;
+    }
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [entry, onClose]);
+
+  if (!entry) {
+    return null;
+  }
+
+  const eatenLabel = formatMealEatenAtLabel(entry.eatenAt);
+  const confidencePercent =
+    entry.confidence != null && Number.isFinite(entry.confidence)
+      ? Math.round(Math.max(0, Math.min(1, entry.confidence)) * 100)
+      : null;
+
+  const statBlocks = [
+    {
+      key: "cal",
+      name: "Ккал",
+      value: formatNutritionValue(entry.calories, "ккал"),
+      accent: "rgba(79, 157, 139, 0.18)",
+      border: "rgba(79, 157, 139, 0.35)",
+    },
+    {
+      key: "protein",
+      name: "Белки",
+      value: formatNutritionValue(entry.proteinG, "г"),
+      accent: "rgba(109, 143, 207, 0.2)",
+      border: "rgba(109, 143, 207, 0.38)",
+    },
+    {
+      key: "fat",
+      name: "Жиры",
+      value: formatNutritionValue(entry.fatG, "г"),
+      accent: "rgba(214, 161, 94, 0.22)",
+      border: "rgba(214, 161, 94, 0.4)",
+    },
+    {
+      key: "carbs",
+      name: "Углеводы",
+      value: formatNutritionValue(entry.carbsG, "г"),
+      accent: "rgba(177, 131, 214, 0.2)",
+      border: "rgba(177, 131, 214, 0.4)",
+    },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(21,30,28,0.38)] p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="meal-detail-title"
+    >
+      <div
+        className="flex max-h-[min(100dvh,900px)] w-full max-w-lg flex-col overflow-hidden rounded-t-[24px] border border-[var(--border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(247,249,246,0.99)_100%)] shadow-[0_28px_64px_rgba(24,33,29,0.2)] sm:max-h-[calc(100dvh-32px)] sm:rounded-[26px]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border)] px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            {eatenLabel ? (
+              <p className="text-[11px] text-[var(--muted)]">{eatenLabel}</p>
+            ) : null}
+            <h2
+              id="meal-detail-title"
+              className="mt-0.5 text-lg font-semibold leading-snug tracking-tight text-[var(--foreground)] sm:text-xl"
+            >
+              {entry.mealTitle}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/90 text-[var(--foreground)] transition hover:border-[var(--accent)]"
+            aria-label="Закрыть"
+          >
+            <CloseIcon />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="relative w-full border-b border-[var(--border)] bg-[rgba(24,33,29,0.04)]">
+            <Image
+              src={entry.photoUrl}
+              alt=""
+              width={800}
+              height={600}
+              unoptimized
+              className="mx-auto max-h-[min(42vh,360px)] w-full object-contain"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 px-4 py-4 sm:gap-2.5 sm:px-5">
+            {statBlocks.map((block) => (
+              <div
+                key={block.key}
+                className="rounded-[14px] border px-2.5 py-2.5"
+                style={{
+                  background: block.accent,
+                  borderColor: block.border,
+                }}
+              >
+                <p className="text-[11px] font-medium text-[var(--foreground)]/85">{block.name}</p>
+                <p className="mt-1 text-base font-semibold tabular-nums text-[var(--foreground)] sm:text-lg">
+                  {block.value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {entry.mealDescription.trim() ? (
+            <section className="border-t border-[var(--border)] px-4 py-4 sm:px-5">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
+                Анализ
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--foreground)] whitespace-pre-wrap">
+                {entry.mealDescription}
+              </p>
+            </section>
+          ) : null}
+
+          {entry.sourceModel || confidencePercent != null ? (
+            <footer className="border-t border-[var(--border)] bg-[rgba(247,249,246,0.6)] px-4 py-3 text-[11px] text-[var(--muted)] sm:px-5">
+              {entry.sourceModel ? (
+                <p>
+                  <span className="text-[var(--foreground)]/80">Модель:</span> {entry.sourceModel}
+                </p>
+              ) : null}
+              {confidencePercent != null ? (
+                <p className={entry.sourceModel ? "mt-1" : ""}>
+                  <span className="text-[var(--foreground)]/80">Оценка уверенности:</span> {confidencePercent}%
+                </p>
+              ) : null}
+            </footer>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type MetricModalState =
   | {
       mode: "create";
@@ -663,15 +849,16 @@ function NutritionPanel({
   snapshot: DailyNutritionSnapshot | null;
 }) {
   const mealFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [detailEntry, setDetailEntry] = useState<DiaryMealEntry | null>(null);
   const { analyzeMealPhoto, mealAnalysisError, mealAnalysisState } = useWorkspace();
   const isMealLoading = mealAnalysisState === "loading";
 
   const progressItems = snapshot
     ? [
         { key: "calories", label: "Ккал", unit: "ккал", data: snapshot.progress.calories, color: "#4f9d8b" },
-        { key: "protein", label: "Б", unit: "г", data: snapshot.progress.proteinG, color: "#6d8fcf" },
-        { key: "fat", label: "Ж", unit: "г", data: snapshot.progress.fatG, color: "#d6a15e" },
-        { key: "carbs", label: "У", unit: "г", data: snapshot.progress.carbsG, color: "#b183d6" },
+        { key: "protein", label: "Белки", unit: "г", data: snapshot.progress.proteinG, color: "#6d8fcf" },
+        { key: "fat", label: "Жиры", unit: "г", data: snapshot.progress.fatG, color: "#d6a15e" },
+        { key: "carbs", label: "Углеводы", unit: "г", data: snapshot.progress.carbsG, color: "#b183d6" },
       ]
     : [];
 
@@ -685,6 +872,7 @@ function NutritionPanel({
   };
 
   return (
+    <>
     <aside className="rounded-[24px] border border-[var(--border)] bg-[rgba(247,249,246,0.85)] p-3 sm:p-4">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold tracking-tight text-[var(--foreground)]">КБЖУ</h3>
@@ -721,7 +909,7 @@ function NutritionPanel({
       <div className="mt-3 grid gap-2">
         {progressItems.map((item) => (
           <div key={item.key} className="rounded-[12px] border border-[var(--border)] bg-white/95 px-2.5 py-2">
-            <div className="flex items-center justify-between gap-2 text-[11px]">
+            <div className="flex items-center justify-between gap-2 text-xs">
               <span className="font-medium text-[var(--foreground)]">{item.label}</span>
               <span className="tabular-nums text-[var(--muted)]">
                 {formatNutritionValue(item.data.consumed, item.unit)} / {formatNutritionValue(item.data.target, item.unit)}
@@ -757,14 +945,17 @@ function NutritionPanel({
           </div>
         ) : (
           mealEntries.map((entry) => (
-            <article
+            <button
               key={entry.id}
-              className="grid grid-cols-[88px_minmax(0,1fr)] gap-2 rounded-[12px] border border-[var(--border)] bg-white p-2"
+              type="button"
+              onClick={() => setDetailEntry(entry)}
+              className="grid w-full grid-cols-[88px_minmax(0,1fr)] gap-2 rounded-[12px] border border-[var(--border)] bg-white p-2 text-left transition hover:border-[rgba(47,111,97,0.35)] hover:shadow-[0_10px_24px_rgba(24,33,29,0.08)]"
+              aria-label={`Открыть приём пищи: ${entry.mealTitle}`}
             >
-              <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-[rgba(24,33,29,0.04)]">
+              <div className="pointer-events-none overflow-hidden rounded-[10px] border border-[var(--border)] bg-[rgba(24,33,29,0.04)]">
                 <Image
                   src={entry.photoUrl}
-                  alt={entry.mealTitle}
+                  alt=""
                   width={180}
                   height={180}
                   unoptimized
@@ -772,19 +963,22 @@ function NutritionPanel({
                 />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-[var(--foreground)]">{entry.mealTitle}</p>
-                <p className="mt-0.5 text-[11px] text-[var(--muted)]">
-                  {formatNutritionValue(entry.calories, "ккал")} · Б {formatNutritionValue(entry.proteinG, "г")} · Ж {formatNutritionValue(entry.fatG, "г")} · У {formatNutritionValue(entry.carbsG, "г")}
+                <p className="line-clamp-2 text-sm font-semibold text-[var(--foreground)]">{entry.mealTitle}</p>
+                <p className="mt-0.5 text-[11px] leading-snug text-[var(--muted)]">
+                  {formatNutritionValue(entry.calories, "ккал")} · Белки {formatNutritionValue(entry.proteinG, "г")} · Жиры{" "}
+                  {formatNutritionValue(entry.fatG, "г")} · Углеводы {formatNutritionValue(entry.carbsG, "г")}
                 </p>
                 {entry.mealDescription ? (
                   <p className="mt-1 line-clamp-2 text-xs text-[var(--muted)]">{entry.mealDescription}</p>
                 ) : null}
               </div>
-            </article>
+            </button>
           ))
         )}
       </div>
     </aside>
+    <MealEntryDetailDialog entry={detailEntry} onClose={() => setDetailEntry(null)} />
+    </>
   );
 }
 
