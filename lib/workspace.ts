@@ -65,6 +65,52 @@ export type DiaryEntry = {
   metric_values: Record<string, MetricValue>;
 };
 
+export type DiaryMealEntry = {
+  id: string;
+  entryDate: string;
+  eatenAt: string;
+  photoUrl: string;
+  mealTitle: string;
+  mealDescription: string;
+  calories: number;
+  proteinG: number;
+  fatG: number;
+  carbsG: number;
+  confidence: number | null;
+  sourceModel: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type NutritionTotals = {
+  calories: number;
+  proteinG: number;
+  fatG: number;
+  carbsG: number;
+};
+
+export type NutritionTargets = NutritionTotals;
+
+export type NutritionMacroProgress = {
+  consumed: number;
+  target: number;
+  remaining: number;
+  ratio: number;
+};
+
+export type DailyNutritionSnapshot = {
+  date: string;
+  totals: NutritionTotals;
+  targets: NutritionTargets;
+  progress: {
+    calories: NutritionMacroProgress;
+    proteinG: NutritionMacroProgress;
+    fatG: NutritionMacroProgress;
+    carbsG: NutritionMacroProgress;
+  };
+  tips: string[];
+};
+
 export type DiaryEntryInput = {
   entry_date: string;
   summary: string;

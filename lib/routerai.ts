@@ -1,16 +1,19 @@
 ﻿import "server-only";
 
 import {
+  parseMealAnalysisResult,
   parseDiaryExtractionResult,
   parsePeriodAnalysisResult,
   type DiaryExtractionMetricDefinition,
   type DiaryExtractionResult,
+  type MealAnalysisResult,
   type PeriodAnalysisEntryPayload,
   type PeriodAiSummaryPayload,
   type PeriodAnalysisResult,
 } from "@/lib/ai/contracts";
 import {
   buildDiaryExtractionPrompt,
+  buildMealAnalysisPrompt,
   buildPeriodAnalysisPrompt,
   buildPeriodChatContextPrompt,
 } from "@/lib/ai/prompts";
@@ -144,6 +147,54 @@ export async function extractTextFromDiaryImage(file: File) {
   }
 
   return transcript;
+}
+
+export async function analyzeMealPhoto(args: {
+  file: File;
+  locale?: string;
+  model?: string;
+}): Promise<MealAnalysisResult> {
+  const configError = getRouterAiConfigError();
+
+  if (configError) {
+    throw new Error(configError);
+  }
+
+  const buffer = await args.file.arrayBuffer();
+  const mimeType = args.file.type || "image/jpeg";
+  const imageBase64 = Buffer.from(buffer).toString("base64");
+  const prompt = buildMealAnalysisPrompt({
+    locale: args.locale,
+  });
+  const requestedModel = args.model?.trim() || "google/gemma-4-31b-it";
+
+  const structured = await requestStructuredJson(
+    [
+      {
+        role: "system",
+        content: prompt,
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "Проанализируй фото блюда и верни JSON с оценкой КБЖУ.",
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: `data:${mimeType};base64,${imageBase64}`,
+            },
+          },
+        ],
+      },
+    ],
+    parseMealAnalysisResult,
+    requestedModel,
+  );
+
+  return structured.parsed;
 }
 
 type AnalyzeDiaryEntryInput = {

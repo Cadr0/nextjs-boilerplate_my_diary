@@ -54,6 +54,8 @@ type WorkspaceSyncStateRow = {
 type WorkspaceSnapshot = {
   entries: Awaited<ReturnType<typeof getWorkspaceBootstrap>>["entries"];
   metricDefinitions: Awaited<ReturnType<typeof getWorkspaceBootstrap>>["metricDefinitions"];
+  mealEntries: Awaited<ReturnType<typeof getWorkspaceBootstrap>>["mealEntries"];
+  nutritionSnapshots: Awaited<ReturnType<typeof getWorkspaceBootstrap>>["nutritionSnapshots"];
   profile: WorkspaceProfile;
   workspaceSync: WorkspaceSyncState;
   error: string | null;
@@ -337,6 +339,8 @@ export async function getWorkspaceSnapshot(limit = 90): Promise<WorkspaceSnapsho
     return {
       entries: bootstrap.entries,
       metricDefinitions: bootstrap.metricDefinitions,
+      mealEntries: bootstrap.mealEntries,
+      nutritionSnapshots: bootstrap.nutritionSnapshots,
       profile: profileResult,
       workspaceSync: workspaceSyncResult,
       error: bootstrap.error,
@@ -354,6 +358,8 @@ export async function getWorkspaceSnapshot(limit = 90): Promise<WorkspaceSnapsho
     return {
       entries: bootstrap.entries,
       metricDefinitions: bootstrap.metricDefinitions,
+      mealEntries: bootstrap.mealEntries,
+      nutritionSnapshots: bootstrap.nutritionSnapshots,
       profile: {
         ...defaultProfile,
       },

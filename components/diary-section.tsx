@@ -15,6 +15,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import Image from "next/image";
 import type {
   MouseEvent as ReactMouseEvent,
   TouchEvent as ReactTouchEvent,
@@ -31,6 +32,8 @@ import {
 import { WorkspaceUserControls } from "@/components/workspace-user-controls";
 import { useWorkspace } from "@/components/workspace-provider";
 import type {
+  DailyNutritionSnapshot,
+  DiaryMealEntry,
   MetricDefinition,
   MetricTemplate,
   MetricValue,
@@ -171,6 +174,11 @@ function getHeadingDateLabel(value: string) {
   return formatHistoryDate(value);
 }
 
+function formatNutritionValue(value: number, unit: string) {
+  const rounded = value % 1 === 0 ? value.toFixed(0) : value.toFixed(1);
+  return `${rounded} ${unit}`;
+}
+
 type MetricModalState =
   | {
       mode: "create";
@@ -217,6 +225,8 @@ export function DiarySection() {
     saveState,
     selectedDate,
     selectedDraft,
+    selectedMealEntries,
+    selectedNutritionSnapshot,
     setSelectedDate,
     updateMetricValue,
     updateSummary,
@@ -432,17 +442,20 @@ export function DiarySection() {
 
             </div>
 
-            <div className="mt-4 grid gap-3 sm:mt-5 sm:gap-4">
-              <input
-                value={selectedDraft.summary}
-                onChange={(event) => updateSummary(event.target.value)}
-                placeholder="Короткий заголовок дня одним предложением"
-                aria-label="Короткий заголовок дня"
-                className="min-h-11 rounded-[16px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-2.5 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:min-h-12 sm:rounded-[20px] sm:px-4"
-              />
+            <div className="mt-4 grid gap-4 sm:mt-5 xl:grid-cols-[minmax(0,1fr)_330px]">
+              <div className="grid gap-3 sm:gap-4">
+                <input
+                  value={selectedDraft.summary}
+                  onChange={(event) => updateSummary(event.target.value)}
+                  placeholder="Короткий заголовок дня одним предложением"
+                  aria-label="Короткий заголовок дня"
+                  className="min-h-11 rounded-[16px] border border-[rgba(24,33,29,0.08)] bg-[rgba(247,249,246,0.76)] px-3 py-2.5 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] sm:min-h-12 sm:rounded-[20px] sm:px-4"
+                />
 
-              <DayEntryComposer />
+                <DayEntryComposer />
+              </div>
 
+              <NutritionPanel mealEntries={selectedMealEntries} snapshot={selectedNutritionSnapshot} />
             </div>
           </div>
 
@@ -629,6 +642,96 @@ function SortableMetricCard({
         ) : null}
       </article>
     </div>
+  );
+}
+
+function NutritionPanel({
+  mealEntries,
+  snapshot,
+}: {
+  mealEntries: DiaryMealEntry[];
+  snapshot: DailyNutritionSnapshot | null;
+}) {
+  const progressItems = snapshot
+    ? [
+        { key: "calories", label: "Калории", unit: "ккал", data: snapshot.progress.calories, color: "#4f9d8b" },
+        { key: "protein", label: "Белки", unit: "г", data: snapshot.progress.proteinG, color: "#6d8fcf" },
+        { key: "fat", label: "Жиры", unit: "г", data: snapshot.progress.fatG, color: "#d6a15e" },
+        { key: "carbs", label: "Углеводы", unit: "г", data: snapshot.progress.carbsG, color: "#b183d6" },
+      ]
+    : [];
+
+  return (
+    <aside className="rounded-[24px] border border-[var(--border)] bg-[rgba(247,249,246,0.85)] p-3 sm:p-4">
+      <h3 className="text-base font-semibold text-[var(--foreground)]">Питание за день</h3>
+      <p className="mt-1 text-xs text-[var(--muted)]">
+        Общий прогресс дневной нормы и история приемов пищи.
+      </p>
+
+      <div className="mt-3 grid gap-2.5">
+        {progressItems.map((item) => (
+          <div key={item.key} className="rounded-[14px] border border-[var(--border)] bg-white/95 p-2.5">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="font-medium text-[var(--foreground)]">{item.label}</span>
+              <span className="text-[var(--muted)]">
+                {formatNutritionValue(item.data.consumed, item.unit)} /{" "}
+                {formatNutritionValue(item.data.target, item.unit)}
+              </span>
+            </div>
+            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-[rgba(24,33,29,0.1)]">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${Math.min(100, Math.round(item.data.ratio * 100))}%`,
+                  backgroundColor: item.color,
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {snapshot?.tips?.length ? (
+        <div className="mt-3 rounded-[14px] border border-[rgba(47,111,97,0.18)] bg-[rgba(47,111,97,0.07)] p-2.5 text-xs text-[var(--foreground)]">
+          {snapshot.tips[0]}
+        </div>
+      ) : null}
+
+      <div className="mt-3 grid max-h-[380px] gap-2 overflow-y-auto pr-1">
+        {mealEntries.length === 0 ? (
+          <div className="rounded-[14px] border border-dashed border-[var(--border)] bg-white/70 px-3 py-4 text-xs text-[var(--muted)]">
+            Пока нет приемов пищи. Нажмите «Сфотографировать еду», чтобы начать.
+          </div>
+        ) : (
+          mealEntries.map((entry) => (
+            <article
+              key={entry.id}
+              className="grid grid-cols-[88px_minmax(0,1fr)] gap-2 rounded-[14px] border border-[var(--border)] bg-white p-2"
+            >
+              <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-[rgba(24,33,29,0.04)]">
+                <Image
+                  src={entry.photoUrl}
+                  alt={entry.mealTitle}
+                  width={180}
+                  height={180}
+                  unoptimized
+                  className="h-[88px] w-full object-cover"
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-[var(--foreground)]">{entry.mealTitle}</p>
+                <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+                  {formatNutritionValue(entry.calories, "ккал")} · Б {formatNutritionValue(entry.proteinG, "г")} · Ж {formatNutritionValue(entry.fatG, "г")} · У {formatNutritionValue(entry.carbsG, "г")}
+                </p>
+                {entry.mealDescription ? (
+                  <p className="mt-1 line-clamp-2 text-xs text-[var(--muted)]">{entry.mealDescription}</p>
+                ) : null}
+              </div>
+            </article>
+          ))
+        )}
+      </div>
+    </aside>
   );
 }
 

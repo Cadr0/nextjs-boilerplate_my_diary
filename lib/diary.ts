@@ -14,6 +14,7 @@ import {
 } from "@/lib/ai/followups/deriveFollowUpCandidates";
 import { buildPeriodSignals } from "@/lib/ai/period/buildPeriodSignals";
 import type {
+  MealAnalysisResult,
   PeriodAiSummaryPayload,
   PeriodAnalysisEntryPayload,
 } from "@/lib/ai/contracts";
@@ -43,12 +44,16 @@ import { createServerPerfTrace } from "@/lib/server-perf";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseConfigError } from "@/lib/supabase/env";
 import type {
+  DailyNutritionSnapshot,
   DiaryEntry,
   DiaryEntryInput,
+  DiaryMealEntry,
   MetricDefinition,
   MetricInputType,
   MetricUnitPreset,
   MetricValue,
+  NutritionTargets,
+  NutritionTotals,
 } from "@/lib/workspace";
 import { sanitizeMetricDefinition } from "@/lib/workspace";
 
@@ -96,6 +101,24 @@ type EntryMetricValueRow = {
   sort_order_snapshot: number | null;
 };
 
+type DiaryMealEntryRow = {
+  id: string;
+  user_id: string;
+  entry_date: string;
+  eaten_at: string;
+  photo_url: string;
+  meal_title: string;
+  meal_description: string;
+  calories: number;
+  protein_g: number;
+  fat_g: number;
+  carbs_g: number;
+  ai_confidence: number | null;
+  source_model: string;
+  created_at: string;
+  updated_at: string;
+};
+
 type MetricValueInsertRow = {
   user_id: string;
   entry_id: string;
@@ -134,6 +157,14 @@ const entryMetricSelect =
   "entry_id, metric_definition_id, value_number, value_boolean, value_text, metric_name_snapshot, metric_type_snapshot, metric_unit_snapshot, sort_order_snapshot";
 const memoryItemSelect =
   "id, user_id, source_entry_id, source_message_id, source_type, category, memory_type, memory_class, title, canonical_subject, normalized_subject, summary, content, state_reason, confidence, importance, mention_count, status, resolved_at, superseded_by, relevance_score, last_confirmed_at, last_referenced_at, metadata, metadata_json, created_at, updated_at";
+const diaryMealEntrySelect =
+  "id, user_id, entry_date, eaten_at, photo_url, meal_title, meal_description, calories, protein_g, fat_g, carbs_g, ai_confidence, source_model, created_at, updated_at";
+const nutritionDefaults: NutritionTargets = {
+  calories: 2200,
+  proteinG: 130,
+  fatG: 70,
+  carbsG: 250,
+};
 
 function buildEntrySelect(options: EntrySelectOptions) {
   const columns = ["id", "created_at"];
@@ -192,6 +223,247 @@ function getErrorText(error: PostgrestError) {
 function isMissingColumn(error: PostgrestError, table: string, column: string) {
   const errorText = getErrorText(error);
   return errorText.includes(table.toLowerCase()) && errorText.includes(column.toLowerCase());
+}
+
+function isMissingRelation(error: PostgrestError, table: string) {
+  const errorText = getErrorText(error);
+  return (
+    error.code === "42P01" ||
+    (errorText.includes("relation") && errorText.includes(table.toLowerCase()))
+  );
+}
+
+function toOneDecimal(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function toSafeMacroValue(value: number | null | undefined) {
+  const numeric = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  return Math.max(0, numeric);
+}
+
+function mapDiaryMealEntry(row: DiaryMealEntryRow): DiaryMealEntry {
+  return {
+    id: row.id,
+    entryDate: row.entry_date,
+    eatenAt: row.eaten_at,
+    photoUrl: row.photo_url,
+    mealTitle: row.meal_title,
+    mealDescription: row.meal_description,
+    calories: toOneDecimal(toSafeMacroValue(row.calories)),
+    proteinG: toOneDecimal(toSafeMacroValue(row.protein_g)),
+    fatG: toOneDecimal(toSafeMacroValue(row.fat_g)),
+    carbsG: toOneDecimal(toSafeMacroValue(row.carbs_g)),
+    confidence:
+      typeof row.ai_confidence === "number" && Number.isFinite(row.ai_confidence)
+        ? clampNumber(row.ai_confidence, 0, 1)
+        : null,
+    sourceModel: row.source_model || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function sumNutritionTotals(entries: DiaryMealEntry[]): NutritionTotals {
+  return entries.reduce<NutritionTotals>(
+    (result, entry) => ({
+      calories: toOneDecimal(result.calories + entry.calories),
+      proteinG: toOneDecimal(result.proteinG + entry.proteinG),
+      fatG: toOneDecimal(result.fatG + entry.fatG),
+      carbsG: toOneDecimal(result.carbsG + entry.carbsG),
+    }),
+    {
+      calories: 0,
+      proteinG: 0,
+      fatG: 0,
+      carbsG: 0,
+    },
+  );
+}
+
+function buildAdaptiveNutritionTargets(
+  targetDate: string,
+  totalsByDate: Record<string, NutritionTotals>,
+): NutritionTargets {
+  const previousTotals = Object.entries(totalsByDate)
+    .filter(([date, totals]) => date < targetDate && totals.calories > 0)
+    .sort(([left], [right]) => right.localeCompare(left))
+    .slice(0, 7)
+    .map(([, totals]) => totals);
+
+  if (previousTotals.length === 0) {
+    return nutritionDefaults;
+  }
+
+  const average = previousTotals.reduce<NutritionTotals>(
+    (result, totals) => ({
+      calories: result.calories + totals.calories,
+      proteinG: result.proteinG + totals.proteinG,
+      fatG: result.fatG + totals.fatG,
+      carbsG: result.carbsG + totals.carbsG,
+    }),
+    {
+      calories: 0,
+      proteinG: 0,
+      fatG: 0,
+      carbsG: 0,
+    },
+  );
+  const divider = previousTotals.length;
+  const averagedTotals: NutritionTotals = {
+    calories: average.calories / divider,
+    proteinG: average.proteinG / divider,
+    fatG: average.fatG / divider,
+    carbsG: average.carbsG / divider,
+  };
+  const adaptationWeight = previousTotals.length >= 3 ? 0.5 : 0.35;
+  const baseWeight = 1 - adaptationWeight;
+
+  return {
+    calories: toOneDecimal(
+      clampNumber(
+        nutritionDefaults.calories * baseWeight + averagedTotals.calories * adaptationWeight,
+        1500,
+        3400,
+      ),
+    ),
+    proteinG: toOneDecimal(
+      clampNumber(
+        nutritionDefaults.proteinG * baseWeight + averagedTotals.proteinG * adaptationWeight,
+        80,
+        230,
+      ),
+    ),
+    fatG: toOneDecimal(
+      clampNumber(
+        nutritionDefaults.fatG * baseWeight + averagedTotals.fatG * adaptationWeight,
+        40,
+        140,
+      ),
+    ),
+    carbsG: toOneDecimal(
+      clampNumber(
+        nutritionDefaults.carbsG * baseWeight + averagedTotals.carbsG * adaptationWeight,
+        120,
+        430,
+      ),
+    ),
+  };
+}
+
+function buildNutritionTips(args: {
+  totals: NutritionTotals;
+  targets: NutritionTargets;
+}): string[] {
+  const tips: string[] = [];
+  const deltas = {
+    proteinG: args.targets.proteinG - args.totals.proteinG,
+    fatG: args.targets.fatG - args.totals.fatG,
+    carbsG: args.targets.carbsG - args.totals.carbsG,
+    calories: args.targets.calories - args.totals.calories,
+  };
+
+  if (deltas.proteinG > 20) {
+    tips.push("Доберите белок: добавьте рыбу, мясо, яйца или творог.");
+  } else if (deltas.proteinG < -20) {
+    tips.push("Белка уже много, сделайте следующий прием пищи легче.");
+  }
+
+  if (deltas.fatG > 18) {
+    tips.push("Добавьте полезные жиры: орехи, оливковое масло, авокадо.");
+  } else if (deltas.fatG < -18) {
+    tips.push("Снизьте жирность следующего приема пищи.");
+  }
+
+  if (deltas.carbsG > 35) {
+    tips.push("Не хватает углеводов: добавьте крупу, овощи или фрукты.");
+  } else if (deltas.carbsG < -35) {
+    tips.push("Углеводов уже достаточно, сместите фокус на белок и овощи.");
+  }
+
+  if (deltas.calories > 350) {
+    tips.push("Есть запас калорий: можно добавить сбалансированный перекус.");
+  } else if (deltas.calories < -350) {
+    tips.push("Калорий выше цели: попробуйте более легкий ужин.");
+  }
+
+  return tips.slice(0, 3);
+}
+
+function buildDailyNutritionSnapshot(args: {
+  date: string;
+  totals: NutritionTotals;
+  targets: NutritionTargets;
+}): DailyNutritionSnapshot {
+  const buildProgress = (consumed: number, target: number) => {
+    const safeTarget = target > 0 ? target : 1;
+    const remaining = toOneDecimal(target - consumed);
+    return {
+      consumed: toOneDecimal(consumed),
+      target: toOneDecimal(target),
+      remaining,
+      ratio: clampNumber(consumed / safeTarget, 0, 2),
+    };
+  };
+
+  return {
+    date: args.date,
+    totals: args.totals,
+    targets: args.targets,
+    progress: {
+      calories: buildProgress(args.totals.calories, args.targets.calories),
+      proteinG: buildProgress(args.totals.proteinG, args.targets.proteinG),
+      fatG: buildProgress(args.totals.fatG, args.targets.fatG),
+      carbsG: buildProgress(args.totals.carbsG, args.targets.carbsG),
+    },
+    tips: buildNutritionTips({
+      totals: args.totals,
+      targets: args.targets,
+    }),
+  };
+}
+
+function buildNutritionSnapshotsByDate(args: {
+  mealEntries: DiaryMealEntry[];
+  extraDates?: string[];
+}) {
+  const mealsByDate = args.mealEntries.reduce<Record<string, DiaryMealEntry[]>>((result, entry) => {
+    if (!result[entry.entryDate]) {
+      result[entry.entryDate] = [];
+    }
+
+    result[entry.entryDate].push(entry);
+    return result;
+  }, {});
+  const dates = new Set<string>([
+    ...Object.keys(mealsByDate),
+    ...(args.extraDates ?? []),
+  ]);
+  const sortedDates = [...dates].sort((left, right) => left.localeCompare(right));
+  const totalsByDate = sortedDates.reduce<Record<string, NutritionTotals>>((result, date) => {
+    result[date] = sumNutritionTotals(mealsByDate[date] ?? []);
+    return result;
+  }, {});
+
+  return sortedDates.reduce<Record<string, DailyNutritionSnapshot>>((result, date) => {
+    const totals = totalsByDate[date] ?? {
+      calories: 0,
+      proteinG: 0,
+      fatG: 0,
+      carbsG: 0,
+    };
+    const targets = buildAdaptiveNutritionTargets(date, totalsByDate);
+    result[date] = buildDailyNutritionSnapshot({
+      date,
+      totals,
+      targets,
+    });
+    return result;
+  }, {});
 }
 
 function supportsLegacyEntries(error: PostgrestError) {
@@ -706,6 +978,29 @@ async function getEntryByDateWithFallback(
     .maybeSingle();
 }
 
+async function listMealEntriesSafe(
+  supabase: SupabaseClient,
+  userId: string,
+  limit: number,
+) {
+  const result = await supabase
+    .from("diary_meal_entries")
+    .select(diaryMealEntrySelect)
+    .eq("user_id", userId)
+    .order("eaten_at", { ascending: false })
+    .limit(limit);
+
+  if (!result.error) {
+    return (result.data ?? []) as unknown as DiaryMealEntryRow[];
+  }
+
+  if (isMissingRelation(result.error, "diary_meal_entries")) {
+    return [] as DiaryMealEntryRow[];
+  }
+
+  throw new Error(mapDiaryError(result.error));
+}
+
 async function listMemoryItemsForEntryIdsSafe(
   supabase: SupabaseClient,
   userId: string,
@@ -1110,6 +1405,10 @@ function mapDiaryError(error: PostgrestError) {
     return "Р’ Р±Р°Р·Рµ РµС‰С‘ РЅРµС‚ С‚Р°Р±Р»РёС†С‹ Р·РЅР°С‡РµРЅРёР№ РјРµС‚СЂРёРє РїРѕ РґРЅСЏРј. РџСЂРёРјРµРЅРёС‚Рµ SQL РёР· supabase/sql РґР»СЏ РЅРѕРІРѕР№ СЃС‚СЂСѓРєС‚СѓСЂС‹ РґРЅРµРІРЅРёРєР°.";
   }
 
+  if (message.includes("relation") && message.includes("diary_meal_entries")) {
+    return "Примените SQL-миграцию с таблицей diary_meal_entries для AI-анализа питания.";
+  }
+
   if (message.includes("row-level security") || message.includes("permission denied")) {
     return "РќСѓР¶РЅС‹ RLS-РїРѕР»РёС‚РёРєРё РґР»СЏ РЅРѕРІС‹С… С‚Р°Р±Р»РёС† РґРЅРµРІРЅРёРєР°, С‡С‚РѕР±С‹ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РІРёРґРµР» С‚РѕР»СЊРєРѕ СЃРІРѕРё РґР°РЅРЅС‹Рµ.";
   }
@@ -1353,6 +1652,8 @@ export async function getWorkspaceBootstrap(limit = 90) {
     return {
       entries: [] as DiaryEntry[],
       metricDefinitions: [] as MetricDefinition[],
+      mealEntries: [] as DiaryMealEntry[],
+      nutritionSnapshots: {} as Record<string, DailyNutritionSnapshot>,
       error: configError,
     };
   }
@@ -1361,17 +1662,20 @@ export async function getWorkspaceBootstrap(limit = 90) {
     const user = await trace.measure("require_user", () => requireUser());
     const supabase = await trace.measure("create_client", () => createClient());
 
-    const [definitionsResult, entriesResult] = await Promise.all([
+    const [definitionsResult, entriesResult, mealRows] = await Promise.all([
       trace.measure("metric_definitions", () =>
         listMetricDefinitionsWithFallback(supabase, user.id),
       ),
       trace.measure("entries", () => listEntriesWithFallback(supabase, user.id, limit)),
+      trace.measure("meal_entries", () => listMealEntriesSafe(supabase, user.id, limit * 4)),
     ]);
 
     if (definitionsResult.error) {
       return {
         entries: [] as DiaryEntry[],
         metricDefinitions: [] as MetricDefinition[],
+        mealEntries: [] as DiaryMealEntry[],
+        nutritionSnapshots: {} as Record<string, DailyNutritionSnapshot>,
         error: mapDiaryError(definitionsResult.error),
       };
     }
@@ -1380,6 +1684,8 @@ export async function getWorkspaceBootstrap(limit = 90) {
       return {
         entries: [] as DiaryEntry[],
         metricDefinitions: [] as MetricDefinition[],
+        mealEntries: [] as DiaryMealEntry[],
+        nutritionSnapshots: {} as Record<string, DailyNutritionSnapshot>,
         error: mapDiaryError(entriesResult.error),
       };
     }
@@ -1406,6 +1712,8 @@ export async function getWorkspaceBootstrap(limit = 90) {
       return {
         entries: [] as DiaryEntry[],
         metricDefinitions: [] as MetricDefinition[],
+        mealEntries: [] as DiaryMealEntry[],
+        nutritionSnapshots: {} as Record<string, DailyNutritionSnapshot>,
         error: mapDiaryError(valueResult.error),
       };
     }
@@ -1433,12 +1741,21 @@ export async function getWorkspaceBootstrap(limit = 90) {
       result[row.source_entry_id].push(row);
       return result;
     }, {});
+    const mappedMealEntries = mealRows
+      .map(mapDiaryMealEntry)
+      .sort((left, right) => right.eatenAt.localeCompare(left.eatenAt));
+    const nutritionSnapshots = buildNutritionSnapshotsByDate({
+      mealEntries: mappedMealEntries,
+      extraDates: entryRows.map((entry) => entry.entry_date),
+    });
+
     trace.log({
       limit,
       entries: entryRows.length,
       metricDefinitions:
         ((definitionsResult.data ?? []) as unknown as MetricDefinitionRow[]).length,
       memoryItems: memoryRows.length,
+      mealEntries: mappedMealEntries.length,
     });
 
     return {
@@ -1452,6 +1769,8 @@ export async function getWorkspaceBootstrap(limit = 90) {
       metricDefinitions: ((definitionsResult.data ?? []) as unknown as MetricDefinitionRow[]).map(
         mapMetricDefinition,
       ),
+      mealEntries: mappedMealEntries,
+      nutritionSnapshots,
       error: null,
     };
   } catch (error) {
@@ -1463,6 +1782,8 @@ export async function getWorkspaceBootstrap(limit = 90) {
     return {
       entries: [] as DiaryEntry[],
       metricDefinitions: [] as MetricDefinition[],
+      mealEntries: [] as DiaryMealEntry[],
+      nutritionSnapshots: {} as Record<string, DailyNutritionSnapshot>,
       error:
         error instanceof Error ? error.message : "РќРµ РїРѕР»СѓС‡РёР»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЂР°Р±РѕС‡РµРµ РїСЂРѕСЃС‚СЂР°РЅСЃС‚РІРѕ.",
     };
@@ -1876,6 +2197,63 @@ export async function syncDiaryEntryMemoryItems(id: string) {
 
   const refreshedMemoryRows = await listMemoryItemsForEntryIdsSafe(supabase, user.id, [id]);
   return mapEntry(bundle.entryRow, bundle.valueRows, refreshedMemoryRows);
+}
+
+export async function createDiaryMealEntry(args: {
+  entryDate: string;
+  photoUrl: string;
+  analysis: MealAnalysisResult;
+  sourceModel: string;
+}) {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const insertResult = await supabase
+    .from("diary_meal_entries")
+    .insert({
+      user_id: user.id,
+      entry_date: args.entryDate,
+      eaten_at: new Date().toISOString(),
+      photo_url: args.photoUrl,
+      meal_title: args.analysis.meal_title,
+      meal_description: args.analysis.meal_description,
+      calories: args.analysis.calories,
+      protein_g: args.analysis.protein_g,
+      fat_g: args.analysis.fat_g,
+      carbs_g: args.analysis.carbs_g,
+      ai_confidence: args.analysis.confidence,
+      source_model: args.sourceModel,
+      raw_json: args.analysis,
+    })
+    .select(diaryMealEntrySelect)
+    .single();
+
+  if (insertResult.error) {
+    throw new Error(mapDiaryError(insertResult.error));
+  }
+
+  const entry = mapDiaryMealEntry(insertResult.data as unknown as DiaryMealEntryRow);
+  const mealRows = await listMealEntriesSafe(supabase, user.id, 365);
+  const mealEntries = mealRows.map(mapDiaryMealEntry);
+  const snapshotsByDate = buildNutritionSnapshotsByDate({
+    mealEntries,
+    extraDates: [args.entryDate],
+  });
+
+  return {
+    entry,
+    snapshot:
+      snapshotsByDate[args.entryDate] ??
+      buildDailyNutritionSnapshot({
+        date: args.entryDate,
+        totals: {
+          calories: 0,
+          proteinG: 0,
+          fatG: 0,
+          carbsG: 0,
+        },
+        targets: nutritionDefaults,
+      }),
+  };
 }
 
 export async function listLatestEntries(limit = 90) {

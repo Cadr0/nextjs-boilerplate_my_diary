@@ -35,7 +35,9 @@ import type {
   WorkoutTrackingPresetId,
 } from "@/lib/workouts";
 import type {
+  DailyNutritionSnapshot,
   DiaryEntry,
+  DiaryMealEntry,
   MetricDefinition,
   MetricTemplate,
   MetricValue,
@@ -140,6 +142,13 @@ type WorkspaceContextValue = {
   drafts: Record<string, WorkspaceDraft>;
   selectedDraft: WorkspaceDraft;
   selectedEntry: DiaryEntry | undefined;
+  mealEntriesByDate: Record<string, DiaryMealEntry[]>;
+  selectedMealEntries: DiaryMealEntry[];
+  nutritionSnapshotsByDate: Record<string, DailyNutritionSnapshot>;
+  selectedNutritionSnapshot: DailyNutritionSnapshot | null;
+  mealAnalysisState: "idle" | "loading" | "error";
+  mealAnalysisError: string | null;
+  analyzeMealPhoto: (file: File) => Promise<DiaryMealEntry | null>;
   updateSummary: (value: string) => void;
   updateNotes: (value: string) => void;
   metricDefinitions: MetricDefinition[];
@@ -270,6 +279,8 @@ type WorkspaceProviderProps = {
   children: React.ReactNode;
   initialEntries: DiaryEntry[];
   initialMetricDefinitions: MetricDefinition[];
+  initialMealEntries: DiaryMealEntry[];
+  initialNutritionSnapshots: Record<string, DailyNutritionSnapshot>;
   initialIdSeed: string;
   initialError: string | null;
   isConfigured: boolean;
@@ -289,6 +300,15 @@ type SaveResponse =
       error: string;
     };
 
+type MealAnalyzeResponse =
+  | {
+      entry: DiaryMealEntry;
+      snapshot: DailyNutritionSnapshot;
+    }
+  | {
+      error: string;
+    };
+
 type MemorySyncResponse =
   | {
       entry: DiaryEntry;
@@ -301,6 +321,8 @@ type WorkspaceBootstrapResponse =
   | {
       entries: DiaryEntry[];
       metricDefinitions: MetricDefinition[];
+      mealEntries: DiaryMealEntry[];
+      nutritionSnapshots: Record<string, DailyNutritionSnapshot>;
       profile: WorkspaceProfile;
       workspaceSync: WorkspaceSyncState;
       error: string | null;
@@ -687,6 +709,8 @@ export function WorkspaceProvider({
   children,
   initialEntries,
   initialMetricDefinitions,
+  initialMealEntries,
+  initialNutritionSnapshots,
   initialIdSeed,
   initialError,
   isConfigured,
@@ -715,6 +739,21 @@ export function WorkspaceProvider({
   const [selectedDate, setSelectedDateState] = useState(requestedDate);
   const [selectedWorkoutSessionId, setSelectedWorkoutSessionId] = useState<string | null>(null);
   const [serverEntries, setServerEntries] = useState(() => sortEntries(initialEntries));
+  const [mealEntriesByDate, setMealEntriesByDate] = useState<Record<string, DiaryMealEntry[]>>(
+    () =>
+      initialMealEntries.reduce<Record<string, DiaryMealEntry[]>>((result, entry) => {
+        if (!result[entry.entryDate]) {
+          result[entry.entryDate] = [];
+        }
+
+        result[entry.entryDate]!.push(entry);
+        return result;
+      }, {}),
+  );
+  const [nutritionSnapshotsByDate, setNutritionSnapshotsByDate] =
+    useState<Record<string, DailyNutritionSnapshot>>(initialNutritionSnapshots);
+  const [mealAnalysisState, setMealAnalysisState] = useState<"idle" | "loading" | "error">("idle");
+  const [mealAnalysisError, setMealAnalysisError] = useState<string | null>(null);
   const [workspaceState, setWorkspaceState] = useState(initialStateRef.current);
   const [saveState, setSaveState] = useState<SaveState>(
     isConfigured ? (initialError ? "error" : "saved") : "local",
@@ -796,6 +835,8 @@ export function WorkspaceProvider({
     (snapshot: {
       entries: DiaryEntry[];
       metricDefinitions: MetricDefinition[];
+      mealEntries: DiaryMealEntry[];
+      nutritionSnapshots: Record<string, DailyNutritionSnapshot>;
       profile: WorkspaceProfile;
       workspaceSync: WorkspaceSyncState;
       error: string | null;
@@ -810,6 +851,17 @@ export function WorkspaceProvider({
       });
 
       setServerEntries(sortEntries(snapshot.entries));
+      setMealEntriesByDate(
+        snapshot.mealEntries.reduce<Record<string, DiaryMealEntry[]>>((result, mealEntry) => {
+          if (!result[mealEntry.entryDate]) {
+            result[mealEntry.entryDate] = [];
+          }
+
+          result[mealEntry.entryDate]!.push(mealEntry);
+          return result;
+        }, {}),
+      );
+      setNutritionSnapshotsByDate(snapshot.nutritionSnapshots);
       setWorkspaceState((current) =>
         mergeWorkspaceState(nextServerState, current, canPersistToServer),
       );
@@ -849,11 +901,20 @@ export function WorkspaceProvider({
     applyServerSnapshot({
       entries: initialEntries,
       metricDefinitions: initialMetricDefinitions,
+      mealEntries: initialMealEntries,
+      nutritionSnapshots: initialNutritionSnapshots,
       profile: serverSnapshotState.profile,
       workspaceSync: pickWorkspaceSyncState(serverSnapshotState),
       error: initialError,
     });
-  }, [initialEntries, initialError, initialMetricDefinitions, serverSnapshotState]);
+  }, [
+    initialEntries,
+    initialError,
+    initialMealEntries,
+    initialMetricDefinitions,
+    initialNutritionSnapshots,
+    serverSnapshotState,
+  ]);
 
   useEffect(() => {
     setIsHydrated(true);
@@ -1005,6 +1066,14 @@ export function WorkspaceProvider({
   );
 
   const selectedEntry = entriesByDate[selectedDate];
+  const selectedMealEntries = useMemo(
+    () =>
+      [...(mealEntriesByDate[selectedDate] ?? [])].sort((left, right) =>
+        right.eatenAt.localeCompare(left.eatenAt),
+      ),
+    [mealEntriesByDate, selectedDate],
+  );
+  const selectedNutritionSnapshot = nutritionSnapshotsByDate[selectedDate] ?? null;
   const selectedDraft = useMemo(
     () =>
       workspaceState.drafts[selectedDate] ??
@@ -1234,6 +1303,8 @@ export function WorkspaceProvider({
       applyServerSnapshot({
         entries: result.entries,
         metricDefinitions: result.metricDefinitions,
+        mealEntries: result.mealEntries,
+        nutritionSnapshots: result.nutritionSnapshots,
         profile: result.profile,
         workspaceSync: result.workspaceSync,
         error: result.error ?? null,
@@ -1371,6 +1442,7 @@ export function WorkspaceProvider({
       "daily_entries",
       "metric_definitions",
       "daily_entry_metric_values",
+      "diary_meal_entries",
       "memory_items",
       "profiles",
       "workspace_sync_state",
@@ -2804,6 +2876,55 @@ export function WorkspaceProvider({
     }
   };
 
+  const analyzeMealPhoto = async (file: File) => {
+    setMealAnalysisState("loading");
+    setMealAnalysisError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("entryDate", selectedDate);
+      formData.append("locale", workspaceState.profile.locale || "ru-RU");
+      formData.append("model", "google/gemma-4-31b-it");
+
+      const response = await fetch("/api/photo/meal-analyze", {
+        method: "POST",
+        body: formData,
+      });
+      const result = (await response.json()) as MealAnalyzeResponse;
+
+      if (!response.ok || !("entry" in result)) {
+        throw new Error(
+          "error" in result ? result.error : "Не удалось проанализировать прием пищи.",
+        );
+      }
+
+      setMealEntriesByDate((current) => {
+        const currentEntries = current[result.entry.entryDate] ?? [];
+        const deduped = currentEntries.filter((entry) => entry.id !== result.entry.id);
+        return {
+          ...current,
+          [result.entry.entryDate]: [result.entry, ...deduped].sort((left, right) =>
+            right.eatenAt.localeCompare(left.eatenAt),
+          ),
+        };
+      });
+      setNutritionSnapshotsByDate((current) => ({
+        ...current,
+        [result.snapshot.date]: result.snapshot,
+      }));
+      setMealAnalysisState("idle");
+
+      return result.entry;
+    } catch (error) {
+      setMealAnalysisState("error");
+      setMealAnalysisError(
+        error instanceof Error ? error.message : "Не удалось проанализировать фото еды.",
+      );
+      return null;
+    }
+  };
+
   const addTask = (title: string) => {
     const trimmedTitle = title.trim();
 
@@ -3066,6 +3187,13 @@ export function WorkspaceProvider({
     drafts: workspaceState.drafts,
     selectedDraft,
     selectedEntry,
+    mealEntriesByDate,
+    selectedMealEntries,
+    nutritionSnapshotsByDate,
+    selectedNutritionSnapshot,
+    mealAnalysisState,
+    mealAnalysisError,
+    analyzeMealPhoto,
     updateSummary,
     updateNotes,
     metricDefinitions,

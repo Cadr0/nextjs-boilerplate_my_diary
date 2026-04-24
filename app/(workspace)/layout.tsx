@@ -25,6 +25,8 @@ export default async function WorkspaceLayout({
       <WorkspaceProvider
         initialEntries={[]}
         initialMetricDefinitions={[]}
+        initialMealEntries={[]}
+        initialNutritionSnapshots={{}}
         initialIdSeed="local"
         initialError={configError}
         isConfigured={false}
@@ -47,7 +49,7 @@ export default async function WorkspaceLayout({
     redirect("/login?next=/diary");
   }
 
-  const { entries, metricDefinitions, profile, workspaceSync, error } =
+  const { entries, metricDefinitions, mealEntries, nutritionSnapshots, profile, workspaceSync, error } =
     await trace.measure("workspace_snapshot", () =>
       getWorkspaceSnapshot(INITIAL_WORKSPACE_BOOTSTRAP_LIMIT),
     );
@@ -64,6 +66,8 @@ export default async function WorkspaceLayout({
     <WorkspaceProvider
       initialEntries={entries}
       initialMetricDefinitions={metricDefinitions}
+      initialMealEntries={mealEntries}
+      initialNutritionSnapshots={nutritionSnapshots}
       initialIdSeed={user.id}
       initialError={error}
       isConfigured

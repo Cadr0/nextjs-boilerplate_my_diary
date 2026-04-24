@@ -282,7 +282,10 @@ function collectImageFiles(source: Iterable<File>) {
 
 export function DayEntryComposer() {
   const {
+    analyzeMealPhoto,
     applyVoiceExtraction,
+    mealAnalysisError,
+    mealAnalysisState,
     metricDefinitions,
     profile,
     selectedDate,
@@ -295,6 +298,7 @@ export function DayEntryComposer() {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const mealCameraInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -338,7 +342,9 @@ export function DayEntryComposer() {
     [metricDefinitions],
   );
   const suggestedMetricsCount = proposedMetrics.filter((item) => item.value !== null).length;
+  const isMealAnalyzing = mealAnalysisState === "loading";
   const isProcessing = activeStage !== null;
+  const isBusy = isProcessing || isRecording || isMealAnalyzing;
   const progressMessage = activeStage ? PROCESSING_COPY_BY_STAGE[activeStage] : null;
   const recordingStatus = isRecording ? `Идет запись ${formatDuration(recordingSeconds)}` : null;
   useEffect(() => {
@@ -645,6 +651,23 @@ export function DayEntryComposer() {
     }
   };
 
+  const handleMealPhotoSelection = async (file: File) => {
+    setIsMenuOpen(false);
+    setError(null);
+    setNotice(null);
+    setUploadedFileName(file.name || "meal-photo");
+
+    const savedEntry = await analyzeMealPhoto(file);
+
+    if (!savedEntry) {
+      return;
+    }
+
+    setNotice(
+      `Прием пищи добавлен: ${savedEntry.mealTitle}. КБЖУ обновлены в правом блоке.`,
+    );
+  };
+
   const handlePhotoBatch = async (files: File[]) => {
     const imageFiles = collectImageFiles(files);
 
@@ -666,7 +689,7 @@ export function DayEntryComposer() {
   const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
     const files = collectImageFiles(event.clipboardData.files);
 
-    if (files.length === 0 || isProcessing || isRecording) {
+    if (files.length === 0 || isBusy) {
       return;
     }
 
@@ -675,7 +698,7 @@ export function DayEntryComposer() {
   };
 
   const handleDragEnter = (event: DragEvent<HTMLElement>) => {
-    if (!event.dataTransfer.types.includes("Files") || isProcessing || isRecording) {
+    if (!event.dataTransfer.types.includes("Files") || isBusy) {
       return;
     }
 
@@ -684,7 +707,7 @@ export function DayEntryComposer() {
   };
 
   const handleDragOver = (event: DragEvent<HTMLElement>) => {
-    if (!event.dataTransfer.types.includes("Files") || isProcessing || isRecording) {
+    if (!event.dataTransfer.types.includes("Files") || isBusy) {
       return;
     }
 
@@ -709,7 +732,7 @@ export function DayEntryComposer() {
     dragDepthRef.current = 0;
     setIsDragActive(false);
 
-    if (isProcessing || isRecording) {
+    if (isBusy) {
       return;
     }
 
@@ -926,7 +949,7 @@ export function DayEntryComposer() {
               <button
                 type="button"
                 onClick={() => setIsMenuOpen((current) => !current)}
-                disabled={isProcessing || isRecording}
+                disabled={isBusy}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:w-11"
                 aria-label="Открыть меню загрузки фото"
                 title="Добавить фото"
@@ -969,6 +992,22 @@ export function DayEntryComposer() {
                       event.currentTarget.value = "";
                     }}
                   />
+                  <input
+                    ref={mealCameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(event) => {
+                      const selectedFile = event.target.files?.[0];
+
+                      if (selectedFile) {
+                        void handleMealPhotoSelection(selectedFile);
+                      }
+
+                      event.currentTarget.value = "";
+                    }}
+                  />
 
                   <button
                     type="button"
@@ -993,7 +1032,7 @@ export function DayEntryComposer() {
             <button
               type="button"
               onClick={startRecording}
-              disabled={isProcessing || isRecording}
+              disabled={isBusy}
               aria-label="Голосовой ввод"
               title="Голосовой ввод"
               className={`inline-flex h-9 min-w-9 items-center justify-center rounded-full border text-sm font-medium transition disabled:cursor-not-allowed sm:hidden ${
@@ -1008,7 +1047,7 @@ export function DayEntryComposer() {
             <button
               type="button"
               onClick={isRecording ? stopRecording : startRecording}
-              disabled={isProcessing}
+              disabled={isProcessing || isMealAnalyzing}
               aria-label={isRecording ? "Остановить запись" : "Голосовой ввод"}
               title={isRecording ? "Остановить запись" : "Голосовой ввод"}
               className={`hidden sm:inline-flex sm:min-h-11 sm:min-w-[44px] sm:items-center sm:justify-start sm:gap-2 sm:rounded-full sm:border sm:px-4 sm:text-sm sm:font-medium sm:transition sm:disabled:cursor-not-allowed sm:disabled:opacity-60 ${
@@ -1024,13 +1063,23 @@ export function DayEntryComposer() {
             <button
               type="button"
               onClick={() => void handleBuildFromText()}
-              disabled={isProcessing || isRecording}
+              disabled={isBusy}
               title="Построить метрики из текста"
               className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[var(--accent)] bg-[var(--accent)] px-3 text-xs font-medium text-white shadow-[0_14px_24px_rgba(47,111,97,0.2)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:px-4 sm:text-sm"
             >
               <MetricsIcon />
               <span className="sm:hidden">Метрики</span>
               <span className="hidden sm:inline">Построить метрики из текста</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => mealCameraInputRef.current?.click()}
+              disabled={isBusy}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[var(--accent)] bg-white px-3 text-xs font-medium text-[var(--accent)] transition hover:bg-[rgba(47,111,97,0.08)] disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:px-4 sm:text-sm"
+            >
+              <CameraIcon />
+              <span>{isMealAnalyzing ? "Анализируем..." : "Сфотографировать еду"}</span>
             </button>
 
             <div className="ml-auto inline-flex h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-white px-2.5 sm:h-11 sm:px-3">
@@ -1041,7 +1090,7 @@ export function DayEntryComposer() {
               <button
                 type="button"
                 onClick={() => setFillMetricsFromVoice((current) => !current)}
-                disabled={isProcessing || isRecording}
+                disabled={isBusy}
                 aria-pressed={fillMetricsFromVoice}
                 title="Автозаполнение метрик из голоса"
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
@@ -1082,6 +1131,12 @@ export function DayEntryComposer() {
         {error ? (
           <div className="border-t border-[var(--border)] px-4 py-2.5 text-sm text-[rgb(136,47,63)] sm:px-5">
             {error}
+          </div>
+        ) : null}
+
+        {mealAnalysisError ? (
+          <div className="border-t border-[var(--border)] px-4 py-2.5 text-sm text-[rgb(136,47,63)] sm:px-5">
+            {mealAnalysisError}
           </div>
         ) : null}
 

@@ -64,6 +64,39 @@ export function buildDiaryExtractionPrompt(args: {
   ].join("\n");
 }
 
+export function buildMealAnalysisPrompt(args: {
+  locale?: string;
+}) {
+  const locale = args.locale?.trim() || "ru-RU";
+
+  return [
+    "You are a nutrition analyst for a meal diary app.",
+    "Analyze exactly one meal photo and estimate calories and macros.",
+    "",
+    "Strict rules:",
+    "- Return JSON only.",
+    "- No markdown and no explanations outside JSON.",
+    "- Keep numbers realistic and non-negative.",
+    "- If uncertain, still return best-effort estimate and lower confidence.",
+    "- Do not provide medical diagnosis or treatment advice.",
+    "- Tips must be short, practical, and friendly.",
+    "",
+    `Response locale: ${locale}`,
+    "",
+    "Return exactly this JSON shape:",
+    "{",
+    '  "meal_title": string,',
+    '  "meal_description": string,',
+    '  "calories": number,',
+    '  "protein_g": number,',
+    '  "fat_g": number,',
+    '  "carbs_g": number,',
+    '  "confidence": number,',
+    '  "tips": string[]',
+    "}",
+  ].join("\n");
+}
+
 function formatPeriodMetrics(metrics: PeriodAnalysisEntryPayload["metrics"]) {
   if (metrics.length === 0) {
     return "- Нет сохраненных метрик.";

@@ -25,6 +25,17 @@ export type DiaryExtractionMetricDefinition = {
   step: number | null;
 };
 
+export type MealAnalysisResult = {
+  meal_title: string;
+  meal_description: string;
+  calories: number;
+  protein_g: number;
+  fat_g: number;
+  carbs_g: number;
+  confidence: number;
+  tips: string[];
+};
+
 export type PeriodAnalysisResult = {
   period_summary: string;
   patterns: string[];
@@ -92,6 +103,14 @@ function readNullableNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function readNonNegativeNumber(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, value);
+}
+
 function readPositiveInteger(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0
     ? Math.round(value)
@@ -155,6 +174,30 @@ export function parseDiaryExtractionResult(value: unknown): DiaryExtractionResul
     notes: readNullableString(value.notes),
     warnings: readStringArray(value.warnings).slice(0, 12),
     metric_updates: metricUpdates,
+  };
+}
+
+export function parseMealAnalysisResult(value: unknown): MealAnalysisResult {
+  if (!isObject(value)) {
+    throw new Error("Invalid meal analysis payload.");
+  }
+
+  const confidenceRaw =
+    typeof value.confidence === "number" && Number.isFinite(value.confidence)
+      ? value.confidence
+      : 0.6;
+  const confidence = Math.max(0, Math.min(1, confidenceRaw));
+
+  return {
+    meal_title:
+      (typeof value.meal_title === "string" ? value.meal_title.trim() : "") || "Прием пищи",
+    meal_description: typeof value.meal_description === "string" ? value.meal_description.trim() : "",
+    calories: readNonNegativeNumber(value.calories),
+    protein_g: readNonNegativeNumber(value.protein_g),
+    fat_g: readNonNegativeNumber(value.fat_g),
+    carbs_g: readNonNegativeNumber(value.carbs_g),
+    confidence,
+    tips: readStringArray(value.tips).slice(0, 6),
   };
 }
 
