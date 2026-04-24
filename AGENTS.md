@@ -74,8 +74,8 @@ AI-related features additionally use:
 
 Automated tests:
 
-- There is currently no `test` script in `package.json`.
-- There are no repository-level Jest, Vitest, Playwright, or Cypress configs checked into the project root.
+- E2E: `npm run test:e2e` (Playwright, `playwright.config.ts`, tests in `e2e/`). Требуются `E2E_EMAIL` и `E2E_PASSWORD` (через `.env.local` или окружение); при первом запуске выполните `npx playwright install`.
+- Lint/build: `npm run lint`, `npm run build`.
 - Do not claim tests were run unless you added and executed a real test command.
 
 Formatting:

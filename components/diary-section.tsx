@@ -17,6 +17,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import Image from "next/image";
 import type {
+  ChangeEvent,
   MouseEvent as ReactMouseEvent,
   TouchEvent as ReactTouchEvent,
 } from "react";
@@ -645,6 +646,15 @@ function SortableMetricCard({
   );
 }
 
+function MealPanelCameraIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.2-1.6A1.8 1.8 0 0 1 11 3.7h2a1.8 1.8 0 0 1 1.5.7L15.7 6h1.8A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-8Z" />
+      <circle cx="12" cy="12.4" r="3.2" />
+    </svg>
+  );
+}
+
 function NutritionPanel({
   mealEntries,
   snapshot,
@@ -652,33 +662,72 @@ function NutritionPanel({
   mealEntries: DiaryMealEntry[];
   snapshot: DailyNutritionSnapshot | null;
 }) {
+  const mealFileInputRef = useRef<HTMLInputElement | null>(null);
+  const { analyzeMealPhoto, mealAnalysisError, mealAnalysisState } = useWorkspace();
+  const isMealLoading = mealAnalysisState === "loading";
+
   const progressItems = snapshot
     ? [
-        { key: "calories", label: "Калории", unit: "ккал", data: snapshot.progress.calories, color: "#4f9d8b" },
-        { key: "protein", label: "Белки", unit: "г", data: snapshot.progress.proteinG, color: "#6d8fcf" },
-        { key: "fat", label: "Жиры", unit: "г", data: snapshot.progress.fatG, color: "#d6a15e" },
-        { key: "carbs", label: "Углеводы", unit: "г", data: snapshot.progress.carbsG, color: "#b183d6" },
+        { key: "calories", label: "Ккал", unit: "ккал", data: snapshot.progress.calories, color: "#4f9d8b" },
+        { key: "protein", label: "Б", unit: "г", data: snapshot.progress.proteinG, color: "#6d8fcf" },
+        { key: "fat", label: "Ж", unit: "г", data: snapshot.progress.fatG, color: "#d6a15e" },
+        { key: "carbs", label: "У", unit: "г", data: snapshot.progress.carbsG, color: "#b183d6" },
       ]
     : [];
 
+  const handleMealFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) {
+      return;
+    }
+    await analyzeMealPhoto(file);
+  };
+
   return (
     <aside className="rounded-[24px] border border-[var(--border)] bg-[rgba(247,249,246,0.85)] p-3 sm:p-4">
-      <h3 className="text-base font-semibold text-[var(--foreground)]">Питание за день</h3>
-      <p className="mt-1 text-xs text-[var(--muted)]">
-        Общий прогресс дневной нормы и история приемов пищи.
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold tracking-tight text-[var(--foreground)]">КБЖУ</h3>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <input
+            ref={mealFileInputRef}
+            data-testid="diary-meal-file-input"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(event) => {
+              void handleMealFileChange(event);
+            }}
+          />
+          <button
+            type="button"
+            data-testid="diary-meal-add-photo"
+            disabled={isMealLoading}
+            aria-label="Добавить фото еды"
+            title="Фото блюда"
+            onClick={() => mealFileInputRef.current?.click()}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(47,111,97,0.2)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isMealLoading ? (
+              <span className="h-4 w-4 animate-pulse rounded-full border-2 border-white/40 border-t-white" />
+            ) : (
+              <MealPanelCameraIcon />
+            )}
+          </button>
+        </div>
+      </div>
 
-      <div className="mt-3 grid gap-2.5">
+      <div className="mt-3 grid gap-2">
         {progressItems.map((item) => (
-          <div key={item.key} className="rounded-[14px] border border-[var(--border)] bg-white/95 p-2.5">
-            <div className="flex items-center justify-between gap-2 text-xs">
+          <div key={item.key} className="rounded-[12px] border border-[var(--border)] bg-white/95 px-2.5 py-2">
+            <div className="flex items-center justify-between gap-2 text-[11px]">
               <span className="font-medium text-[var(--foreground)]">{item.label}</span>
-              <span className="text-[var(--muted)]">
-                {formatNutritionValue(item.data.consumed, item.unit)} /{" "}
-                {formatNutritionValue(item.data.target, item.unit)}
+              <span className="tabular-nums text-[var(--muted)]">
+                {formatNutritionValue(item.data.consumed, item.unit)} / {formatNutritionValue(item.data.target, item.unit)}
               </span>
             </div>
-            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-[rgba(24,33,29,0.1)]">
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[rgba(24,33,29,0.1)]">
               <div
                 className="h-full rounded-full transition-all"
                 style={{
@@ -692,21 +741,25 @@ function NutritionPanel({
       </div>
 
       {snapshot?.tips?.length ? (
-        <div className="mt-3 rounded-[14px] border border-[rgba(47,111,97,0.18)] bg-[rgba(47,111,97,0.07)] p-2.5 text-xs text-[var(--foreground)]">
-          {snapshot.tips[0]}
-        </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-[var(--foreground)]/90">{snapshot.tips[0]}</p>
       ) : null}
 
-      <div className="mt-3 grid max-h-[380px] gap-2 overflow-y-auto pr-1">
+      {mealAnalysisError ? (
+        <p className="mt-2 text-xs text-[rgb(136,47,63)]" role="alert">
+          {mealAnalysisError}
+        </p>
+      ) : null}
+
+      <div className="mt-3 grid max-h-[380px] gap-2 overflow-y-auto pr-0.5">
         {mealEntries.length === 0 ? (
-          <div className="rounded-[14px] border border-dashed border-[var(--border)] bg-white/70 px-3 py-4 text-xs text-[var(--muted)]">
-            Пока нет приемов пищи. Нажмите «Сфотографировать еду», чтобы начать.
+          <div className="rounded-[12px] border border-dashed border-[var(--border)] bg-white/60 px-3 py-6 text-center text-[11px] text-[var(--muted)]">
+            Нет приёмов
           </div>
         ) : (
           mealEntries.map((entry) => (
             <article
               key={entry.id}
-              className="grid grid-cols-[88px_minmax(0,1fr)] gap-2 rounded-[14px] border border-[var(--border)] bg-white p-2"
+              className="grid grid-cols-[88px_minmax(0,1fr)] gap-2 rounded-[12px] border border-[var(--border)] bg-white p-2"
             >
               <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-[rgba(24,33,29,0.04)]">
                 <Image

@@ -282,10 +282,7 @@ function collectImageFiles(source: Iterable<File>) {
 
 export function DayEntryComposer() {
   const {
-    analyzeMealPhoto,
     applyVoiceExtraction,
-    mealAnalysisError,
-    mealAnalysisState,
     metricDefinitions,
     profile,
     selectedDate,
@@ -298,7 +295,6 @@ export function DayEntryComposer() {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
-  const mealCameraInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -342,9 +338,8 @@ export function DayEntryComposer() {
     [metricDefinitions],
   );
   const suggestedMetricsCount = proposedMetrics.filter((item) => item.value !== null).length;
-  const isMealAnalyzing = mealAnalysisState === "loading";
   const isProcessing = activeStage !== null;
-  const isBusy = isProcessing || isRecording || isMealAnalyzing;
+  const isBusy = isProcessing || isRecording;
   const progressMessage = activeStage ? PROCESSING_COPY_BY_STAGE[activeStage] : null;
   const recordingStatus = isRecording ? `Идет запись ${formatDuration(recordingSeconds)}` : null;
   useEffect(() => {
@@ -649,23 +644,6 @@ export function DayEntryComposer() {
       );
       failProcessingFlow();
     }
-  };
-
-  const handleMealPhotoSelection = async (file: File) => {
-    setIsMenuOpen(false);
-    setError(null);
-    setNotice(null);
-    setUploadedFileName(file.name || "meal-photo");
-
-    const savedEntry = await analyzeMealPhoto(file);
-
-    if (!savedEntry) {
-      return;
-    }
-
-    setNotice(
-      `Прием пищи добавлен: ${savedEntry.mealTitle}. КБЖУ обновлены в правом блоке.`,
-    );
   };
 
   const handlePhotoBatch = async (files: File[]) => {
@@ -992,22 +970,6 @@ export function DayEntryComposer() {
                       event.currentTarget.value = "";
                     }}
                   />
-                  <input
-                    ref={mealCameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={(event) => {
-                      const selectedFile = event.target.files?.[0];
-
-                      if (selectedFile) {
-                        void handleMealPhotoSelection(selectedFile);
-                      }
-
-                      event.currentTarget.value = "";
-                    }}
-                  />
 
                   <button
                     type="button"
@@ -1047,7 +1009,7 @@ export function DayEntryComposer() {
             <button
               type="button"
               onClick={isRecording ? stopRecording : startRecording}
-              disabled={isProcessing || isMealAnalyzing}
+              disabled={isProcessing}
               aria-label={isRecording ? "Остановить запись" : "Голосовой ввод"}
               title={isRecording ? "Остановить запись" : "Голосовой ввод"}
               className={`hidden sm:inline-flex sm:min-h-11 sm:min-w-[44px] sm:items-center sm:justify-start sm:gap-2 sm:rounded-full sm:border sm:px-4 sm:text-sm sm:font-medium sm:transition sm:disabled:cursor-not-allowed sm:disabled:opacity-60 ${
@@ -1070,16 +1032,6 @@ export function DayEntryComposer() {
               <MetricsIcon />
               <span className="sm:hidden">Метрики</span>
               <span className="hidden sm:inline">Построить метрики из текста</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => mealCameraInputRef.current?.click()}
-              disabled={isBusy}
-              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[var(--accent)] bg-white px-3 text-xs font-medium text-[var(--accent)] transition hover:bg-[rgba(47,111,97,0.08)] disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:px-4 sm:text-sm"
-            >
-              <CameraIcon />
-              <span>{isMealAnalyzing ? "Анализируем..." : "Сфотографировать еду"}</span>
             </button>
 
             <div className="ml-auto inline-flex h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-white px-2.5 sm:h-11 sm:px-3">
@@ -1131,12 +1083,6 @@ export function DayEntryComposer() {
         {error ? (
           <div className="border-t border-[var(--border)] px-4 py-2.5 text-sm text-[rgb(136,47,63)] sm:px-5">
             {error}
-          </div>
-        ) : null}
-
-        {mealAnalysisError ? (
-          <div className="border-t border-[var(--border)] px-4 py-2.5 text-sm text-[rgb(136,47,63)] sm:px-5">
-            {mealAnalysisError}
           </div>
         ) : null}
 
