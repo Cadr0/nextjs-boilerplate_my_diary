@@ -188,11 +188,14 @@ export function parseMealAnalysisResult(value: unknown): MealAnalysisResult {
       : 0.6;
   const confidence = Math.max(0, Math.min(1, confidenceRaw));
 
+  const rawCal = readNonNegativeNumber(value.calories);
+  const calories = Math.max(0, Math.round(rawCal / 5) * 5);
+
   return {
     meal_title:
       (typeof value.meal_title === "string" ? value.meal_title.trim() : "") || "Прием пищи",
     meal_description: typeof value.meal_description === "string" ? value.meal_description.trim() : "",
-    calories: readNonNegativeNumber(value.calories),
+    calories,
     protein_g: readNonNegativeNumber(value.protein_g),
     fat_g: readNonNegativeNumber(value.fat_g),
     carbs_g: readNonNegativeNumber(value.carbs_g),

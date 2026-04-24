@@ -179,7 +179,7 @@ export async function analyzeMealPhoto(args: {
         content: [
           {
             type: "text",
-            text: "Проанализируй фото блюда и верни JSON с оценкой КБЖУ.",
+            text: "Проанализируй фото блюда и верни JSON с оценкой КБЖУ. Следуй фиксированному протоколу из system: сначала перечисли компоненты и оцени массы, затем суммируй КБЖУ.",
           },
           {
             type: "image_url",
@@ -192,6 +192,7 @@ export async function analyzeMealPhoto(args: {
     ],
     parseMealAnalysisResult,
     requestedModel,
+    { temperature: 0 },
   );
 
   return structured.parsed;
@@ -555,10 +556,16 @@ function extractJsonObject(content: string) {
   return candidate.slice(firstBrace, lastBrace + 1);
 }
 
+type StructuredJsonRequestOptions = {
+  /** Lower = more stable numeric estimates. Default 0.1. Meal analysis uses 0. */
+  temperature?: number;
+};
+
 async function requestStructuredJson<T>(
   messages: RouterAiChatMessage[],
   parser: (value: unknown) => T,
   model?: string,
+  requestOptions?: StructuredJsonRequestOptions,
 ) {
   const requestedModel = model ?? routerAiStructuredModel;
   const debug: VoiceExtractionDebug = {
@@ -574,7 +581,7 @@ async function requestStructuredJson<T>(
 
   const content = await requestRouterAi(messages, {
     model: requestedModel,
-    temperature: 0.1,
+    temperature: requestOptions?.temperature ?? 0.1,
   });
   debug.rawResponse = content;
   const jsonCandidate = extractJsonObject(content);
